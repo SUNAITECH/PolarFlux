@@ -5,6 +5,8 @@ class SerialPort {
     private var fileDescriptor: Int32 = -1
     private let queue = DispatchQueue(label: "com.lumisync.serial")
     
+    var onDisconnect: (() -> Void)?
+    
     var isConnected: Bool {
         return fileDescriptor >= 0
     }
@@ -27,14 +29,14 @@ class SerialPort {
         // Removed O_NONBLOCK to use blocking mode (handled by background queue)
         let fd = open(path, O_RDWR | O_NOCTTY)
         if fd == -1 {
-            print("Error opening port: \(errno)")
+            Logger.shared.log("Error opening port \(path): \(errno)")
             return false
         }
         
         // Configure the serial port
         var options = termios()
         if tcgetattr(fd, &options) == -1 {
-            print("Error getting attributes: \(errno)")
+            Logger.shared.log("Error getting attributes: \(errno)")
             Darwin.close(fd)
             return false
         }
@@ -88,12 +90,13 @@ class SerialPort {
         options.c_cc.17 = 0 // VTIME
         
         if tcsetattr(fd, TCSANOW, &options) == -1 {
-            print("Error setting attributes: \(errno)")
+            Logger.shared.log("Error setting attributes: \(errno)")
             Darwin.close(fd)
             return false
         }
         
         self.fileDescriptor = fd
+        Logger.shared.log("Connected to \(path) with baud rate \(baudRate)")
         return true
     }
     
@@ -103,6 +106,7 @@ class SerialPort {
     
     private func close() {
         if fileDescriptor >= 0 {
+            Logger.shared.log("Closing serial port")
             Darwin.close(fileDescriptor)
             fileDescriptor = -1
         }
@@ -122,13 +126,23 @@ class SerialPort {
                 let bytesWritten = write(self.fileDescriptor, baseAddress, buffer.count)
                 
                 if bytesWritten < 0 {
-                    print("Write error: \(errno)")
+                    let err = errno
+                    Logger.shared.log("Write error: \(err)")
+                    // Handle disconnection (ENXIO=6, EBADF=9, EIO=5)
+                    if err == 6 || err == 9 || err == 5 {
+                        self.close()
+                        DispatchQueue.main.async {
+                            self.onDisconnect?()
+                        }
+                    }
                 } else if bytesWritten < buffer.count {
-                    print("Partial write: \(bytesWritten)/\(buffer.count)")
+                    Logger.shared.log("Partial write: \(bytesWritten)/\(buffer.count)")
                 }
                 
                 // Wait for data to be transmitted (matches C++ tcdrain)
-                tcdrain(self.fileDescriptor)
+                if self.fileDescriptor >= 0 {
+                    tcdrain(self.fileDescriptor)
+                }
             }
             completion?()
         }

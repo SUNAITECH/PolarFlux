@@ -71,6 +71,21 @@ class AppState: ObservableObject {
         effectEngine.onFrame = { [weak self] data in
             self?.sendData(data)
         }
+        
+        // Setup Serial Disconnect Callback
+        serialPort.onDisconnect = { [weak self] in
+            Logger.shared.log("Serial port disconnected unexpectedly")
+            self?.handleDisconnection()
+        }
+    }
+    
+    func handleDisconnection() {
+        if isRunning {
+            stop()
+            statusMessage = "Connection Lost"
+            // Optional: Try to reconnect after a delay?
+            // For now, just stop to prevent error flooding.
+        }
     }
     
     func refreshPorts() {
@@ -92,6 +107,7 @@ class AppState: ObservableObject {
         guard connectSerial() else { return }
         isRunning = true
         statusMessage = "Running: \(currentMode.rawValue)"
+        Logger.shared.log("Starting mode: \(currentMode.rawValue)")
         
         startKeepAlive()
         
@@ -108,6 +124,7 @@ class AppState: ObservableObject {
     }
     
     func stop() {
+        Logger.shared.log("Stopping")
         isRunning = false
         statusMessage = "Stopped"
         
@@ -319,12 +336,14 @@ class AppState: ObservableObject {
     private func connectSerial() -> Bool {
         if !serialPort.isConnected {
             let baud = Int(baudRate) ?? 115200
+            Logger.shared.log("Connecting to \(selectedPort) at \(baud)")
             if serialPort.connect(path: selectedPort, baudRate: baud) {
                 // Wait for device to settle (Arduino reset etc)
                 usleep(1500000) // 1.5s
                 
                 // Handshake / Auto-detect
                 if let info = serialPort.getDeviceInfo() {
+                    Logger.shared.log("Device connected: \(info)")
                     print("Device connected: \(info)")
                     let parts = info.split(separator: ",")
                     if let model = parts.first.map({ String($0) }) {
@@ -337,6 +356,7 @@ class AppState: ObservableObject {
                 
                 return true
             } else {
+                Logger.shared.log("Connection Failed")
                 statusMessage = "Connection Failed"
                 return false
             }
@@ -417,6 +437,7 @@ class AppState: ObservableObject {
     ]
     
     func autoDetectDevice() {
+        Logger.shared.log("Starting auto-detection")
         guard connectSerial() else {
             statusMessage = "Connect first to detect"
             return
@@ -428,6 +449,7 @@ class AppState: ObservableObject {
         
         DispatchQueue.global(qos: .userInitiated).async {
             if let response = self.serialPort.getDeviceInfo() {
+                Logger.shared.log("Auto-detect response: \(response)")
                 // Response format: "Model,Serial"
                 let parts = response.split(separator: ",")
                 if let modelName = parts.first.map({ String($0) }) {
@@ -438,6 +460,8 @@ class AppState: ObservableObject {
                     }
                     return
                 }
+            } else {
+                Logger.shared.log("Auto-detect failed: No response")
             }
             
             DispatchQueue.main.async {
