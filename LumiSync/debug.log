@@ -259,3 +259,83 @@
 [3:03:39.467 PM] Stopping
 [3:03:45.969 PM] Stopping
 [3:03:46.488 PM] Starting mode: Manual
+[4:06:48.756 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[4:06:48.760 PM] Connecting to /dev/cu.usbserial-1140 at 921600
+[4:06:48.760 PM] Connected to /dev/cu.usbserial-1140 with baud rate 921600
+[4:07:15.606 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[4:07:15.607 PM] Connecting to /dev/cu.usbserial-1140 at 921600
+[4:07:15.609 PM] Connected to /dev/cu.usbserial-1140 with baud rate 921600
+[4:08:30.657 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[4:08:30.658 PM] Connecting to /dev/cu.usbserial-1140 at 921600
+[4:08:30.659 PM] Connected to /dev/cu.usbserial-1140 with baud rate 921600
+[4:13:23.570 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[4:13:23.575 PM] Connecting to /dev/cu.usbserial-1140 at 921600
+[4:13:23.576 PM] Connected to /dev/cu.usbserial-1140 with baud rate 921600
+[4:18:47.559 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[4:18:47.563 PM] Connecting to /dev/cu.usbserial-1140 at 921600
+[4:18:47.567 PM] Connected to /dev/cu.usbserial-1140 with baud rate 921600
+[4:18:48.296 PM] Starting mode: Manual
+[4:18:49.232 PM] Stopping
+[4:18:49.801 PM] Starting mode: Manual
+[4:18:50.366 PM] Stopping
+[4:18:50.959 PM] Starting mode: Manual
+[4:18:51.250 PM] Stopping
+[4:18:51.679 PM] Starting mode: Manual
+[4:18:51.995 PM] Stopping
+[4:18:55.364 PM] Starting mode: Manual
+[4:18:55.999 PM] Stopping
+[4:18:56.373 PM] Starting mode: Manual
+[4:18:56.634 PM] Stopping
+[4:18:56.992 PM] Starting mode: Manual
+[4:18:57.243 PM] Stopping
+[4:18:57.656 PM] Starting mode: Manual
+[4:18:58.805 PM] Stopping
+[4:19:04.705 PM] Starting mode: Manual
+[4:19:08.000 PM] Stopping
+[4:19:08.017 PM] Starting mode: Effects
+[4:19:12.038 PM] Stopping
+[4:19:12.319 PM] Starting mode: Manual
+[4:19:13.346 PM] Stopping
+[4:19:19.363 PM] Starting mode: Manual
+[4:19:20.135 PM] Stopping
+[4:19:20.637 PM] Starting mode: Manual
+[4:19:21.161 PM] Stopping
+[4:19:21.708 PM] Starting mode: Manual
+[4:19:22.263 PM] Stopping
+[4:19:22.624 PM] Starting mode: Manual
+[4:19:23.186 PM] Stopping
+[4:19:23.562 PM] Starting mode: Manual
+[4:19:24.221 PM] Stopping
+[4:20:16.106 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[4:20:16.106 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[4:20:16.109 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[4:20:17.719 PM] Device connected: SK0127,<"--(
+[4:20:17.720 PM] Starting mode: Manual
+[4:20:19.288 PM] Stopping
+[4:20:19.899 PM] Starting mode: Manual
+[4:20:20.878 PM] Stopping
+[4:20:21.462 PM] Starting mode: Manual
+[4:20:23.067 PM] Stopping
+[4:20:23.671 PM] Starting mode: Manual
+[4:20:24.748 PM] Stopping
+[4:20:25.298 PM] Starting mode: Manual
+[4:20:26.563 PM] Stopping
+[4:20:27.235 PM] Starting mode: Manual
+[4:20:38.710 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[4:20:38.710 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[4:20:38.713 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[4:20:40.320 PM] Device connected: SK0127,<"--(
+[4:20:40.320 PM] Starting mode: Manual
+[4:30:44.078 PM] Stopping
+[4:30:44.636 PM] Starting mode: Manual
+[4:30:45.493 PM] Stopping
+[4:30:45.516 PM] Starting mode: Effects
+[4:30:50.651 PM] Stopping
+[4:30:50.933 PM] Starting mode: Manual
+[4:30:57.811 PM] Starting auto-detection
+[4:30:57.812 PM] Stopping
+[4:30:57.917 PM] Auto-detect response: SK0127,<"--(
+[4:30:57.941 PM] Starting mode: Manual
+[4:30:59.610 PM] Stopping
+[4:31:06.159 PM] Stopping
+[4:31:06.725 PM] Starting mode: Manual

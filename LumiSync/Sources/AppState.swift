@@ -171,22 +171,33 @@ class AppState: ObservableObject {
     }
     
     func start() {
-        guard connectSerial() else { return }
-        isRunning = true
-        statusMessage = "Running: \(currentMode.rawValue)"
-        Logger.shared.log("Starting mode: \(currentMode.rawValue)")
+        if isRunning { return }
         
-        startKeepAlive()
+        statusMessage = "Connecting..."
         
-        switch currentMode {
-        case .sync:
-            startSync()
-        case .music:
-            startMusic()
-        case .effect:
-            startEffect()
-        case .manual:
-            startManual()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            if self.connectSerial() {
+                DispatchQueue.main.async {
+                    self.isRunning = true
+                    self.statusMessage = "Running: \(self.currentMode.rawValue)"
+                    Logger.shared.log("Starting mode: \(self.currentMode.rawValue)")
+                    
+                    self.startKeepAlive()
+                    
+                    switch self.currentMode {
+                    case .sync:
+                        self.startSync()
+                    case .music:
+                        self.startMusic()
+                    case .effect:
+                        self.startEffect()
+                    case .manual:
+                        self.startManual()
+                    }
+                }
+            }
         }
     }
     
@@ -348,7 +359,7 @@ class AppState: ObservableObject {
         }
     }
     
-    func updateManualColorFromRGB() {
+    func updateManualColorFromRGB(preview: Bool = true) {
         let r = UInt8(manualR)
         let g = UInt8(manualG)
         let b = UInt8(manualB)
@@ -356,11 +367,17 @@ class AppState: ObservableObject {
         // Update Color object
         self.manualColor = Color(red: manualR/255.0, green: manualG/255.0, blue: manualB/255.0)
         
-        setManualColor(r: r, g: g, b: b)
+        setManualColor(r: r, g: g, b: b, preview: preview)
     }
     
-    func setManualColor(r: UInt8, g: UInt8, b: UInt8) {
+    func setManualColor(r: UInt8, g: UInt8, b: UInt8, preview: Bool = true) {
         currentColor = (r, g, b)
+        
+        if !preview {
+            // Just update state, don't start or send data
+            return
+        }
+        
         if isRunning && currentMode == .manual {
             // Update immediately if not busy, to feel responsive
             if !isSending {
@@ -567,7 +584,9 @@ class AppState: ObservableObject {
                 return true
             } else {
                 Logger.shared.log("Connection Failed")
-                statusMessage = "Connection Failed"
+                DispatchQueue.main.async {
+                    self.statusMessage = "Connection Failed"
+                }
                 return false
             }
         }
@@ -672,7 +691,7 @@ class AppState: ObservableObject {
             manualR = mr
             manualG = mg
             manualB = mb
-            updateManualColorFromRGB()
+            updateManualColorFromRGB(preview: false)
         }
         
         if let micUID = UserDefaults.standard.string(forKey: "selectedMicrophoneUID") {
@@ -824,59 +843,67 @@ class AppState: ObservableObject {
         // Stop any running loop
         stop()
         
-        guard connectSerial() else { return }
+        statusMessage = "Connecting for Test..."
         
-        statusMessage = "Testing Orientation..."
-        isRunning = true // Mark as running so stop button works
-        
-        var position = 0
-        var cycles = 0
-        let totalLeds = Int(ledCount) ?? 100
-        
-        loopTimer = Timer.publish(every: 0.05, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                guard let self = self else { return }
-                
-                var data = [UInt8](repeating: 0, count: totalLeds * 3)
-                
-                // Draw a "Snake" of 10 pixels
-                let snakeLength = 10
-                for i in 0..<snakeLength {
-                    let pixelIndex = (position - i + totalLeds) % totalLeds
-                    // Head is white, tail fades to blue
-                    if i == 0 {
-                        data[pixelIndex * 3] = 255
-                        data[pixelIndex * 3 + 1] = 255
-                        data[pixelIndex * 3 + 2] = 255
-                    } else {
-                        let brightness = Double(snakeLength - i) / Double(snakeLength)
-                        data[pixelIndex * 3] = 0
-                        data[pixelIndex * 3 + 1] = 0
-                        data[pixelIndex * 3 + 2] = UInt8(255 * brightness)
-                    }
-                }
-                
-                self.sendData(data)
-                position += 1
-                
-                // Check for completion (2 full loops)
-                if position >= totalLeds {
-                    position = 0
-                    cycles += 1
-                    if cycles >= 2 {
-                        self.stop()
-                        self.statusMessage = "Test Complete"
-                        
-                        // Restore previous state if it was running
-                        if previousState {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                self.start()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            if self.connectSerial() {
+                DispatchQueue.main.async {
+                    self.statusMessage = "Testing Orientation..."
+                    self.isRunning = true // Mark as running so stop button works
+                    
+                    var position = 0
+                    var cycles = 0
+                    let totalLeds = Int(self.ledCount) ?? 100
+                    
+                    self.loopTimer = Timer.publish(every: 0.05, on: .main, in: .common)
+                        .autoconnect()
+                        .sink { [weak self] _ in
+                            guard let self = self else { return }
+                            
+                            var data = [UInt8](repeating: 0, count: totalLeds * 3)
+                            
+                            // Draw a "Snake" of 10 pixels
+                            let snakeLength = 10
+                            for i in 0..<snakeLength {
+                                let pixelIndex = (position - i + totalLeds) % totalLeds
+                                // Head is white, tail fades to blue
+                                if i == 0 {
+                                    data[pixelIndex * 3] = 255
+                                    data[pixelIndex * 3 + 1] = 255
+                                    data[pixelIndex * 3 + 2] = 255
+                                } else {
+                                    let brightness = Double(snakeLength - i) / Double(snakeLength)
+                                    data[pixelIndex * 3] = 0
+                                    data[pixelIndex * 3 + 1] = 0
+                                    data[pixelIndex * 3 + 2] = UInt8(255 * brightness)
+                                }
+                            }
+                            
+                            self.sendData(data)
+                            position += 1
+                            
+                            // Check for completion (2 full loops)
+                            if position >= totalLeds {
+                                position = 0
+                                cycles += 1
+                                if cycles >= 2 {
+                                    self.stop()
+                                    self.statusMessage = "Test Complete"
+                                    
+                                    // Restore previous state if it was running
+                                    if previousState {
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                            self.start()
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }
                 }
             }
+        }
     }
     
     private func startKeepAlive() {
