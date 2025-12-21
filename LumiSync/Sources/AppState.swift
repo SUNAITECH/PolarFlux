@@ -10,6 +10,21 @@ enum LightingMode: String, CaseIterable, Identifiable {
     var id: String { self.rawValue }
 }
 
+enum PowerMode: String, CaseIterable, Identifiable {
+    case abl = "Auto Brightness Limiter"
+    case globalCap = "Global Brightness Cap"
+    case smartFallback = "Smart Fallback"
+    
+    var id: String { self.rawValue }
+}
+
+enum ScreenOrientation: String, CaseIterable, Identifiable {
+    case standard = "Standard (CW from Bottom-Left)"
+    case reverse = "Reverse (CCW from Bottom-Right)"
+    
+    var id: String { self.rawValue }
+}
+
 class AppState: ObservableObject {
     @Published var selectedPort: String = ""
     @Published var availablePorts: [String] = []
@@ -26,18 +41,46 @@ class AppState: ObservableObject {
     @Published var brightness: Double = 1.0
     @Published var statusMessage: String = "Ready"
     
+    // Power Management
+    @Published var powerMode: PowerMode = .abl
+    @Published var powerLimit: Double = 0.9 // 90% default
+    @Published var isPowerLimited: Bool = false
+    @Published var limitReason: String = ""
+    
     // Modes
     @Published var currentMode: LightingMode = .manual
     @Published var isRunning: Bool = false
     
     // Sync Settings
     @Published var syncMode: SyncMode = .full
+    @Published var screenOrientation: ScreenOrientation = .standard
     
     // Effect Settings
     @Published var selectedEffect: EffectType = .rainbow
+    @Published var effectSpeeds: [EffectType: Double] = [
+        .rainbow: 1.0,
+        .breathing: 1.0,
+        .marquee: 1.0
+    ]
+    @Published var effectColors: [EffectType: Color] = [
+        .rainbow: .red, // Not used for rainbow
+        .breathing: .blue,
+        .marquee: .green
+    ]
     
     // Manual Settings
     @Published var manualColor: Color = .white
+    @Published var manualR: Double = 255
+    @Published var manualG: Double = 255
+    @Published var manualB: Double = 255
+    
+    // Audio Settings
+    @Published var availableMicrophones: [AudioInputDevice] = []
+    @Published var selectedMicrophoneUID: String = "" {
+        didSet {
+            updateMicrophone()
+        }
+    }
     
     // Auto Start
     @Published var launchAtLogin: Bool = LaunchAtLogin.isEnabled {
@@ -45,6 +88,9 @@ class AppState: ObservableObject {
             LaunchAtLogin.setEnabled(launchAtLogin)
         }
     }
+    
+    // Persistence
+    @Published var wasRunning: Bool = false
     
     private var isSending = false
     private var serialPort = SerialPort()
@@ -61,6 +107,7 @@ class AppState: ObservableObject {
     
     init() {
         refreshPorts()
+        refreshMicrophones()
         loadSettings()
         
         // Setup Audio Callback
@@ -82,10 +129,29 @@ class AppState: ObservableObject {
     
     func handleDisconnection() {
         if isRunning {
-            stop()
-            statusMessage = "Connection Lost"
-            // Optional: Try to reconnect after a delay?
-            // For now, just stop to prevent error flooding.
+            if powerMode == .smartFallback {
+                // Smart Fallback Logic
+                Logger.shared.log("Smart Fallback triggered. Reducing brightness.")
+                
+                // Reduce brightness by 10%
+                let newBrightness = max(0.1, brightness - 0.1)
+                brightness = newBrightness
+                
+                // Stop current run
+                stop()
+                statusMessage = "Power Limit Reached - Reducing Brightness"
+                
+                // Attempt to restart after a short delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    if !self.isRunning {
+                        self.statusMessage = "Auto-restarting with brightness \(Int(self.brightness * 100))%"
+                        self.start()
+                    }
+                }
+            } else {
+                stop()
+                statusMessage = "Connection Lost"
+            }
         }
     }
     
@@ -171,6 +237,7 @@ class AppState: ObservableObject {
             depth: Int(depth) ?? 100
         )
         let totalLeds = Int(ledCount) ?? 100
+        let orientation = self.screenOrientation
         
         loopTimer = Timer.publish(every: 0.05, on: .main, in: .common)
             .autoconnect()
@@ -181,7 +248,7 @@ class AppState: ObservableObject {
                 self.isSending = true
                 
                 Task {
-                    let data = await self.screenCapture.captureAndProcess(config: config, ledCount: totalLeds, mode: self.syncMode)
+                    let data = await self.screenCapture.captureAndProcess(config: config, ledCount: totalLeds, mode: self.syncMode, orientation: orientation)
                     self.sendData(data)
                 }
             }
@@ -227,13 +294,28 @@ class AppState: ObservableObject {
     // MARK: - Effect Mode
     private func startEffect() {
         let totalLeds = Int(ledCount) ?? 100
-        effectEngine.start(effect: selectedEffect, ledCount: totalLeds)
+        // Convert Color to RGB
+        var r: UInt8 = 255
+        var g: UInt8 = 0
+        var b: UInt8 = 0
+        
+        let color = effectColors[selectedEffect] ?? .red
+        let speed = effectSpeeds[selectedEffect] ?? 1.0
+        
+        if let rgb = color.cgColor?.components {
+            if rgb.count >= 3 {
+                r = UInt8(rgb[0] * 255)
+                g = UInt8(rgb[1] * 255)
+                b = UInt8(rgb[2] * 255)
+            }
+        }
+        
+        effectEngine.start(effect: selectedEffect, ledCount: totalLeds, speed: speed, color: (r, g, b))
     }
     
     func restartEffect() {
         if isRunning && currentMode == .effect {
-            stop()
-            start()
+            startEffect() // Restart with new params
         }
     }
     
@@ -257,8 +339,24 @@ class AppState: ObservableObject {
                 b = UInt8(rgb[0] * 255)
             }
             
+            // Update individual components without triggering loop
+            self.manualR = Double(r)
+            self.manualG = Double(g)
+            self.manualB = Double(b)
+            
             setManualColor(r: r, g: g, b: b)
         }
+    }
+    
+    func updateManualColorFromRGB() {
+        let r = UInt8(manualR)
+        let g = UInt8(manualG)
+        let b = UInt8(manualB)
+        
+        // Update Color object
+        self.manualColor = Color(red: manualR/255.0, green: manualG/255.0, blue: manualB/255.0)
+        
+        setManualColor(r: r, g: g, b: b)
     }
     
     func setManualColor(r: UInt8, g: UInt8, b: UInt8) {
@@ -344,10 +442,89 @@ class AppState: ObservableObject {
         self.lastSentData = data
         
         var finalData = data
-        // Apply brightness (Digital Dimming)
-        if brightness < 1.0 {
-            for i in 0..<finalData.count {
-                finalData[i] = UInt8(Double(finalData[i]) * brightness)
+        
+        // Apply Power Management Logic
+        switch powerMode {
+        case .abl:
+            // Automatic Brightness Limiter
+            // Calculate total brightness sum
+            var totalSum: Double = 0
+            for byte in finalData {
+                totalSum += Double(byte)
+            }
+            
+            // Max possible sum (all white)
+            let maxPossible = Double(finalData.count) * 255.0
+            let threshold = maxPossible * powerLimit
+            
+            if totalSum > threshold {
+                let scale = threshold / totalSum
+                for i in 0..<finalData.count {
+                    finalData[i] = UInt8(Double(finalData[i]) * scale)
+                }
+                
+                DispatchQueue.main.async {
+                    if !self.isPowerLimited {
+                        self.isPowerLimited = true
+                        self.limitReason = "Brightness reduced by Smart Protection"
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    if self.isPowerLimited {
+                        self.isPowerLimited = false
+                        self.limitReason = ""
+                    }
+                }
+            }
+            
+            // Apply user brightness on top
+            if brightness < 1.0 {
+                for i in 0..<finalData.count {
+                    finalData[i] = UInt8(Double(finalData[i]) * brightness)
+                }
+            }
+            
+        case .globalCap:
+            // Global Cap: Limit the maximum output brightness
+            // Effective brightness is min(userBrightness, powerLimit)
+            let effectiveBrightness = min(brightness, powerLimit)
+            
+            if brightness > powerLimit {
+                DispatchQueue.main.async {
+                    if !self.isPowerLimited {
+                        self.isPowerLimited = true
+                        self.limitReason = "Capped by Safe Mode"
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    if self.isPowerLimited {
+                        self.isPowerLimited = false
+                        self.limitReason = ""
+                    }
+                }
+            }
+            
+            if effectiveBrightness < 1.0 {
+                for i in 0..<finalData.count {
+                    finalData[i] = UInt8(Double(finalData[i]) * effectiveBrightness)
+                }
+            }
+            
+        case .smartFallback:
+            // Smart Fallback: Just apply user brightness normally
+            DispatchQueue.main.async {
+                if self.isPowerLimited {
+                    self.isPowerLimited = false
+                    self.limitReason = ""
+                }
+            }
+            // Fallback logic is handled in handleDisconnection
+            if brightness < 1.0 {
+                for i in 0..<finalData.count {
+                    finalData[i] = UInt8(Double(finalData[i]) * brightness)
+                }
             }
         }
         
@@ -408,6 +585,32 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(depth, forKey: "depth")
         UserDefaults.standard.set(brightness, forKey: "brightness")
         UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
+        UserDefaults.standard.set(powerMode.rawValue, forKey: "powerMode")
+        UserDefaults.standard.set(powerLimit, forKey: "powerLimit")
+        UserDefaults.standard.set(currentMode.rawValue, forKey: "currentMode")
+        UserDefaults.standard.set(isRunning, forKey: "wasRunning")
+        UserDefaults.standard.set(selectedEffect.rawValue, forKey: "selectedEffect")
+        
+        // Save Effect Speeds
+        let speeds = effectSpeeds.reduce(into: [String: Double]()) { $0[$1.key.rawValue] = $1.value }
+        UserDefaults.standard.set(speeds, forKey: "effectSpeeds")
+        
+        // Save Effect Colors
+        let colors = effectColors.reduce(into: [String: [CGFloat]]()) {
+            if let components = $1.value.cgColor?.components {
+                $0[$1.key.rawValue] = components
+            }
+        }
+        UserDefaults.standard.set(colors, forKey: "effectColors")
+        
+        UserDefaults.standard.set(screenOrientation.rawValue, forKey: "screenOrientation")
+        
+        // Save Manual Color
+        UserDefaults.standard.set(manualR, forKey: "manualR")
+        UserDefaults.standard.set(manualG, forKey: "manualG")
+        UserDefaults.standard.set(manualB, forKey: "manualB")
+        
+        UserDefaults.standard.set(selectedMicrophoneUID, forKey: "selectedMicrophoneUID")
     }
     
     func loadSettings() {
@@ -422,6 +625,67 @@ class AppState: ObservableObject {
         let br = UserDefaults.standard.double(forKey: "brightness")
         if br > 0 { brightness = br }
         launchAtLogin = UserDefaults.standard.bool(forKey: "launchAtLogin")
+        
+        if let pm = UserDefaults.standard.string(forKey: "powerMode"), let mode = PowerMode(rawValue: pm) {
+            powerMode = mode
+        }
+        let pl = UserDefaults.standard.double(forKey: "powerLimit")
+        if pl > 0 { powerLimit = pl }
+        
+        if let modeStr = UserDefaults.standard.string(forKey: "currentMode"), let mode = LightingMode(rawValue: modeStr) {
+            currentMode = mode
+        }
+        
+        wasRunning = UserDefaults.standard.bool(forKey: "wasRunning")
+        
+        if let effStr = UserDefaults.standard.string(forKey: "selectedEffect"), let eff = EffectType(rawValue: effStr) {
+            selectedEffect = eff
+        }
+        
+        // Load Effect Speeds
+        if let speeds = UserDefaults.standard.dictionary(forKey: "effectSpeeds") as? [String: Double] {
+            for (key, value) in speeds {
+                if let type = EffectType(rawValue: key) {
+                    effectSpeeds[type] = value
+                }
+            }
+        }
+        
+        // Load Effect Colors
+        if let colors = UserDefaults.standard.dictionary(forKey: "effectColors") as? [String: [CGFloat]] {
+            for (key, components) in colors {
+                if let type = EffectType(rawValue: key), components.count >= 3 {
+                    effectColors[type] = Color(red: components[0], green: components[1], blue: components[2])
+                }
+            }
+        }
+        
+        if let orientStr = UserDefaults.standard.string(forKey: "screenOrientation"), let orient = ScreenOrientation(rawValue: orientStr) {
+            screenOrientation = orient
+        }
+        
+        let mr = UserDefaults.standard.double(forKey: "manualR")
+        let mg = UserDefaults.standard.double(forKey: "manualG")
+        let mb = UserDefaults.standard.double(forKey: "manualB")
+        // Only load if they are not all 0 (unless user really wanted black, but default is 255)
+        if mr > 0 || mg > 0 || mb > 0 {
+            manualR = mr
+            manualG = mg
+            manualB = mb
+            updateManualColorFromRGB()
+        }
+        
+        if let micUID = UserDefaults.standard.string(forKey: "selectedMicrophoneUID") {
+            selectedMicrophoneUID = micUID
+        }
+        
+        // Auto-start if was running
+        if wasRunning {
+            // Delay slightly to allow UI to load
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.start()
+            }
+        }
     }
     
     // MARK: - Auto Detect
@@ -552,6 +816,69 @@ class AppState: ObservableObject {
         }
     }
     
+    // MARK: - Test Mode
+    func startOrientationTest() {
+        // Save current state
+        let previousState = isRunning
+        
+        // Stop any running loop
+        stop()
+        
+        guard connectSerial() else { return }
+        
+        statusMessage = "Testing Orientation..."
+        isRunning = true // Mark as running so stop button works
+        
+        var position = 0
+        var cycles = 0
+        let totalLeds = Int(ledCount) ?? 100
+        
+        loopTimer = Timer.publish(every: 0.05, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                
+                var data = [UInt8](repeating: 0, count: totalLeds * 3)
+                
+                // Draw a "Snake" of 10 pixels
+                let snakeLength = 10
+                for i in 0..<snakeLength {
+                    let pixelIndex = (position - i + totalLeds) % totalLeds
+                    // Head is white, tail fades to blue
+                    if i == 0 {
+                        data[pixelIndex * 3] = 255
+                        data[pixelIndex * 3 + 1] = 255
+                        data[pixelIndex * 3 + 2] = 255
+                    } else {
+                        let brightness = Double(snakeLength - i) / Double(snakeLength)
+                        data[pixelIndex * 3] = 0
+                        data[pixelIndex * 3 + 1] = 0
+                        data[pixelIndex * 3 + 2] = UInt8(255 * brightness)
+                    }
+                }
+                
+                self.sendData(data)
+                position += 1
+                
+                // Check for completion (2 full loops)
+                if position >= totalLeds {
+                    position = 0
+                    cycles += 1
+                    if cycles >= 2 {
+                        self.stop()
+                        self.statusMessage = "Test Complete"
+                        
+                        // Restore previous state if it was running
+                        if previousState {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                self.start()
+                            }
+                        }
+                    }
+                }
+            }
+    }
+    
     private func startKeepAlive() {
         keepAliveTimer?.invalidate()
         keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -579,5 +906,22 @@ class AppState: ObservableObject {
     private func stopKeepAlive() {
         keepAliveTimer?.invalidate()
         keepAliveTimer = nil
+    }
+    
+    func refreshMicrophones() {
+        availableMicrophones = audioProcessor.getAvailableInputs()
+        // If selected UID is empty or not found, select default (first)
+        if selectedMicrophoneUID.isEmpty, let first = availableMicrophones.first {
+            selectedMicrophoneUID = first.uid
+        } else if !availableMicrophones.contains(where: { $0.uid == selectedMicrophoneUID }), let first = availableMicrophones.first {
+            selectedMicrophoneUID = first.uid
+        }
+        updateMicrophone()
+    }
+    
+    private func updateMicrophone() {
+        if let device = availableMicrophones.first(where: { $0.uid == selectedMicrophoneUID }) {
+            audioProcessor.setDevice(id: device.id)
+        }
     }
 }

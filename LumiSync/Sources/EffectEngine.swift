@@ -16,13 +16,16 @@ class EffectEngine {
     
     var onFrame: (([UInt8]) -> Void)?
     
-    func start(effect: EffectType, ledCount: Int) {
+    func start(effect: EffectType, ledCount: Int, speed: Double, color: (r: UInt8, g: UInt8, b: UInt8)) {
         self.currentEffect = effect
         self.step = 0
         
+        // Speed: 1.0 = 0.05s interval. 2.0 = 0.025s. 0.5 = 0.1s.
+        let interval = 0.05 / speed
+        
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            self?.generateFrame(ledCount: ledCount)
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            self?.generateFrame(ledCount: ledCount, color: color)
         }
     }
     
@@ -31,7 +34,7 @@ class EffectEngine {
         timer = nil
     }
     
-    private func generateFrame(ledCount: Int) {
+    private func generateFrame(ledCount: Int, color: (r: UInt8, g: UInt8, b: UInt8)) {
         var data = [UInt8]()
         data.reserveCapacity(ledCount * 3)
         
@@ -42,8 +45,8 @@ class EffectEngine {
             // Moving rainbow
             for i in 0..<ledCount {
                 let hue = Double((i * 5 + step * 2) % 360) / 360.0
-                let color = NSColor(hue: hue, saturation: 1.0, brightness: 1.0, alpha: 1.0)
-                if let rgb = color.usingColorSpace(.deviceRGB) {
+                let c = NSColor(hue: hue, saturation: 1.0, brightness: 1.0, alpha: 1.0)
+                if let rgb = c.usingColorSpace(.deviceRGB) {
                     data.append(UInt8(rgb.redComponent * 255))
                     data.append(UInt8(rgb.greenComponent * 255))
                     data.append(UInt8(rgb.blueComponent * 255))
@@ -53,21 +56,26 @@ class EffectEngine {
             }
             
         case .breathing:
-            // Red breathing
+            // Breathing with custom color
             let intensity = (sin(Double(step) * 0.1) + 1.0) / 2.0
-            let val = UInt8(intensity * 255)
+            let r = UInt8(Double(color.r) * intensity)
+            let g = UInt8(Double(color.g) * intensity)
+            let b = UInt8(Double(color.b) * intensity)
+            
             for _ in 0..<ledCount {
-                data.append(val) // R
-                data.append(0)   // G
-                data.append(0)   // B
+                data.append(r)
+                data.append(g)
+                data.append(b)
             }
             
         case .marquee:
-            // Running white dot
+            // Running dot with custom color
             let pos = step % ledCount
             for i in 0..<ledCount {
                 if i == pos {
-                    data.append(contentsOf: [255, 255, 255])
+                    data.append(color.r)
+                    data.append(color.g)
+                    data.append(color.b)
                 } else {
                     data.append(contentsOf: [0, 0, 0])
                 }

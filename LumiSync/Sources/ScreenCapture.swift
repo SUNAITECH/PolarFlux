@@ -32,7 +32,7 @@ class ScreenCapture {
         }
     }
     
-    func captureAndProcess(config: ZoneConfig, ledCount: Int, mode: SyncMode) async -> [UInt8] {
+    func captureAndProcess(config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation) async -> [UInt8] {
         do {
             // This call will throw if permission is denied, but we should have checked before starting the loop.
             // If it throws here, it means permission was revoked or something else is wrong.
@@ -117,64 +117,92 @@ class ScreenCapture {
                 capWidth = width / 2
             }
             
-            // Skydimo / Adalight Standard Order: Counter-Clockwise from Bottom-Right
-            // 1. Right Zone (Bottom -> Top)
-            if config.right > 0 {
-                let hStep = capHeight / config.right
-                for i in 0..<config.right {
-                    // Bottom to Top
-                    // i=0 is bottom-most pixel of right side
-                    let y = yOffset + capHeight - ((i + 1) * hStep)
-                    let rect = CGRect(x: xOffset + capWidth - config.depth, y: y, width: config.depth, height: hStep)
-                    let color = getAverageColor(rect: rect)
-                    ledData.append(color.r)
-                    ledData.append(color.g)
-                    ledData.append(color.b)
-                }
-            }
-
-            // 2. Top Zone (Right -> Left)
-            if config.top > 0 {
-                let wStep = capWidth / config.top
-                for i in 0..<config.top {
-                    // Right to Left
-                    // i=0 is right-most pixel of top side
-                    let x = xOffset + capWidth - ((i + 1) * wStep)
-                    let rect = CGRect(x: x, y: yOffset, width: wStep, height: config.depth)
-                    let color = getAverageColor(rect: rect)
-                    ledData.append(color.r)
-                    ledData.append(color.g)
-                    ledData.append(color.b)
-                }
-            }
-
-            // 3. Left Zone (Top -> Bottom)
-            if config.left > 0 {
-                let hStep = capHeight / config.left
-                for i in 0..<config.left {
-                    // Top to Bottom
-                    // i=0 is top-most pixel of left side
-                    let y = yOffset + (i * hStep)
-                    let rect = CGRect(x: xOffset, y: y, width: config.depth, height: hStep)
-                    let color = getAverageColor(rect: rect)
-                    ledData.append(color.r)
-                    ledData.append(color.g)
-                    ledData.append(color.b)
-                }
-            }
+            // Standard: Clockwise from Bottom-Left (Left -> Top -> Right -> Bottom)
+            // Reverse: Counter-Clockwise from Bottom-Right (Right -> Top -> Left -> Bottom)
             
-            // 4. Bottom Zone (Left -> Right) - Completing the loop
-            if config.bottom > 0 {
-                let wStep = capWidth / config.bottom
-                for i in 0..<config.bottom {
-                    // Left to Right
-                    // i=0 is left-most pixel of bottom side
-                    let x = xOffset + (i * wStep)
-                    let rect = CGRect(x: x, y: yOffset + capHeight - config.depth, width: wStep, height: config.depth)
-                    let color = getAverageColor(rect: rect)
-                    ledData.append(color.r)
-                    ledData.append(color.g)
-                    ledData.append(color.b)
+            if orientation == .standard {
+                // Standard: Clockwise from Bottom-Left
+                // 1. Left Zone (Bottom -> Top)
+                if config.left > 0 {
+                    let hStep = capHeight / config.left
+                    for i in 0..<config.left {
+                        let y = yOffset + capHeight - ((i + 1) * hStep)
+                        let rect = CGRect(x: xOffset, y: y, width: config.depth, height: hStep)
+                        let color = getAverageColor(rect: rect)
+                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                    }
+                }
+                // 2. Top Zone (Left -> Right)
+                if config.top > 0 {
+                    let wStep = capWidth / config.top
+                    for i in 0..<config.top {
+                        let x = xOffset + (i * wStep)
+                        let rect = CGRect(x: x, y: yOffset, width: wStep, height: config.depth)
+                        let color = getAverageColor(rect: rect)
+                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                    }
+                }
+                // 3. Right Zone (Top -> Bottom)
+                if config.right > 0 {
+                    let hStep = capHeight / config.right
+                    for i in 0..<config.right {
+                        let y = yOffset + (i * hStep)
+                        let rect = CGRect(x: xOffset + capWidth - config.depth, y: y, width: config.depth, height: hStep)
+                        let color = getAverageColor(rect: rect)
+                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                    }
+                }
+                // 4. Bottom Zone (Right -> Left)
+                if config.bottom > 0 {
+                    let wStep = capWidth / config.bottom
+                    for i in 0..<config.bottom {
+                        let x = xOffset + capWidth - ((i + 1) * wStep)
+                        let rect = CGRect(x: x, y: yOffset + capHeight - config.depth, width: wStep, height: config.depth)
+                        let color = getAverageColor(rect: rect)
+                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                    }
+                }
+            } else {
+                // Reverse: Counter-Clockwise from Bottom-Right
+                // 1. Right Zone (Bottom -> Top)
+                if config.right > 0 {
+                    let hStep = capHeight / config.right
+                    for i in 0..<config.right {
+                        let y = yOffset + capHeight - ((i + 1) * hStep)
+                        let rect = CGRect(x: xOffset + capWidth - config.depth, y: y, width: config.depth, height: hStep)
+                        let color = getAverageColor(rect: rect)
+                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                    }
+                }
+                // 2. Top Zone (Right -> Left)
+                if config.top > 0 {
+                    let wStep = capWidth / config.top
+                    for i in 0..<config.top {
+                        let x = xOffset + capWidth - ((i + 1) * wStep)
+                        let rect = CGRect(x: x, y: yOffset, width: wStep, height: config.depth)
+                        let color = getAverageColor(rect: rect)
+                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                    }
+                }
+                // 3. Left Zone (Top -> Bottom)
+                if config.left > 0 {
+                    let hStep = capHeight / config.left
+                    for i in 0..<config.left {
+                        let y = yOffset + (i * hStep)
+                        let rect = CGRect(x: xOffset, y: y, width: config.depth, height: hStep)
+                        let color = getAverageColor(rect: rect)
+                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                    }
+                }
+                // 4. Bottom Zone (Left -> Right)
+                if config.bottom > 0 {
+                    let wStep = capWidth / config.bottom
+                    for i in 0..<config.bottom {
+                        let x = xOffset + (i * wStep)
+                        let rect = CGRect(x: x, y: yOffset + capHeight - config.depth, width: wStep, height: config.depth)
+                        let color = getAverageColor(rect: rect)
+                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                    }
                 }
             }
             
