@@ -22,6 +22,8 @@ enum SyncMode: String, CaseIterable, Identifiable {
 
 class ScreenCapture {
     
+    private var previousColors: [(Double, Double, Double)] = []
+    
     // Check permission once
     static func checkPermission() async -> Bool {
         do {
@@ -497,6 +499,28 @@ class ScreenCapture {
                     
                     smoothedColors[i] = (UInt8(r), UInt8(g), UInt8(b))
                 }
+            }
+            
+            // --- Temporal Interpolation (Time Smoothing) ---
+            // Initialize previousColors if size mismatch
+            if self.previousColors.count != smoothedColors.count {
+                self.previousColors = smoothedColors.map { (Double($0.0), Double($0.1), Double($0.2)) }
+            }
+            
+            // Smoothing factor (0.0 - 1.0). Lower is smoother/slower.
+            // 0.15 at 20fps gives a nice fluid "Ambilight" feel.
+            let alpha = 0.15
+            
+            for i in 0..<smoothedColors.count {
+                let target = smoothedColors[i]
+                let prev = self.previousColors[i]
+                
+                let newR = prev.0 + (Double(target.0) - prev.0) * alpha
+                let newG = prev.1 + (Double(target.1) - prev.1) * alpha
+                let newB = prev.2 + (Double(target.2) - prev.2) * alpha
+                
+                self.previousColors[i] = (newR, newG, newB)
+                smoothedColors[i] = (UInt8(newR), UInt8(newG), UInt8(newB))
             }
             
             for color in smoothedColors {
