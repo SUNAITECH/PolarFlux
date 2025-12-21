@@ -32,13 +32,17 @@ class ScreenCapture {
         }
     }
     
-    func captureAndProcess(config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation) async -> [UInt8] {
+    func getDisplay() async -> SCDisplay? {
         do {
-            // This call will throw if permission is denied, but we should have checked before starting the loop.
-            // If it throws here, it means permission was revoked or something else is wrong.
             let content = try await SCShareableContent.current
-            guard let display = content.displays.first else { return [] }
-            
+            return content.displays.first
+        } catch {
+            return nil
+        }
+    }
+
+    func captureAndProcess(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation) async -> [UInt8] {
+        do {
             let filter = SCContentFilter(display: display, excludingWindows: [])
             let streamConfig = SCStreamConfiguration()
             streamConfig.width = display.width

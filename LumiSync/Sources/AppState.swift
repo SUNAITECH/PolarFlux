@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import ScreenCaptureKit
 
 enum LightingMode: String, CaseIterable, Identifiable {
     case sync = "Screen Sync"
@@ -93,6 +94,8 @@ class AppState: ObservableObject {
     @Published var wasRunning: Bool = false
     
     private var isSending = false
+    private var isCapturing = false
+    private var cachedDisplay: SCDisplay?
     private var serialPort = SerialPort()
     private var screenCapture = ScreenCapture()
     private var audioProcessor = AudioProcessor()
@@ -208,6 +211,7 @@ class AppState: ObservableObject {
         
         loopTimer?.cancel()
         loopTimer = nil
+        cachedDisplay = nil
         
         audioProcessor.stop()
         effectEngine.stop()
@@ -255,11 +259,21 @@ class AppState: ObservableObject {
             .sink { [weak self] _ in
                 guard let self = self else { return }
                 
-                if self.isSending { return }
-                self.isSending = true
+                if self.isCapturing { return }
+                self.isCapturing = true
                 
                 Task {
-                    let data = await self.screenCapture.captureAndProcess(config: config, ledCount: totalLeds, mode: self.syncMode, orientation: orientation)
+                    if self.cachedDisplay == nil {
+                        self.cachedDisplay = await self.screenCapture.getDisplay()
+                    }
+                    
+                    guard let display = self.cachedDisplay else {
+                        self.isCapturing = false
+                        return
+                    }
+                    
+                    let data = await self.screenCapture.captureAndProcess(display: display, config: config, ledCount: totalLeds, mode: self.syncMode, orientation: orientation)
+                    self.isCapturing = false
                     self.sendData(data)
                 }
             }
