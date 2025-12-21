@@ -141,7 +141,21 @@ class SerialPort {
                 
                 // Wait for data to be transmitted (matches C++ tcdrain)
                 if self.fileDescriptor >= 0 {
-                    tcdrain(self.fileDescriptor)
+                    let result = tcdrain(self.fileDescriptor)
+                    if result == -1 {
+                        let err = errno
+                        Logger.shared.log("tcdrain error: \(err)")
+                        if err == 6 || err == 9 || err == 5 {
+                            self.close()
+                            DispatchQueue.main.async {
+                                self.onDisconnect?()
+                            }
+                            completion?()
+                            return
+                        }
+                    }
+                    // Add a delay to prevent overwhelming the device/driver
+                    usleep(4000) 
                 }
             }
             completion?()
@@ -150,8 +164,13 @@ class SerialPort {
     
     func sendSkydimo(rgbData: [UInt8], completion: (() -> Void)? = nil) {
         // Skydimo protocol: Ada + 0x00 + Count Hi + Count Lo + Data
-        // Note: Count is the actual number of LEDs, not count-1
+        // Note: Count is the actual number of LEDs
         let count = rgbData.count / 3
+        guard count > 0 else {
+            completion?()
+            return
+        }
+        
         let hi = UInt8((count >> 8) & 0xFF)
         let lo = UInt8(count & 0xFF)
         

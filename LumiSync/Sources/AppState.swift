@@ -57,6 +57,7 @@ class AppState: ObservableObject {
     
     private var lastSentData: [UInt8]?
     private var keepAliveTimer: Timer?
+    private var lastConnectionAttempt: Date = .distantPast
     
     init() {
         refreshPorts()
@@ -289,6 +290,29 @@ class AppState: ObservableObject {
     }
     
     private func startManual() {
+        // Ensure currentColor is set from manualColor if nil
+        if currentColor == nil {
+            if let rgb = manualColor.cgColor?.components {
+                var r: UInt8 = 0
+                var g: UInt8 = 0
+                var b: UInt8 = 0
+                
+                if rgb.count >= 3 {
+                    r = UInt8(rgb[0] * 255)
+                    g = UInt8(rgb[1] * 255)
+                    b = UInt8(rgb[2] * 255)
+                } else if rgb.count == 2 {
+                    r = UInt8(rgb[0] * 255)
+                    g = UInt8(rgb[0] * 255)
+                    b = UInt8(rgb[0] * 255)
+                }
+                currentColor = (r, g, b)
+            } else {
+                // Fallback to white
+                currentColor = (255, 255, 255)
+            }
+        }
+
         // Heartbeat
         loopTimer = Timer.publish(every: 0.2, on: .main, in: .common)
             .autoconnect()
@@ -316,15 +340,16 @@ class AppState: ObservableObject {
         if isSending { return }
         isSending = true
         
+        // Store original data for keep-alive to prevent recursive dimming
+        self.lastSentData = data
+        
         var finalData = data
-        // Apply brightness
+        // Apply brightness (Digital Dimming)
         if brightness < 1.0 {
             for i in 0..<finalData.count {
                 finalData[i] = UInt8(Double(finalData[i]) * brightness)
             }
         }
-        
-        self.lastSentData = finalData
         
         serialPort.sendSkydimo(rgbData: finalData) { [weak self] in
             DispatchQueue.main.async {
@@ -334,6 +359,14 @@ class AppState: ObservableObject {
     }
     
     private func connectSerial() -> Bool {
+        // Prevent flooding connection attempts
+        let now = Date()
+        if now.timeIntervalSince(lastConnectionAttempt) < 1.0 && !serialPort.isConnected {
+            Logger.shared.log("Throttling connection attempt")
+            return false
+        }
+        lastConnectionAttempt = now
+
         if !serialPort.isConnected {
             let baud = Int(baudRate) ?? 115200
             Logger.shared.log("Connecting to \(selectedPort) at \(baud)")
