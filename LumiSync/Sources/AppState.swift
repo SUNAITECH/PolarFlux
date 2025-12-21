@@ -75,6 +75,11 @@ class AppState: ObservableObject {
     @Published var manualG: Double = 255
     @Published var manualB: Double = 255
     
+    // Calibration
+    @Published var calibrationR: Double = 1.0
+    @Published var calibrationG: Double = 1.0
+    @Published var calibrationB: Double = 1.0
+    
     // Audio Settings
     @Published var availableMicrophones: [AudioInputDevice] = []
     @Published var selectedMicrophoneUID: String = "" {
@@ -474,6 +479,17 @@ class AppState: ObservableObject {
         
         var finalData = data
         
+        // Apply Calibration
+        if calibrationR != 1.0 || calibrationG != 1.0 || calibrationB != 1.0 {
+            for i in stride(from: 0, to: finalData.count, by: 3) {
+                if i + 2 < finalData.count {
+                    finalData[i] = UInt8(min(Double(finalData[i]) * calibrationR, 255.0))
+                    finalData[i+1] = UInt8(min(Double(finalData[i+1]) * calibrationG, 255.0))
+                    finalData[i+2] = UInt8(min(Double(finalData[i+2]) * calibrationB, 255.0))
+                }
+            }
+        }
+        
         // Apply Power Management Logic
         switch powerMode {
         case .abl:
@@ -643,6 +659,11 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(manualG, forKey: "manualG")
         UserDefaults.standard.set(manualB, forKey: "manualB")
         
+        // Save Calibration
+        UserDefaults.standard.set(calibrationR, forKey: "calibrationR")
+        UserDefaults.standard.set(calibrationG, forKey: "calibrationG")
+        UserDefaults.standard.set(calibrationB, forKey: "calibrationB")
+        
         UserDefaults.standard.set(selectedMicrophoneUID, forKey: "selectedMicrophoneUID")
     }
     
@@ -664,6 +685,14 @@ class AppState: ObservableObject {
         }
         let pl = UserDefaults.standard.double(forKey: "powerLimit")
         if pl > 0 { powerLimit = pl }
+        
+        // Load Calibration
+        let cR = UserDefaults.standard.double(forKey: "calibrationR")
+        if cR > 0 { calibrationR = cR }
+        let cG = UserDefaults.standard.double(forKey: "calibrationG")
+        if cG > 0 { calibrationG = cG }
+        let cB = UserDefaults.standard.double(forKey: "calibrationB")
+        if cB > 0 { calibrationB = cB }
         
         if let modeStr = UserDefaults.standard.string(forKey: "currentMode"), let mode = LightingMode(rawValue: modeStr) {
             currentMode = mode

@@ -357,3 +357,49 @@
 [4:52:20.885 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
 [4:52:22.494 PM] Device connected: SK0127,<"--(
 [4:52:22.494 PM] Starting mode: Screen Sync
+[5:24:28.590 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[5:24:28.592 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[5:24:28.595 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[5:24:30.206 PM] Device connected: SK0127,<"--(
+[5:24:30.206 PM] Starting mode: Screen Sync
+[5:24:30.223 PM] Stopping
+[5:24:37.711 PM] Starting mode: Manual
+[5:25:54.142 PM] Stopping
+[5:25:54.168 PM] Starting mode: Effects
+[5:27:46.104 PM] Stopping
+[5:27:46.658 PM] Starting mode: Effects
+[5:27:47.416 PM] Stopping
+[5:27:47.782 PM] Starting mode: Effects
+[5:27:48.256 PM] Stopping
+[5:27:48.552 PM] Starting mode: Effects
+[5:27:49.125 PM] Stopping
+[5:27:49.385 PM] Starting mode: Effects
+[5:27:59.048 PM] Stopping
+[5:28:05.585 PM] Stopping
+[5:28:06.121 PM] Starting mode: Effects
+[5:29:09.791 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[5:29:09.792 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[5:29:09.795 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[5:29:11.405 PM] Device connected: SK0127,<"--(
+[5:29:11.406 PM] Starting mode: Effects
+[5:29:14.344 PM] Stopping
+[5:29:16.890 PM] Starting mode: Effects
+[6:09:14.021 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[6:09:14.022 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[6:09:14.025 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[6:09:15.631 PM] Device connected: SK0127,<"--(
+[6:09:15.632 PM] Starting mode: Effects
+[6:09:15.879 PM] Stopping
+[6:09:15.890 PM] Starting mode: Screen Sync
+[6:09:15.899 PM] Stopping
+[6:09:28.612 PM] Starting mode: Screen Sync
+[6:09:28.625 PM] Stopping
+[6:09:42.554 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[6:09:42.555 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[6:09:42.558 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[6:09:44.166 PM] Device connected: SK0127,<"--(
+[6:09:44.167 PM] Starting mode: Screen Sync
+[6:10:10.588 PM] Stopping
+[6:10:10.894 PM] Starting mode: Manual
+[6:49:02.121 PM] Stopping
+[6:49:02.148 PM] Starting mode: Effects

@@ -15,6 +15,11 @@ struct SettingsView: View {
                     Label("LED Layout", systemImage: "lightbulb.led")
                 }
             
+            calibrationSettings
+                .tabItem {
+                    Label("Calibration", systemImage: "slider.horizontal.3")
+                }
+            
             powerSettings
                 .tabItem {
                     Label("Power", systemImage: "bolt.shield")
@@ -152,6 +157,50 @@ struct SettingsView: View {
                     Text("If the lights turn off, the app will automatically restart them at a lower brightness.")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding()
+    }
+    
+    var calibrationSettings: some View {
+        Form {
+            Section(header: Text("White Balance Calibration").font(.headline)) {
+                Text("Adjust these sliders if your white looks blue or red.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Red Gain")
+                            .frame(width: 80, alignment: .leading)
+                        Slider(value: $appState.calibrationR, in: 0.0...1.0)
+                        Text(String(format: "%.2f", appState.calibrationR))
+                            .frame(width: 40)
+                    }
+                    
+                    HStack {
+                        Text("Green Gain")
+                            .frame(width: 80, alignment: .leading)
+                        Slider(value: $appState.calibrationG, in: 0.0...1.0)
+                        Text(String(format: "%.2f", appState.calibrationG))
+                            .frame(width: 40)
+                    }
+                    
+                    HStack {
+                        Text("Blue Gain")
+                            .frame(width: 80, alignment: .leading)
+                        Slider(value: $appState.calibrationB, in: 0.0...1.0)
+                        Text(String(format: "%.2f", appState.calibrationB))
+                            .frame(width: 40)
+                    }
+                    
+                    Button("Reset Calibration") {
+                        appState.calibrationR = 1.0
+                        appState.calibrationG = 1.0
+                        appState.calibrationB = 1.0
+                    }
+                    .padding(.top)
                 }
             }
         }
