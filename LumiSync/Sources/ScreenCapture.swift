@@ -80,11 +80,12 @@ class ScreenCapture {
                 var bestColor: (r: UInt8, g: UInt8, b: UInt8) = (0, 0, 0)
                 var bestScore: Double = -1.0
                 
-                // Search Inwards Loop (Max 5 steps)
-                let maxSteps = 5
+                // Search Inwards Loop (Deep Search)
+                // We search up to 80% towards the center to find ANY vibrant color.
+                let maxSteps = 8
                 
                 for step in 0..<maxSteps {
-                    let factor = Double(step) * 0.15
+                    let factor = Double(step) * 0.10 // 0%, 10%, 20% ... 70%
                     let offsetX = dx * factor
                     let offsetY = dy * factor
                     
@@ -93,12 +94,33 @@ class ScreenCapture {
                     
                     let score = calculateVibrancyScore(r: r, g: g, b: b)
                     
-                    if score > bestScore {
+                    // If this step is significantly better, take it.
+                    // We prefer outer steps if scores are similar, so we require a small improvement to switch inwards.
+                    if score > bestScore + 0.1 {
                         bestScore = score
                         bestColor = (r, g, b)
                     }
                     
-                    if score > 1.5 { break }
+                    // Stop Condition: Found a very vibrant color (High Saturation)
+                    // Score > 2.5 means Saturation is likely > 0.7
+                    if score > 2.5 { break }
+                }
+                
+                // Post-Processing: Auto-Brightness Boost
+                // If we found a color that has hue (Sat > 0.3) but is dark (Bri < 100), boost it!
+                let (r, g, b) = bestColor
+                let rd = Double(r), gd = Double(g), bd = Double(b)
+                let maxC = max(rd, max(gd, bd))
+                let minC = min(rd, min(gd, bd))
+                let sat = (maxC > 0) ? (maxC - minC) / maxC : 0
+                
+                if sat > 0.3 && maxC < 150 && maxC > 10 {
+                    // It's colorful but dark. Boost to at least 150 brightness.
+                    let boost = 150.0 / maxC
+                    let newR = min(rd * boost, 255)
+                    let newG = min(gd * boost, 255)
+                    let newB = min(bd * boost, 255)
+                    return (UInt8(newR), UInt8(newG), UInt8(newB))
                 }
                 
                 return bestColor
@@ -131,7 +153,9 @@ class ScreenCapture {
                         let sat = (maxC > 0) ? (maxC - minC) / maxC : 0
                         let bri = maxC / 255.0
                         
-                        let weight = (sat * sat * 3.0) + (bri * 0.5) + 0.05
+                        // Weight formula: Saturation^3 (Very Aggressive) + Brightness
+                        // We want to almost ignore grey/white if there is ANY color.
+                        let weight = (sat * sat * sat * 5.0) + (bri * 0.2) + 0.01
                         
                         totalR += r * weight
                         totalG += g * weight
@@ -155,7 +179,12 @@ class ScreenCapture {
                 let minC = min(rd, min(gd, bd))
                 let sat = (maxC > 0) ? (maxC - minC) / maxC : 0
                 let bri = maxC / 255.0
-                return (sat * 2.0) + bri
+                
+                // Score: Heavily favor Saturation.
+                // Pure Red: 3.0 + 0.5 = 3.5
+                // White: 0 + 0.5 = 0.5
+                // Grey: 0 + 0.25 = 0.25
+                return (sat * 3.0) + (bri * 0.5)
             }
             
             // Helper to get dominant color using K-Means
