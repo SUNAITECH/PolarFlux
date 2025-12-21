@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var appState: AppState
+    @State private var isCalibrationLocked: Bool = true
     
     var body: some View {
         TabView {
@@ -165,7 +166,18 @@ struct SettingsView: View {
     
     var calibrationSettings: some View {
         Form {
-            Section(header: Text("White Balance Calibration").font(.headline)) {
+            Section(header: HStack {
+                Text("White Balance Calibration").font(.headline)
+                Spacer()
+                Button(action: {
+                    isCalibrationLocked.toggle()
+                }) {
+                    Image(systemName: isCalibrationLocked ? "lock.fill" : "lock.open.fill")
+                        .foregroundColor(isCalibrationLocked ? .secondary : .blue)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help(isCalibrationLocked ? "Unlock to edit" : "Lock to prevent changes")
+            }) {
                 Text("Adjust these sliders if your white looks blue or red.")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -175,6 +187,7 @@ struct SettingsView: View {
                         Text("Red Gain")
                             .frame(width: 80, alignment: .leading)
                         Slider(value: $appState.calibrationR, in: 0.0...1.0)
+                            .disabled(isCalibrationLocked)
                         Text(String(format: "%.2f", appState.calibrationR))
                             .frame(width: 40)
                     }
@@ -183,6 +196,7 @@ struct SettingsView: View {
                         Text("Green Gain")
                             .frame(width: 80, alignment: .leading)
                         Slider(value: $appState.calibrationG, in: 0.0...1.0)
+                            .disabled(isCalibrationLocked)
                         Text(String(format: "%.2f", appState.calibrationG))
                             .frame(width: 40)
                     }
@@ -191,6 +205,7 @@ struct SettingsView: View {
                         Text("Blue Gain")
                             .frame(width: 80, alignment: .leading)
                         Slider(value: $appState.calibrationB, in: 0.0...1.0)
+                            .disabled(isCalibrationLocked)
                         Text(String(format: "%.2f", appState.calibrationB))
                             .frame(width: 40)
                     }
@@ -201,6 +216,7 @@ struct SettingsView: View {
                         appState.calibrationB = 1.0
                     }
                     .padding(.top)
+                    .disabled(isCalibrationLocked)
                 }
             }
         }
