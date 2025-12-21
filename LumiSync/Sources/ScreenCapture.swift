@@ -501,23 +501,50 @@ class ScreenCapture {
                 }
             }
             
-            // --- Temporal Interpolation (Time Smoothing) ---
+            // --- Temporal Interpolation (Smart Adaptive Smoothing) ---
             // Initialize previousColors if size mismatch
             if self.previousColors.count != smoothedColors.count {
                 self.previousColors = smoothedColors.map { (Double($0.0), Double($0.1), Double($0.2)) }
             }
             
-            // Smoothing factor (0.0 - 1.0). Lower is smoother/slower.
-            // 0.15 at 20fps gives a nice fluid "Ambilight" feel.
-            let alpha = 0.15
-            
             for i in 0..<smoothedColors.count {
                 let target = smoothedColors[i]
                 let prev = self.previousColors[i]
                 
-                let newR = prev.0 + (Double(target.0) - prev.0) * alpha
-                let newG = prev.1 + (Double(target.1) - prev.1) * alpha
-                let newB = prev.2 + (Double(target.2) - prev.2) * alpha
+                let tr = Double(target.0)
+                let tg = Double(target.1)
+                let tb = Double(target.2)
+                
+                // Calculate color distance (Euclidean)
+                let dr = tr - prev.0
+                let dg = tg - prev.1
+                let db = tb - prev.2
+                let dist = sqrt(dr*dr + dg*dg + db*db)
+                
+                // Adaptive Alpha Logic:
+                // 1. Deadzone: If change is tiny (noise), ignore it or move very slowly.
+                // 2. Fast Response: If change is huge (scene cut), move fast.
+                // 3. Smooth Cruise: Normal changes move at standard speed.
+                
+                var alpha: Double = 0.1 // Default smooth speed
+                
+                if dist < 5.0 {
+                    // Micro-jitter / Noise -> Very slow to stable
+                    alpha = 0.02
+                } else if dist > 100.0 {
+                    // Scene Cut / Explosion -> Fast response
+                    // Scale alpha from 0.2 to 0.6 based on distance
+                    let urgency = min((dist - 100.0) / 200.0, 1.0)
+                    alpha = 0.2 + (urgency * 0.4)
+                } else {
+                    // Normal movement -> Linear mapping 0.05 to 0.2
+                    let urgency = (dist - 5.0) / 95.0
+                    alpha = 0.05 + (urgency * 0.15)
+                }
+                
+                let newR = prev.0 + dr * alpha
+                let newG = prev.1 + dg * alpha
+                let newB = prev.2 + db * alpha
                 
                 self.previousColors[i] = (newR, newG, newB)
                 smoothedColors[i] = (UInt8(newR), UInt8(newG), UInt8(newB))
