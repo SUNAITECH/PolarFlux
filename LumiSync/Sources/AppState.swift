@@ -79,6 +79,9 @@ class AppState: ObservableObject {
     @Published var calibrationR: Double = 1.0
     @Published var calibrationG: Double = 1.0
     @Published var calibrationB: Double = 1.0
+    @Published var gamma: Double = 1.0
+    @Published var saturation: Double = 1.0
+    @Published var useDominantColor: Bool = true
     
     // Audio Settings
     @Published var availableMicrophones: [AudioInputDevice] = []
@@ -258,6 +261,7 @@ class AppState: ObservableObject {
         )
         let totalLeds = Int(ledCount) ?? 100
         let orientation = self.screenOrientation
+        let useDominant = self.useDominantColor
         
         loopTimer = Timer.publish(every: 0.05, on: .main, in: .common)
             .autoconnect()
@@ -277,7 +281,14 @@ class AppState: ObservableObject {
                         return
                     }
                     
-                    let data = await self.screenCapture.captureAndProcess(display: display, config: config, ledCount: totalLeds, mode: self.syncMode, orientation: orientation)
+                    let data = await self.screenCapture.captureAndProcess(
+                        display: display, 
+                        config: config, 
+                        ledCount: totalLeds, 
+                        mode: self.syncMode, 
+                        orientation: orientation,
+                        useDominantColor: useDominant
+                    )
                     self.isCapturing = false
                     self.sendData(data)
                 }
@@ -479,6 +490,69 @@ class AppState: ObservableObject {
         
         var finalData = data
         
+        // Apply Saturation Boost
+        if saturation != 1.0 {
+            for i in stride(from: 0, to: finalData.count, by: 3) {
+                if i + 2 < finalData.count {
+                    let r = Double(finalData[i]) / 255.0
+                    let g = Double(finalData[i+1]) / 255.0
+                    let b = Double(finalData[i+2]) / 255.0
+                    
+                    // RGB to HSV
+                    let maxC = max(r, max(g, b))
+                    let minC = min(r, min(g, b))
+                    let delta = maxC - minC
+                    
+                    var h: Double = 0
+                    var s: Double = 0
+                    let v: Double = maxC
+                    
+                    if delta != 0 {
+                        s = delta / maxC
+                        
+                        if r == maxC {
+                            h = (g - b) / delta
+                        } else if g == maxC {
+                            h = 2 + (b - r) / delta
+                        } else {
+                            h = 4 + (r - g) / delta
+                        }
+                        h *= 60
+                        if h < 0 { h += 360 }
+                    }
+                    
+                    // Apply Saturation Gain
+                    s = min(max(s * saturation, 0), 1.0)
+                    
+                    // HSV to RGB
+                    let c = v * s
+                    let x = c * (1 - abs((h / 60).truncatingRemainder(dividingBy: 2) - 1))
+                    let m = v - c
+                    
+                    var r1 = 0.0, g1 = 0.0, b1 = 0.0
+                    if h < 60 { r1 = c; g1 = x; b1 = 0 }
+                    else if h < 120 { r1 = x; g1 = c; b1 = 0 }
+                    else if h < 180 { r1 = 0; g1 = c; b1 = x }
+                    else if h < 240 { r1 = 0; g1 = x; b1 = c }
+                    else if h < 300 { r1 = x; g1 = 0; b1 = c }
+                    else { r1 = c; g1 = 0; b1 = x }
+                    
+                    finalData[i] = UInt8((r1 + m) * 255)
+                    finalData[i+1] = UInt8((g1 + m) * 255)
+                    finalData[i+2] = UInt8((b1 + m) * 255)
+                }
+            }
+        }
+        
+        // Apply Gamma Correction
+        if gamma != 1.0 {
+            for i in 0..<finalData.count {
+                let normalized = Double(finalData[i]) / 255.0
+                let corrected = pow(normalized, gamma) * 255.0
+                finalData[i] = UInt8(min(max(corrected, 0), 255))
+            }
+        }
+        
         // Apply Calibration
         if calibrationR != 1.0 || calibrationG != 1.0 || calibrationB != 1.0 {
             for i in stride(from: 0, to: finalData.count, by: 3) {
@@ -663,6 +737,9 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(calibrationR, forKey: "calibrationR")
         UserDefaults.standard.set(calibrationG, forKey: "calibrationG")
         UserDefaults.standard.set(calibrationB, forKey: "calibrationB")
+        UserDefaults.standard.set(gamma, forKey: "gamma")
+        UserDefaults.standard.set(saturation, forKey: "saturation")
+        UserDefaults.standard.set(useDominantColor, forKey: "useDominantColor")
         
         UserDefaults.standard.set(selectedMicrophoneUID, forKey: "selectedMicrophoneUID")
     }
@@ -693,6 +770,13 @@ class AppState: ObservableObject {
         if cG > 0 { calibrationG = cG }
         let cB = UserDefaults.standard.double(forKey: "calibrationB")
         if cB > 0 { calibrationB = cB }
+        let g = UserDefaults.standard.double(forKey: "gamma")
+        if g > 0 { gamma = g }
+        let sat = UserDefaults.standard.double(forKey: "saturation")
+        if sat > 0 { saturation = sat }
+        if UserDefaults.standard.object(forKey: "useDominantColor") != nil {
+            useDominantColor = UserDefaults.standard.bool(forKey: "useDominantColor")
+        }
         
         if let modeStr = UserDefaults.standard.string(forKey: "currentMode"), let mode = LightingMode(rawValue: modeStr) {
             currentMode = mode

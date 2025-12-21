@@ -41,7 +41,7 @@ class ScreenCapture {
         }
     }
 
-    func captureAndProcess(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation) async -> [UInt8] {
+    func captureAndProcess(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, useDominantColor: Bool) async -> [UInt8] {
         do {
             let filter = SCContentFilter(display: display, excludingWindows: [])
             let streamConfig = SCStreamConfiguration()
@@ -65,7 +65,241 @@ class ScreenCapture {
             var ledData = [UInt8]()
             ledData.reserveCapacity(ledCount * 3)
             
-            // Helper to get average color of a rect
+            // --- Advanced Sampling Logic (Vibrant Search + Inwards Scan) ---
+            
+            func getVibrantColor(rect: CGRect) -> (r: UInt8, g: UInt8, b: UInt8) {
+                let centerX = Double(width) / 2.0
+                let centerY = Double(height) / 2.0
+                let rectCenterX = rect.midX
+                let rectCenterY = rect.midY
+                
+                // Vector towards center
+                let dx = centerX - rectCenterX
+                let dy = centerY - rectCenterY
+                
+                var bestColor: (r: UInt8, g: UInt8, b: UInt8) = (0, 0, 0)
+                var bestScore: Double = -1.0
+                
+                // Search Inwards Loop (Max 5 steps)
+                let maxSteps = 5
+                
+                for step in 0..<maxSteps {
+                    let factor = Double(step) * 0.15
+                    let offsetX = dx * factor
+                    let offsetY = dy * factor
+                    
+                    let searchRect = rect.offsetBy(dx: offsetX, dy: offsetY)
+                    let (r, g, b) = sampleRectWeighted(rect: searchRect)
+                    
+                    let score = calculateVibrancyScore(r: r, g: g, b: b)
+                    
+                    if score > bestScore {
+                        bestScore = score
+                        bestColor = (r, g, b)
+                    }
+                    
+                    if score > 1.5 { break }
+                }
+                
+                return bestColor
+            }
+            
+            func sampleRectWeighted(rect: CGRect) -> (UInt8, UInt8, UInt8) {
+                let xStart = max(0, Int(rect.origin.x))
+                let yStart = max(0, Int(rect.origin.y))
+                let w = min(width - xStart, Int(rect.width))
+                let h = min(height - yStart, Int(rect.height))
+                
+                if w <= 0 || h <= 0 { return (0,0,0) }
+                
+                var totalR: Double = 0
+                var totalG: Double = 0
+                var totalB: Double = 0
+                var totalWeight: Double = 0
+                
+                let step = 4
+                
+                for y in stride(from: yStart, to: yStart + h, by: step) {
+                    for x in stride(from: xStart, to: xStart + w, by: step) {
+                        let offset = y * bytesPerRow + x * bytesPerPixel
+                        let b = Double(ptr[offset])
+                        let g = Double(ptr[offset + 1])
+                        let r = Double(ptr[offset + 2])
+                        
+                        let maxC = max(r, max(g, b))
+                        let minC = min(r, min(g, b))
+                        let sat = (maxC > 0) ? (maxC - minC) / maxC : 0
+                        let bri = maxC / 255.0
+                        
+                        let weight = (sat * sat * 3.0) + (bri * 0.5) + 0.05
+                        
+                        totalR += r * weight
+                        totalG += g * weight
+                        totalB += b * weight
+                        totalWeight += weight
+                    }
+                }
+                
+                if totalWeight > 0 {
+                    return (UInt8(totalR / totalWeight), UInt8(totalG / totalWeight), UInt8(totalB / totalWeight))
+                } else {
+                    return (0,0,0)
+                }
+            }
+            
+            func calculateVibrancyScore(r: UInt8, g: UInt8, b: UInt8) -> Double {
+                let rd = Double(r)
+                let gd = Double(g)
+                let bd = Double(b)
+                let maxC = max(rd, max(gd, bd))
+                let minC = min(rd, min(gd, bd))
+                let sat = (maxC > 0) ? (maxC - minC) / maxC : 0
+                let bri = maxC / 255.0
+                return (sat * 2.0) + bri
+            }
+            
+            // Helper to get dominant color using K-Means
+            func getDominantColor(rect: CGRect) -> (r: UInt8, g: UInt8, b: UInt8) {
+                let xStart = max(0, Int(rect.origin.x))
+                let yStart = max(0, Int(rect.origin.y))
+                let w = min(width - xStart, Int(rect.width))
+                let h = min(height - yStart, Int(rect.height))
+                
+                if w <= 0 || h <= 0 { return (0,0,0) }
+                
+                // Collect pixels
+                var pixels: [(r: Double, g: Double, b: Double)] = []
+                let step = 8 // Sample less frequently for K-Means performance
+                
+                for y in stride(from: yStart, to: yStart + h, by: step) {
+                    for x in stride(from: xStart, to: xStart + w, by: step) {
+                        let offset = y * bytesPerRow + x * bytesPerPixel
+                        let b = Double(ptr[offset])
+                        let g = Double(ptr[offset + 1])
+                        let r = Double(ptr[offset + 2])
+                        pixels.append((r, g, b))
+                    }
+                }
+                
+                if pixels.isEmpty { return (0,0,0) }
+                
+                // K-Means Clustering
+                let k = 3
+                var centroids: [(r: Double, g: Double, b: Double)] = [
+                    (0, 0, 0),       // Black
+                    (255, 0, 0),     // Red
+                    (255, 255, 255)  // White
+                ]
+                
+                // Initialize centroids with random pixels if enough pixels
+                if pixels.count >= k {
+                    centroids = [pixels[0], pixels[pixels.count / 2], pixels[pixels.count - 1]]
+                }
+                
+                for _ in 0..<3 { // 3 iterations is usually enough for rough dominant color
+                    var clusters: [[(r: Double, g: Double, b: Double)]] = Array(repeating: [], count: k)
+                    
+                    for pixel in pixels {
+                        var minDist = Double.greatestFiniteMagnitude
+                        var clusterIndex = 0
+                        
+                        for i in 0..<k {
+                            let dr = pixel.r - centroids[i].r
+                            let dg = pixel.g - centroids[i].g
+                            let db = pixel.b - centroids[i].b
+                            let dist = dr*dr + dg*dg + db*db
+                            
+                            if dist < minDist {
+                                minDist = dist
+                                clusterIndex = i
+                            }
+                        }
+                        clusters[clusterIndex].append(pixel)
+                    }
+                    
+                    // Update centroids
+                    for i in 0..<k {
+                        if !clusters[i].isEmpty {
+                            let sum = clusters[i].reduce((0.0, 0.0, 0.0)) { ($0.0 + $1.r, $0.1 + $1.g, $0.2 + $1.b) }
+                            let count = Double(clusters[i].count)
+                            centroids[i] = (sum.0 / count, sum.1 / count, sum.2 / count)
+                        }
+                    }
+                }
+                
+                // Find largest cluster (most common color)
+                // But prefer colorful clusters over black/grey if possible?
+                // Hyperion logic: just largest cluster.
+                // Let's find the cluster with most pixels.
+                
+                // Re-assign pixels to final centroids to count
+                var counts = [Int](repeating: 0, count: k)
+                for pixel in pixels {
+                    var minDist = Double.greatestFiniteMagnitude
+                    var clusterIndex = 0
+                    for i in 0..<k {
+                        let dr = pixel.r - centroids[i].r
+                        let dg = pixel.g - centroids[i].g
+                        let db = pixel.b - centroids[i].b
+                        let dist = dr*dr + dg*dg + db*db
+                        if dist < minDist {
+                            minDist = dist
+                            clusterIndex = i
+                        }
+                    }
+                    counts[clusterIndex] += 1
+                }
+                
+                // Find best cluster using "Vibrancy Score"
+                // We prioritize colorful clusters over large grey/white areas.
+                // Score = Count * (Base + Saturation * Boost)
+                
+                var maxScore: Double = -1.0
+                var bestIndex = 0
+                
+                for i in 0..<k {
+                    let c = centroids[i]
+                    let count = Double(counts[i])
+                    
+                    // Calculate Saturation & Brightness
+                    let r = c.r
+                    let g = c.g
+                    let b = c.b
+                    
+                    let maxC = max(r, max(g, b))
+                    let minC = min(r, min(g, b))
+                    var saturation: Double = 0.0
+                    if maxC > 0.001 {
+                        saturation = (maxC - minC) / maxC
+                    }
+                    
+                    let brightness = maxC / 255.0
+                    
+                    // Weighting Logic:
+                    // 1. Penalize very dark clusters (noise/black bars)
+                    // 2. Boost saturated clusters significantly
+                    // 3. Reduce weight of grey/white
+                    
+                    let brightnessWeight = brightness > 0.05 ? 1.0 : 0.01
+                    
+                    // Base weight 0.15, Saturation adds up to 3.0.
+                    // A fully saturated pixel is worth ~20x a grey pixel.
+                    // This ensures even small colorful elements (like album art) are picked up.
+                    let saturationWeight = 0.15 + (saturation * 3.0)
+                    
+                    let score = count * saturationWeight * brightnessWeight
+                    
+                    if score > maxScore {
+                        maxScore = score
+                        bestIndex = i
+                    }
+                }
+                
+                let c = centroids[bestIndex]
+                return (UInt8(c.r), UInt8(c.g), UInt8(c.b))
+            }
+            
+            // Helper to get average color of a rect (RMS)
             func getAverageColor(rect: CGRect) -> (r: UInt8, g: UInt8, b: UInt8) {
                 let xStart = max(0, Int(rect.origin.x))
                 let yStart = max(0, Int(rect.origin.y))
@@ -74,9 +308,9 @@ class ScreenCapture {
                 
                 if w <= 0 || h <= 0 { return (0,0,0) }
                 
-                var r: Int = 0
-                var g: Int = 0
-                var b: Int = 0
+                var r: Double = 0
+                var g: Double = 0
+                var b: Double = 0
                 var count: Int = 0
                 
                 // Optimization: Don't sample every pixel, sample every Nth pixel
@@ -86,19 +320,34 @@ class ScreenCapture {
                     for x in stride(from: xStart, to: xStart + w, by: step) {
                         let offset = y * bytesPerRow + x * bytesPerPixel
                         
-                        let blue = Int(ptr[offset])
-                        let green = Int(ptr[offset + 1])
-                        let red = Int(ptr[offset + 2])
+                        let blue = Double(ptr[offset])
+                        let green = Double(ptr[offset + 1])
+                        let red = Double(ptr[offset + 2])
                         
-                        r += red
-                        g += green
-                        b += blue
+                        // Use Sum of Squares for RMS (Root Mean Square)
+                        r += red * red
+                        g += green * green
+                        b += blue * blue
                         count += 1
                     }
                 }
                 
                 if count == 0 { return (0, 0, 0) }
-                return (UInt8(r / count), UInt8(g / count), UInt8(b / count))
+                
+                // Calculate RMS: sqrt(sum / count)
+                let rmsR = UInt8(sqrt(r / Double(count)))
+                let rmsG = UInt8(sqrt(g / Double(count)))
+                let rmsB = UInt8(sqrt(b / Double(count)))
+                
+                return (rmsR, rmsG, rmsB)
+            }
+            
+            func getColor(rect: CGRect) -> (r: UInt8, g: UInt8, b: UInt8) {
+                if useDominantColor {
+                    return getDominantColor(rect: rect)
+                } else {
+                    return getAverageColor(rect: rect)
+                }
             }
             
             // Adjust capture area based on mode
@@ -124,6 +373,8 @@ class ScreenCapture {
             // Standard: Clockwise from Bottom-Left (Left -> Top -> Right -> Bottom)
             // Reverse: Counter-Clockwise from Bottom-Right (Right -> Top -> Left -> Bottom)
             
+            var capturedColors: [(UInt8, UInt8, UInt8)] = []
+            
             if orientation == .standard {
                 // Standard: Clockwise from Bottom-Left
                 // 1. Left Zone (Bottom -> Top)
@@ -132,8 +383,7 @@ class ScreenCapture {
                     for i in 0..<config.left {
                         let y = yOffset + capHeight - ((i + 1) * hStep)
                         let rect = CGRect(x: xOffset, y: y, width: config.depth, height: hStep)
-                        let color = getAverageColor(rect: rect)
-                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                        capturedColors.append(getVibrantColor(rect: rect))
                     }
                 }
                 // 2. Top Zone (Left -> Right)
@@ -142,8 +392,7 @@ class ScreenCapture {
                     for i in 0..<config.top {
                         let x = xOffset + (i * wStep)
                         let rect = CGRect(x: x, y: yOffset, width: wStep, height: config.depth)
-                        let color = getAverageColor(rect: rect)
-                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                        capturedColors.append(getVibrantColor(rect: rect))
                     }
                 }
                 // 3. Right Zone (Top -> Bottom)
@@ -152,8 +401,7 @@ class ScreenCapture {
                     for i in 0..<config.right {
                         let y = yOffset + (i * hStep)
                         let rect = CGRect(x: xOffset + capWidth - config.depth, y: y, width: config.depth, height: hStep)
-                        let color = getAverageColor(rect: rect)
-                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                        capturedColors.append(getVibrantColor(rect: rect))
                     }
                 }
                 // 4. Bottom Zone (Right -> Left)
@@ -162,8 +410,7 @@ class ScreenCapture {
                     for i in 0..<config.bottom {
                         let x = xOffset + capWidth - ((i + 1) * wStep)
                         let rect = CGRect(x: x, y: yOffset + capHeight - config.depth, width: wStep, height: config.depth)
-                        let color = getAverageColor(rect: rect)
-                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                        capturedColors.append(getVibrantColor(rect: rect))
                     }
                 }
             } else {
@@ -174,8 +421,7 @@ class ScreenCapture {
                     for i in 0..<config.right {
                         let y = yOffset + capHeight - ((i + 1) * hStep)
                         let rect = CGRect(x: xOffset + capWidth - config.depth, y: y, width: config.depth, height: hStep)
-                        let color = getAverageColor(rect: rect)
-                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                        capturedColors.append(getVibrantColor(rect: rect))
                     }
                 }
                 // 2. Top Zone (Right -> Left)
@@ -184,8 +430,7 @@ class ScreenCapture {
                     for i in 0..<config.top {
                         let x = xOffset + capWidth - ((i + 1) * wStep)
                         let rect = CGRect(x: x, y: yOffset, width: wStep, height: config.depth)
-                        let color = getAverageColor(rect: rect)
-                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                        capturedColors.append(getVibrantColor(rect: rect))
                     }
                 }
                 // 3. Left Zone (Top -> Bottom)
@@ -194,8 +439,7 @@ class ScreenCapture {
                     for i in 0..<config.left {
                         let y = yOffset + (i * hStep)
                         let rect = CGRect(x: xOffset, y: y, width: config.depth, height: hStep)
-                        let color = getAverageColor(rect: rect)
-                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                        capturedColors.append(getVibrantColor(rect: rect))
                     }
                 }
                 // 4. Bottom Zone (Left -> Right)
@@ -204,10 +448,32 @@ class ScreenCapture {
                     for i in 0..<config.bottom {
                         let x = xOffset + (i * wStep)
                         let rect = CGRect(x: x, y: yOffset + capHeight - config.depth, width: wStep, height: config.depth)
-                        let color = getAverageColor(rect: rect)
-                        ledData.append(color.r); ledData.append(color.g); ledData.append(color.b)
+                        capturedColors.append(getVibrantColor(rect: rect))
                     }
                 }
+            }
+            
+            // --- Spatial Interpolation (Smoothing) ---
+            var smoothedColors = capturedColors
+            let n = capturedColors.count
+            if n > 2 {
+                for i in 0..<n {
+                    let prev = capturedColors[(i - 1 + n) % n]
+                    let curr = capturedColors[i]
+                    let next = capturedColors[(i + 1) % n]
+                    
+                    let r = (Double(prev.0) * 0.25) + (Double(curr.0) * 0.5) + (Double(next.0) * 0.25)
+                    let g = (Double(prev.1) * 0.25) + (Double(curr.1) * 0.5) + (Double(next.1) * 0.25)
+                    let b = (Double(prev.2) * 0.25) + (Double(curr.2) * 0.5) + (Double(next.2) * 0.25)
+                    
+                    smoothedColors[i] = (UInt8(r), UInt8(g), UInt8(b))
+                }
+            }
+            
+            for color in smoothedColors {
+                ledData.append(color.0)
+                ledData.append(color.1)
+                ledData.append(color.2)
             }
             
             // Padding or Truncating

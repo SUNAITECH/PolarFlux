@@ -210,10 +210,47 @@ struct SettingsView: View {
                             .frame(width: 40)
                     }
                     
+                    Divider().padding(.vertical)
+                    
+                    HStack {
+                        Text("Gamma")
+                            .frame(width: 80, alignment: .leading)
+                        Slider(value: $appState.gamma, in: 0.1...3.0)
+                            .disabled(isCalibrationLocked)
+                        Text(String(format: "%.2f", appState.gamma))
+                            .frame(width: 40)
+                    }
+                    Text("Controls brightness curve. Higher values (e.g. 2.2) are more accurate for LEDs.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    HStack {
+                        Text("Saturation")
+                            .frame(width: 80, alignment: .leading)
+                        Slider(value: $appState.saturation, in: 0.0...3.0)
+                            .disabled(isCalibrationLocked)
+                        Text(String(format: "%.2f", appState.saturation))
+                            .frame(width: 40)
+                    }
+                    Text("Boosts color vibrancy. > 1.0 increases saturation.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Divider().padding(.vertical)
+                    
+                    Toggle("Use Dominant Color (Vibrant)", isOn: $appState.useDominantColor)
+                        .disabled(isCalibrationLocked)
+                    Text("If enabled, picks the most prominent color in each zone instead of averaging. Reduces 'pale white' look.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
                     Button("Reset Calibration") {
                         appState.calibrationR = 1.0
                         appState.calibrationG = 1.0
                         appState.calibrationB = 1.0
+                        appState.gamma = 1.0
+                        appState.saturation = 1.0
+                        appState.useDominantColor = true
                     }
                     .padding(.top)
                     .disabled(isCalibrationLocked)
