@@ -22,7 +22,9 @@ enum SyncMode: String, CaseIterable, Identifiable {
 
 class ScreenCapture {
     
-    private var previousColors: [(Double, Double, Double)] = []
+    // Store (Value, Velocity) for R, G, B
+    // (r, g, b, vr, vg, vb)
+    private var springStates: [(r: Double, g: Double, b: Double, vr: Double, vg: Double, vb: Double)] = []
     
     // Check permission once
     static func checkPermission() async -> Bool {
@@ -501,53 +503,84 @@ class ScreenCapture {
                 }
             }
             
-            // --- Temporal Interpolation (Smart Adaptive Smoothing) ---
-            // Initialize previousColors if size mismatch
-            if self.previousColors.count != smoothedColors.count {
-                self.previousColors = smoothedColors.map { (Double($0.0), Double($0.1), Double($0.2)) }
+            // --- Temporal Interpolation (Adaptive Spring Physics) ---
+            // Initialize springStates if size mismatch
+            if self.springStates.count != smoothedColors.count {
+                self.springStates = smoothedColors.map { 
+                    (Double($0.0), Double($0.1), Double($0.2), 0.0, 0.0, 0.0) 
+                }
             }
             
             for i in 0..<smoothedColors.count {
                 let target = smoothedColors[i]
-                let prev = self.previousColors[i]
+                var state = self.springStates[i]
                 
                 let tr = Double(target.0)
                 let tg = Double(target.1)
                 let tb = Double(target.2)
                 
-                // Calculate color distance (Euclidean)
-                let dr = tr - prev.0
-                let dg = tg - prev.1
-                let db = tb - prev.2
+                // Calculate Euclidean distance to target (Error magnitude)
+                let dr = tr - state.r
+                let dg = tg - state.g
+                let db = tb - state.b
                 let dist = sqrt(dr*dr + dg*dg + db*db)
                 
-                // Adaptive Alpha Logic:
-                // 1. Deadzone: If change is tiny (noise), ignore it or move very slowly.
-                // 2. Fast Response: If change is huge (scene cut), move fast.
-                // 3. Smooth Cruise: Normal changes move at standard speed.
+                // Adaptive Tuning
+                // We want "Critical Damping" behavior which prevents oscillation.
+                // But we vary the "Response Time" (Stiffness) based on urgency.
                 
-                var alpha: Double = 0.1 // Default smooth speed
+                var tension: Double
+                var friction: Double
                 
-                if dist < 5.0 {
-                    // Micro-jitter / Noise -> Very slow to stable
-                    alpha = 0.02
-                } else if dist > 100.0 {
-                    // Scene Cut / Explosion -> Fast response
-                    // Scale alpha from 0.2 to 0.6 based on distance
-                    let urgency = min((dist - 100.0) / 200.0, 1.0)
-                    alpha = 0.2 + (urgency * 0.4)
+                if dist > 100.0 {
+                    // Scenario: Scene Cut / Explosion
+                    // Action: High Stiffness (Fast acceleration), Critical Damping
+                    // Tension 0.45 is very snappy.
+                    tension = 0.45
+                    friction = 0.35 // Lower friction to allow speed, but enough to stop overshoot
+                } else if dist < 5.0 {
+                    // Scenario: Static / Micro-jitter
+                    // Action: Very Low Stiffness (Heavy weight), High Damping (Viscous)
+                    tension = 0.015
+                    friction = 0.60 // Like moving through honey
                 } else {
-                    // Normal movement -> Linear mapping 0.05 to 0.2
-                    let urgency = (dist - 5.0) / 95.0
-                    alpha = 0.05 + (urgency * 0.15)
+                    // Scenario: Normal Motion
+                    // Action: Dynamic interpolation
+                    // Map dist 5..100 to Tension 0.02..0.45
+                    let t = (dist - 5.0) / 95.0
+                    tension = 0.02 + (t * 0.43)
+                    // Friction adjusts to maintain stability
+                    friction = 0.60 - (t * 0.25) // 0.60 -> 0.35
                 }
                 
-                let newR = prev.0 + dr * alpha
-                let newG = prev.1 + dg * alpha
-                let newB = prev.2 + db * alpha
+                // Apply Physics (Euler Integration)
+                // Force = Tension * Displacement
+                // Velocity = (Velocity + Force) * (1 - Friction)
                 
-                self.previousColors[i] = (newR, newG, newB)
-                smoothedColors[i] = (UInt8(newR), UInt8(newG), UInt8(newB))
+                let forceR = tension * dr
+                state.vr = state.vr + forceR
+                state.vr *= (1.0 - friction)
+                state.r += state.vr
+                
+                let forceG = tension * dg
+                state.vg = state.vg + forceG
+                state.vg *= (1.0 - friction)
+                state.g += state.vg
+                
+                let forceB = tension * db
+                state.vb = state.vb + forceB
+                state.vb *= (1.0 - friction)
+                state.b += state.vb
+                
+                // Update State
+                self.springStates[i] = state
+                
+                // Clamp and Assign
+                let finalR = UInt8(min(max(state.r, 0), 255))
+                let finalG = UInt8(min(max(state.g, 0), 255))
+                let finalB = UInt8(min(max(state.b, 0), 255))
+                
+                smoothedColors[i] = (finalR, finalG, finalB)
             }
             
             for color in smoothedColors {
