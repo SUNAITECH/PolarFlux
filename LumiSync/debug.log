@@ -564,3 +564,31 @@
 [9:33:17.681 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
 [9:33:19.285 PM] Device connected: SK0127,<"--(
 [9:33:19.285 PM] Starting mode: Screen Sync
+[10:31:04.593 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[10:31:04.594 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[10:31:04.598 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[10:31:06.208 PM] Device connected: SK0127,<"--(
+[10:31:06.208 PM] Starting mode: Screen Sync
+[10:31:06.232 PM] Stopping
+[10:31:26.699 PM] Starting mode: Screen Sync
+[10:31:26.708 PM] Stopping
+[10:31:41.502 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[10:31:41.504 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[10:31:41.506 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[10:31:43.114 PM] Device connected: SK0127,<"--(
+[10:31:43.115 PM] Starting mode: Screen Sync
+[11:29:08.287 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[11:29:08.288 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[11:29:08.294 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[11:29:09.195 PM] Starting mode: Screen Sync
+[11:29:09.217 PM] Stopping
+[11:29:09.900 PM] Device connected: SK0127,<"--(
+[11:29:09.900 PM] Starting mode: Screen Sync
+[11:29:09.918 PM] Stopping
+[11:29:15.207 PM] Starting mode: Screen Sync
+[11:29:15.215 PM] Stopping
+[11:29:23.452 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[11:29:23.454 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[11:29:23.456 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[11:29:25.066 PM] Device connected: SK0127,<"--(
+[11:29:25.066 PM] Starting mode: Screen Sync

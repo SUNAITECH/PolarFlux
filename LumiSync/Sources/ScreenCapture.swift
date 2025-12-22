@@ -2,6 +2,8 @@ import Foundation
 import CoreGraphics
 import AppKit
 import ScreenCaptureKit
+import CoreMedia
+import VideoToolbox
 
 struct ZoneConfig {
     var left: Int
@@ -20,11 +22,19 @@ enum SyncMode: String, CaseIterable, Identifiable {
     var id: String { self.rawValue }
 }
 
-class ScreenCapture {
+class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
+    
+    private var stream: SCStream?
+    private let processingQueue = DispatchQueue(label: "com.lumisync.processing", qos: .userInteractive)
+    
+    // Callback for sending data back to AppState
+    var onFrameProcessed: (([UInt8]) -> Void)?
     
     // Store (Value, Velocity) for R, G, B
     // (r, g, b, vr, vg, vb)
     private var springStates: [(r: Double, g: Double, b: Double, vr: Double, vg: Double, vb: Double)] = []
+    private var flowPhase: Double = 0.0
+    private var lastFrameTime: TimeInterval = 0
     
     // Check permission once
     static func checkPermission() async -> Bool {
@@ -44,27 +54,105 @@ class ScreenCapture {
             return nil
         }
     }
-
-    func captureAndProcess(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, useDominantColor: Bool) async -> [UInt8] {
+    
+    func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, useDominantColor: Bool) async {
+        // Stop existing stream if any
+        if let stream = stream {
+            try? await stream.stopCapture()
+        }
+        
+        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let streamConfig = SCStreamConfiguration()
+        
+        // 1. Optimization: Downsample for Performance
+        // We don't need 4K for LED sampling. 480p height is plenty.
+        let scaleFactor = 480.0 / Double(display.height)
+        streamConfig.width = Int(Double(display.width) * scaleFactor)
+        streamConfig.height = 480
+        streamConfig.showsCursor = false
+        streamConfig.pixelFormat = kCVPixelFormatType_32BGRA // Efficient for CPU access
+        streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: 60) // Target 60 FPS
+        streamConfig.queueDepth = 3 // Keep buffer small to reduce latency
+        
         do {
-            let filter = SCContentFilter(display: display, excludingWindows: [])
-            let streamConfig = SCStreamConfiguration()
-            streamConfig.width = display.width
-            streamConfig.height = display.height
-            streamConfig.showsCursor = false
+            let stream = SCStream(filter: filter, configuration: streamConfig, delegate: self)
+            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: processingQueue)
+            try await stream.startCapture()
+            self.stream = stream
             
-            let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: streamConfig)
+            // Store config for processing
+            self.currentConfig = config
+            self.currentLedCount = ledCount
+            self.currentMode = mode
+            self.currentOrientation = orientation
+            self.currentUseDominant = useDominantColor
             
-            let width = image.width
-            let height = image.height
-            
-            // Get pixel data
-            guard let dataProvider = image.dataProvider,
-                  let data = dataProvider.data,
-                  let ptr = CFDataGetBytePtr(data) else { return [] }
-            
-            let bytesPerRow = image.bytesPerRow
-            let bytesPerPixel = image.bitsPerPixel / 8
+        } catch {
+            print("Failed to start stream: \(error)")
+        }
+    }
+    
+    func stopStream() async {
+        if let stream = stream {
+            try? await stream.stopCapture()
+            self.stream = nil
+        }
+    }
+    
+    // Stored context for the stream delegate
+    private var currentConfig: ZoneConfig = ZoneConfig(left:0, top:0, right:0, bottom:0, depth:0)
+    private var currentLedCount: Int = 0
+    private var currentMode: SyncMode = .full
+    private var currentOrientation: ScreenOrientation = .standard
+    private var currentUseDominant: Bool = true
+    
+    // MARK: - SCStreamDelegate
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        print("Stream stopped with error: \(error.localizedDescription)")
+    }
+    
+    // MARK: - SCStreamOutput
+    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard type == .screen,
+              let pixelBuffer = sampleBuffer.imageBuffer else { return }
+        
+        // Calculate Delta Time
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+        let dt = (lastFrameTime == 0) ? 0.016 : (timestamp - lastFrameTime)
+        lastFrameTime = timestamp
+        
+        // Cap dt to prevent explosion on pause (max 0.1s)
+        let safeDt = min(max(dt, 0.001), 0.1)
+        
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+        
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else { return }
+        
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let ptr = baseAddress.bindMemory(to: UInt8.self, capacity: bytesPerRow * height)
+        
+        // Process Frame
+        let ledData = processFrame(
+            ptr: ptr,
+            width: width,
+            height: height,
+            bytesPerRow: bytesPerRow,
+            config: currentConfig,
+            ledCount: currentLedCount,
+            mode: currentMode,
+            orientation: currentOrientation,
+            useDominantColor: currentUseDominant,
+            dt: safeDt
+        )
+        
+        // Callback
+        onFrameProcessed?(ledData)
+    }
+    
+    private func processFrame(ptr: UnsafePointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, useDominantColor: Bool, dt: Double) -> [UInt8] {
             
             var ledData = [UInt8]()
             ledData.reserveCapacity(ledCount * 3)
@@ -143,14 +231,15 @@ class ScreenCapture {
                 var totalB: Double = 0
                 var totalWeight: Double = 0
                 
-                let step = 4
+                let step = 2 // Sample every 2nd pixel (since we are already downsampled)
                 
                 for y in stride(from: yStart, to: yStart + h, by: step) {
                     for x in stride(from: xStart, to: xStart + w, by: step) {
-                        let offset = y * bytesPerRow + x * bytesPerPixel
+                        let offset = y * bytesPerRow + x * 4 // 4 bytes per pixel (BGRA)
                         let b = Double(ptr[offset])
                         let g = Double(ptr[offset + 1])
                         let r = Double(ptr[offset + 2])
+                        // Alpha is offset + 3, ignored
                         
                         let maxC = max(r, max(g, b))
                         let minC = min(r, min(g, b))
@@ -189,198 +278,6 @@ class ScreenCapture {
                 // White: 0 + 0.5 = 0.5
                 // Grey: 0 + 0.25 = 0.25
                 return (sat * 3.0) + (bri * 0.5)
-            }
-            
-            // Helper to get dominant color using K-Means
-            func getDominantColor(rect: CGRect) -> (r: UInt8, g: UInt8, b: UInt8) {
-                let xStart = max(0, Int(rect.origin.x))
-                let yStart = max(0, Int(rect.origin.y))
-                let w = min(width - xStart, Int(rect.width))
-                let h = min(height - yStart, Int(rect.height))
-                
-                if w <= 0 || h <= 0 { return (0,0,0) }
-                
-                // Collect pixels
-                var pixels: [(r: Double, g: Double, b: Double)] = []
-                let step = 8 // Sample less frequently for K-Means performance
-                
-                for y in stride(from: yStart, to: yStart + h, by: step) {
-                    for x in stride(from: xStart, to: xStart + w, by: step) {
-                        let offset = y * bytesPerRow + x * bytesPerPixel
-                        let b = Double(ptr[offset])
-                        let g = Double(ptr[offset + 1])
-                        let r = Double(ptr[offset + 2])
-                        pixels.append((r, g, b))
-                    }
-                }
-                
-                if pixels.isEmpty { return (0,0,0) }
-                
-                // K-Means Clustering
-                let k = 3
-                var centroids: [(r: Double, g: Double, b: Double)] = [
-                    (0, 0, 0),       // Black
-                    (255, 0, 0),     // Red
-                    (255, 255, 255)  // White
-                ]
-                
-                // Initialize centroids with random pixels if enough pixels
-                if pixels.count >= k {
-                    centroids = [pixels[0], pixels[pixels.count / 2], pixels[pixels.count - 1]]
-                }
-                
-                for _ in 0..<3 { // 3 iterations is usually enough for rough dominant color
-                    var clusters: [[(r: Double, g: Double, b: Double)]] = Array(repeating: [], count: k)
-                    
-                    for pixel in pixels {
-                        var minDist = Double.greatestFiniteMagnitude
-                        var clusterIndex = 0
-                        
-                        for i in 0..<k {
-                            let dr = pixel.r - centroids[i].r
-                            let dg = pixel.g - centroids[i].g
-                            let db = pixel.b - centroids[i].b
-                            let dist = dr*dr + dg*dg + db*db
-                            
-                            if dist < minDist {
-                                minDist = dist
-                                clusterIndex = i
-                            }
-                        }
-                        clusters[clusterIndex].append(pixel)
-                    }
-                    
-                    // Update centroids
-                    for i in 0..<k {
-                        if !clusters[i].isEmpty {
-                            let sum = clusters[i].reduce((0.0, 0.0, 0.0)) { ($0.0 + $1.r, $0.1 + $1.g, $0.2 + $1.b) }
-                            let count = Double(clusters[i].count)
-                            centroids[i] = (sum.0 / count, sum.1 / count, sum.2 / count)
-                        }
-                    }
-                }
-                
-                // Find largest cluster (most common color)
-                // But prefer colorful clusters over black/grey if possible?
-                // Hyperion logic: just largest cluster.
-                // Let's find the cluster with most pixels.
-                
-                // Re-assign pixels to final centroids to count
-                var counts = [Int](repeating: 0, count: k)
-                for pixel in pixels {
-                    var minDist = Double.greatestFiniteMagnitude
-                    var clusterIndex = 0
-                    for i in 0..<k {
-                        let dr = pixel.r - centroids[i].r
-                        let dg = pixel.g - centroids[i].g
-                        let db = pixel.b - centroids[i].b
-                        let dist = dr*dr + dg*dg + db*db
-                        if dist < minDist {
-                            minDist = dist
-                            clusterIndex = i
-                        }
-                    }
-                    counts[clusterIndex] += 1
-                }
-                
-                // Find best cluster using "Vibrancy Score"
-                // We prioritize colorful clusters over large grey/white areas.
-                // Score = Count * (Base + Saturation * Boost)
-                
-                var maxScore: Double = -1.0
-                var bestIndex = 0
-                
-                for i in 0..<k {
-                    let c = centroids[i]
-                    let count = Double(counts[i])
-                    
-                    // Calculate Saturation & Brightness
-                    let r = c.r
-                    let g = c.g
-                    let b = c.b
-                    
-                    let maxC = max(r, max(g, b))
-                    let minC = min(r, min(g, b))
-                    var saturation: Double = 0.0
-                    if maxC > 0.001 {
-                        saturation = (maxC - minC) / maxC
-                    }
-                    
-                    let brightness = maxC / 255.0
-                    
-                    // Weighting Logic:
-                    // 1. Penalize very dark clusters (noise/black bars)
-                    // 2. Boost saturated clusters significantly
-                    // 3. Reduce weight of grey/white
-                    
-                    let brightnessWeight = brightness > 0.05 ? 1.0 : 0.01
-                    
-                    // Base weight 0.15, Saturation adds up to 3.0.
-                    // A fully saturated pixel is worth ~20x a grey pixel.
-                    // This ensures even small colorful elements (like album art) are picked up.
-                    let saturationWeight = 0.15 + (saturation * 3.0)
-                    
-                    let score = count * saturationWeight * brightnessWeight
-                    
-                    if score > maxScore {
-                        maxScore = score
-                        bestIndex = i
-                    }
-                }
-                
-                let c = centroids[bestIndex]
-                return (UInt8(c.r), UInt8(c.g), UInt8(c.b))
-            }
-            
-            // Helper to get average color of a rect (RMS)
-            func getAverageColor(rect: CGRect) -> (r: UInt8, g: UInt8, b: UInt8) {
-                let xStart = max(0, Int(rect.origin.x))
-                let yStart = max(0, Int(rect.origin.y))
-                let w = min(width - xStart, Int(rect.width))
-                let h = min(height - yStart, Int(rect.height))
-                
-                if w <= 0 || h <= 0 { return (0,0,0) }
-                
-                var r: Double = 0
-                var g: Double = 0
-                var b: Double = 0
-                var count: Int = 0
-                
-                // Optimization: Don't sample every pixel, sample every Nth pixel
-                let step = 4 
-                
-                for y in stride(from: yStart, to: yStart + h, by: step) {
-                    for x in stride(from: xStart, to: xStart + w, by: step) {
-                        let offset = y * bytesPerRow + x * bytesPerPixel
-                        
-                        let blue = Double(ptr[offset])
-                        let green = Double(ptr[offset + 1])
-                        let red = Double(ptr[offset + 2])
-                        
-                        // Use Sum of Squares for RMS (Root Mean Square)
-                        r += red * red
-                        g += green * green
-                        b += blue * blue
-                        count += 1
-                    }
-                }
-                
-                if count == 0 { return (0, 0, 0) }
-                
-                // Calculate RMS: sqrt(sum / count)
-                let rmsR = UInt8(sqrt(r / Double(count)))
-                let rmsG = UInt8(sqrt(g / Double(count)))
-                let rmsB = UInt8(sqrt(b / Double(count)))
-                
-                return (rmsR, rmsG, rmsB)
-            }
-            
-            func getColor(rect: CGRect) -> (r: UInt8, g: UInt8, b: UInt8) {
-                if useDominantColor {
-                    return getDominantColor(rect: rect)
-                } else {
-                    return getAverageColor(rect: rect)
-                }
             }
             
             // Adjust capture area based on mode
@@ -503,7 +400,14 @@ class ScreenCapture {
                 }
             }
             
-            // --- Temporal Interpolation (Adaptive Spring Physics) ---
+            // --- Fluid Dynamics & Spring Physics Integration ---
+            
+            // Time Scaling (Normalize to 60 FPS)
+            let timeScale = dt * 60.0
+            
+            // Update Flow Phase (The "Director" of the fluid)
+            self.flowPhase += 0.05 * timeScale
+            
             // Initialize springStates if size mismatch
             if self.springStates.count != smoothedColors.count {
                 self.springStates = smoothedColors.map { 
@@ -511,66 +415,79 @@ class ScreenCapture {
                 }
             }
             
-            for i in 0..<smoothedColors.count {
+            let count = smoothedColors.count
+            
+            for i in 0..<count {
                 let target = smoothedColors[i]
                 var state = self.springStates[i]
                 
+                // Fluid Neighbors (Circular Buffer)
+                let upstreamIdx = (i - 1 + count) % count
+                let downstreamIdx = (i + 1) % count
+                let upstream = self.springStates[upstreamIdx]
+                let downstream = self.springStates[downstreamIdx]
+                
+                // 1. Dynamic Flow Field Generation
+                // Create a "Flow Map" using Sine Wave to simulate liquid pulsing
+                // This controls how strongly the fluid flows at this specific LED
+                let flowVector = 0.12 + sin(Double(i) * 0.15 + self.flowPhase) * 0.08
+                
+                // 2. Fluid Coupling Forces
+                
+                // Advection: Upstream injects momentum and color into Downstream
+                // "Upstream velocity and position inject into downstream"
+                // We blend a portion of the upstream velocity/position difference
+                let advectionR = (upstream.r - state.r) * flowVector + (upstream.vr - state.vr) * flowVector * 0.6
+                let advectionG = (upstream.g - state.g) * flowVector + (upstream.vg - state.vg) * flowVector * 0.6
+                let advectionB = (upstream.b - state.b) * flowVector + (upstream.vb - state.vb) * flowVector * 0.6
+                
+                // Viscosity/Drag: Downstream resistance pulls back
+                // "Downstream resistance affects upstream"
+                let dragFactor = 0.04
+                let dragR = (downstream.r - state.r) * dragFactor
+                let dragG = (downstream.g - state.g) * dragFactor
+                let dragB = (downstream.b - state.b) * dragFactor
+                
+                // 3. Target Attraction (Adaptive Spring Physics)
                 let tr = Double(target.0)
                 let tg = Double(target.1)
                 let tb = Double(target.2)
                 
-                // Calculate Euclidean distance to target (Error magnitude)
-                let dr = tr - state.r
-                let dg = tg - state.g
-                let db = tb - state.b
-                let dist = sqrt(dr*dr + dg*dg + db*db)
-                
-                // Adaptive Tuning
-                // We want "Critical Damping" behavior which prevents oscillation.
-                // But we vary the "Response Time" (Stiffness) based on urgency.
+                let deltaR = tr - state.r
+                let deltaG = tg - state.g
+                let deltaB = tb - state.b
+                let dist = sqrt(deltaR*deltaR + deltaG*deltaG + deltaB*deltaB)
                 
                 var tension: Double
                 var friction: Double
                 
                 if dist > 100.0 {
-                    // Scenario: Scene Cut / Explosion
-                    // Action: High Stiffness (Fast acceleration), Critical Damping
-                    // Tension 0.45 is very snappy.
-                    tension = 0.45
-                    friction = 0.35 // Lower friction to allow speed, but enough to stop overshoot
+                    tension = 0.45; friction = 0.35
                 } else if dist < 5.0 {
-                    // Scenario: Static / Micro-jitter
-                    // Action: Very Low Stiffness (Heavy weight), High Damping (Viscous)
-                    tension = 0.015
-                    friction = 0.60 // Like moving through honey
+                    tension = 0.015; friction = 0.60
                 } else {
-                    // Scenario: Normal Motion
-                    // Action: Dynamic interpolation
-                    // Map dist 5..100 to Tension 0.02..0.45
                     let t = (dist - 5.0) / 95.0
                     tension = 0.02 + (t * 0.43)
-                    // Friction adjusts to maintain stability
-                    friction = 0.60 - (t * 0.25) // 0.60 -> 0.35
+                    friction = 0.60 - (t * 0.25)
                 }
                 
-                // Apply Physics (Euler Integration)
-                // Force = Tension * Displacement
-                // Velocity = (Velocity + Force) * (1 - Friction)
+                // 4. Integration (Euler)
+                // Total Force = Spring Force + Advection + Drag
                 
-                let forceR = tension * dr
-                state.vr = state.vr + forceR
-                state.vr *= (1.0 - friction)
-                state.r += state.vr
+                let forceR = (tension * deltaR) + advectionR + dragR
+                state.vr = state.vr + (forceR * timeScale)
+                state.vr *= pow(1.0 - friction, timeScale)
+                state.r += state.vr * timeScale
                 
-                let forceG = tension * dg
-                state.vg = state.vg + forceG
-                state.vg *= (1.0 - friction)
-                state.g += state.vg
+                let forceG = (tension * deltaG) + advectionG + dragG
+                state.vg = state.vg + (forceG * timeScale)
+                state.vg *= pow(1.0 - friction, timeScale)
+                state.g += state.vg * timeScale
                 
-                let forceB = tension * db
-                state.vb = state.vb + forceB
-                state.vb *= (1.0 - friction)
-                state.b += state.vb
+                let forceB = (tension * deltaB) + advectionB + dragB
+                state.vb = state.vb + (forceB * timeScale)
+                state.vb *= pow(1.0 - friction, timeScale)
+                state.b += state.vb * timeScale
                 
                 // Update State
                 self.springStates[i] = state
@@ -607,10 +524,10 @@ class ScreenCapture {
             }
             
             return ledData
-            
-        } catch {
-            print("Screen capture error: \(error)")
-            return []
-        }
+    }
+    
+    // Old method kept for compatibility but unused
+    func captureAndProcess(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, useDominantColor: Bool) async -> [UInt8] {
+        return []
     }
 }

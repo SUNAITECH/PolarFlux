@@ -221,6 +221,11 @@ class AppState: ObservableObject {
         loopTimer = nil
         cachedDisplay = nil
         
+        // Stop Stream
+        Task {
+            await screenCapture.stopStream()
+        }
+        
         audioProcessor.stop()
         effectEngine.stop()
         
@@ -244,14 +249,14 @@ class AppState: ObservableObject {
                 return
             }
             
-            // Permission granted, start loop
+            // Permission granted, start stream
             DispatchQueue.main.async {
-                self.startSyncLoop()
+                self.startSyncStream()
             }
         }
     }
     
-    private func startSyncLoop() {
+    private func startSyncStream() {
         let config = ZoneConfig(
             left: Int(leftZone) ?? 0,
             top: Int(topZone) ?? 0,
@@ -262,37 +267,35 @@ class AppState: ObservableObject {
         let totalLeds = Int(ledCount) ?? 100
         let orientation = self.screenOrientation
         let useDominant = self.useDominantColor
+        let mode = self.syncMode
         
-        loopTimer = Timer.publish(every: 0.05, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                guard let self = self else { return }
-                
-                if self.isCapturing { return }
-                self.isCapturing = true
-                
-                Task {
-                    if self.cachedDisplay == nil {
-                        self.cachedDisplay = await self.screenCapture.getDisplay()
-                    }
-                    
-                    guard let display = self.cachedDisplay else {
-                        self.isCapturing = false
-                        return
-                    }
-                    
-                    let data = await self.screenCapture.captureAndProcess(
-                        display: display, 
-                        config: config, 
-                        ledCount: totalLeds, 
-                        mode: self.syncMode, 
-                        orientation: orientation,
-                        useDominantColor: useDominant
-                    )
-                    self.isCapturing = false
-                    self.sendData(data)
-                }
+        // Setup Callback
+        screenCapture.onFrameProcessed = { [weak self] data in
+            self?.sendData(data)
+        }
+        
+        Task {
+            if self.cachedDisplay == nil {
+                self.cachedDisplay = await self.screenCapture.getDisplay()
             }
+            
+            guard let display = self.cachedDisplay else {
+                DispatchQueue.main.async {
+                    self.statusMessage = "No Display Found"
+                    self.stop()
+                }
+                return
+            }
+            
+            await self.screenCapture.startStream(
+                display: display,
+                config: config,
+                ledCount: totalLeds,
+                mode: mode,
+                orientation: orientation,
+                useDominantColor: useDominant
+            )
+        }
     }
     
     // MARK: - Music Mode

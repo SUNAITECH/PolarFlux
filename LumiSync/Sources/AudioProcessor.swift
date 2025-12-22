@@ -67,9 +67,11 @@ class AudioProcessor: NSObject {
                     mScope: kAudioObjectPropertyScopeGlobal,
                     mElement: kAudioObjectPropertyElementMain
                 )
-                var nameRef: CFString = "" as CFString
+                var nameRef: Unmanaged<CFString>?
                 if AudioObjectGetPropertyData(id, &nameAddress, 0, nil, &nameSize, &nameRef) == noErr {
-                    name = nameRef as String
+                    if let ref = nameRef {
+                        name = ref.takeRetainedValue() as String
+                    }
                 }
                 
                 // Get UID
@@ -80,9 +82,11 @@ class AudioProcessor: NSObject {
                     mScope: kAudioObjectPropertyScopeGlobal,
                     mElement: kAudioObjectPropertyElementMain
                 )
-                var uidRef: CFString = "" as CFString
+                var uidRef: Unmanaged<CFString>?
                 if AudioObjectGetPropertyData(id, &uidAddress, 0, nil, &uidSize, &uidRef) == noErr {
-                    uid = uidRef as String
+                    if let ref = uidRef {
+                        uid = ref.takeRetainedValue() as String
+                    }
                 }
                 
                 devices.append(AudioInputDevice(id: id, name: name, uid: uid))
