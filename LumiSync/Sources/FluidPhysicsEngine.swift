@@ -17,7 +17,7 @@ class FluidPhysicsEngine {
     private var states: [SpringState] = []
     private var flowPhase: Double = 0.0
     
-    func process(targetColors: [(UInt8, UInt8, UInt8)], dt: Double) -> [(UInt8, UInt8, UInt8)] {
+    func process(targetColors: [(UInt8, UInt8, UInt8)], dt: Double, sceneIntensity: Double = 0.0) -> [(UInt8, UInt8, UInt8)] {
         // Initialize states if size mismatch
         if states.count != targetColors.count {
             states = targetColors.map { 
@@ -38,11 +38,19 @@ class FluidPhysicsEngine {
         var smoothedColors = [(UInt8, UInt8, UInt8)]()
         smoothedColors.reserveCapacity(count)
         
-        // We need a copy of states to read from while writing to 'states'
-        // Actually, for fluid simulation, reading from the *previous* frame's state is correct.
-        // So we can just read from 'states' and write to a temporary array, then swap.
-        // Or just update in place if we don't mind a little bias (Gauss-Seidel style), which is actually often more stable.
-        // Let's stick to in-place for performance and simplicity, it works well for LED fluids.
+        // Dynamic Physics Parameters based on Scene Intensity
+        // High Intensity (Action) -> Higher Tension (Stiff), Lower Friction (Fast)
+        // Low Intensity (Static) -> Lower Tension (Soft), Higher Friction (Damped)
+        
+        // Base Parameters
+        let baseTension = 0.015
+        let baseFriction = 0.60
+        
+        // Modifiers (Intensity is 0.0 to 1.0+)
+        // If intensity is high (e.g. 0.5), we want tension to go up to ~0.1 and friction down to ~0.3
+        let intensity = min(sceneIntensity, 1.0)
+        let dynamicTension = baseTension + (intensity * 0.08)
+        let dynamicFriction = max(0.2, baseFriction - (intensity * 0.3))
         
         for i in 0..<count {
             let target = targetColors[i]
@@ -80,15 +88,20 @@ class FluidPhysicsEngine {
             var tension: Double
             var friction: Double
             
-            // Stability Fix: Smoother tension curve and lower max tension (0.35) to prevent snapping
+            // Hybrid Physics: Combine Distance-Based Adaptive Physics with Scene-Intensity Dynamics
             if dist > 100.0 {
+                // Snap logic for massive changes overrides subtle dynamics
                 tension = 0.35; friction = 0.40
             } else if dist < 5.0 {
-                tension = 0.015; friction = 0.60
+                // Very close: Use dynamic parameters to settle
+                tension = dynamicTension
+                friction = dynamicFriction
             } else {
+                // Interpolate
                 let t = (dist - 5.0) / 95.0
-                tension = 0.015 + (t * 0.335) // Interpolate 0.015 -> 0.35
-                friction = 0.60 - (t * 0.20)  // Interpolate 0.60 -> 0.40
+                // Blend between dynamic (soft) and snap (hard)
+                tension = dynamicTension + (t * (0.35 - dynamicTension))
+                friction = dynamicFriction + (t * (0.40 - dynamicFriction))
             }
             
             // 4. Integration (Euler)
