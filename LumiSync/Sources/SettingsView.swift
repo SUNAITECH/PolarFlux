@@ -238,11 +238,7 @@ struct SettingsView: View {
                     
                     Divider().padding(.vertical)
                     
-                    Toggle("Use Dominant Color (Vibrant)", isOn: $appState.useDominantColor)
-                        .disabled(isCalibrationLocked)
-                    Text("If enabled, picks the most prominent color in each zone instead of averaging. Reduces 'pale white' look.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    // Removed "Use Dominant Color" toggle as the new Smart Sampler handles this automatically.
                     
                     Button("Reset Calibration") {
                         appState.calibrationR = 1.0
@@ -250,7 +246,6 @@ struct SettingsView: View {
                         appState.calibrationB = 1.0
                         appState.gamma = 1.0
                         appState.saturation = 1.0
-                        appState.useDominantColor = true
                     }
                     .padding(.top)
                     .disabled(isCalibrationLocked)

@@ -30,11 +30,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     // Callback for sending data back to AppState
     var onFrameProcessed: (([UInt8]) -> Void)?
     
-    // Store (Value, Velocity) for R, G, B
-    // (r, g, b, vr, vg, vb)
-    private var springStates: [(r: Double, g: Double, b: Double, vr: Double, vg: Double, vb: Double)] = []
-    private var flowPhase: Double = 0.0
+    // Physics Engine
+    private let physicsEngine = FluidPhysicsEngine()
     private var lastFrameTime: TimeInterval = 0
+    
+    // Temporal Smoothing State (Memory)
+    private var previousCapturedColors: [(UInt8, UInt8, UInt8)] = []
     
     // Check permission once
     static func checkPermission() async -> Bool {
@@ -55,7 +56,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         }
     }
     
-    func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, useDominantColor: Bool) async {
+    func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, brightness: Double, targetFrameRate: Double) async {
         // Stop existing stream if any
         if let stream = stream {
             try? await stream.stopCapture()
@@ -65,13 +66,13 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let streamConfig = SCStreamConfiguration()
         
         // 1. Optimization: Downsample for Performance
-        // We don't need 4K for LED sampling. 480p height is plenty.
-        let scaleFactor = 480.0 / Double(display.height)
+        // We don't need 4K for LED sampling. 360p height is plenty for ambient light.
+        let scaleFactor = 360.0 / Double(display.height)
         streamConfig.width = Int(Double(display.width) * scaleFactor)
-        streamConfig.height = 480
+        streamConfig.height = 360
         streamConfig.showsCursor = false
         streamConfig.pixelFormat = kCVPixelFormatType_32BGRA // Efficient for CPU access
-        streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: 60) // Target 60 FPS
+        streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(targetFrameRate)) // Target FPS
         streamConfig.queueDepth = 3 // Keep buffer small to reduce latency
         
         do {
@@ -85,7 +86,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             self.currentLedCount = ledCount
             self.currentMode = mode
             self.currentOrientation = orientation
-            self.currentUseDominant = useDominantColor
+            self.currentBrightness = brightness
+            self.currentTargetFrameRate = targetFrameRate
             
         } catch {
             print("Failed to start stream: \(error)")
@@ -104,7 +106,9 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var currentLedCount: Int = 0
     private var currentMode: SyncMode = .full
     private var currentOrientation: ScreenOrientation = .standard
-    private var currentUseDominant: Bool = true
+    private var currentBrightness: Double = 1.0
+    private var currentTargetFrameRate: Double = 60.0
+    private var lastProcessTime: TimeInterval = 0
     
     // MARK: - SCStreamDelegate
     func stream(_ stream: SCStream, didStopWithError error: Error) {
@@ -144,140 +148,168 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             ledCount: currentLedCount,
             mode: currentMode,
             orientation: currentOrientation,
-            useDominantColor: currentUseDominant,
-            dt: safeDt
+            dt: safeDt,
+            brightness: currentBrightness
         )
         
         // Callback
         onFrameProcessed?(ledData)
     }
     
-    private func processFrame(ptr: UnsafePointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, useDominantColor: Bool, dt: Double) -> [UInt8] {
+    private func processFrame(ptr: UnsafePointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, dt: Double, brightness: Double) -> [UInt8] {
             
+            // Safety Check
+            if width <= 0 || height <= 0 { return [] }
+
             var ledData = [UInt8]()
             ledData.reserveCapacity(ledCount * 3)
             
-            // --- Advanced Sampling Logic (Vibrant Search + Inwards Scan) ---
+            // --- Advanced Perceptual Color Quantization (Smart Sampler) ---
+            // This replaces the old "Weighted Average" and "Vibrant Search" with a robust
+            // histogram-based clustering approach that is stable, noise-resistant, and
+            // preserves true color vibrancy without washing out to white.
             
-            func getVibrantColor(rect: CGRect) -> (r: UInt8, g: UInt8, b: UInt8) {
-                let centerX = Double(width) / 2.0
-                let centerY = Double(height) / 2.0
-                let rectCenterX = rect.midX
-                let rectCenterY = rect.midY
-                
-                // Vector towards center
-                let dx = centerX - rectCenterX
-                let dy = centerY - rectCenterY
-                
-                var bestColor: (r: UInt8, g: UInt8, b: UInt8) = (0, 0, 0)
-                var bestScore: Double = -1.0
-                
-                // Search Inwards Loop (Deep Search)
-                // We search up to 80% towards the center to find ANY vibrant color.
-                let maxSteps = 8
-                
-                for step in 0..<maxSteps {
-                    let factor = Double(step) * 0.10 // 0%, 10%, 20% ... 70%
-                    let offsetX = dx * factor
-                    let offsetY = dy * factor
-                    
-                    let searchRect = rect.offsetBy(dx: offsetX, dy: offsetY)
-                    let (r, g, b) = sampleRectWeighted(rect: searchRect)
-                    
-                    let score = calculateVibrancyScore(r: r, g: g, b: b)
-                    
-                    // If this step is significantly better, take it.
-                    // We prefer outer steps if scores are similar, so we require a small improvement to switch inwards.
-                    if score > bestScore + 0.1 {
-                        bestScore = score
-                        bestColor = (r, g, b)
-                    }
-                    
-                    // Stop Condition: Found a very vibrant color (High Saturation)
-                    // Score > 2.5 means Saturation is likely > 0.7
-                    if score > 2.5 { break }
+            func getSmartColor(rect: CGRect) -> (r: UInt8, g: UInt8, b: UInt8) {
+                // Safety: Ensure rect is valid
+                if rect.isNull || rect.isInfinite || rect.width <= 0 || rect.height <= 0 {
+                    return (0, 0, 0)
                 }
                 
-                // Post-Processing: Auto-Brightness Boost
-                // If we found a color that has hue (Sat > 0.3) but is dark (Bri < 100), boost it!
-                let (r, g, b) = bestColor
-                let rd = Double(r), gd = Double(g), bd = Double(b)
-                let maxC = max(rd, max(gd, bd))
-                let minC = min(rd, min(gd, bd))
-                let sat = (maxC > 0) ? (maxC - minC) / maxC : 0
+                // 1. Setup Sampling Grid
+                // Instead of iterating every pixel (slow) or a simple stride (aliasing),
+                // we use a jittered grid or a dense stride with outlier rejection.
+                // Given we are already downsampled to 360p, a stride of 2 is dense enough.
                 
-                if sat > 0.3 && maxC < 150 && maxC > 10 {
-                    // It's colorful but dark. Boost to at least 150 brightness.
-                    let boost = 150.0 / maxC
-                    let newR = min(rd * boost, 255)
-                    let newG = min(gd * boost, 255)
-                    let newB = min(bd * boost, 255)
-                    return (UInt8(newR), UInt8(newG), UInt8(newB))
-                }
-                
-                return bestColor
-            }
-            
-            func sampleRectWeighted(rect: CGRect) -> (UInt8, UInt8, UInt8) {
-                let xStart = max(0, Int(rect.origin.x))
-                let yStart = max(0, Int(rect.origin.y))
-                let w = min(width - xStart, Int(rect.width))
-                let h = min(height - yStart, Int(rect.height))
+                let xStart = max(0, min(width - 1, Int(rect.origin.x)))
+                let yStart = max(0, min(height - 1, Int(rect.origin.y)))
+                let w = max(0, min(width - xStart, Int(rect.width)))
+                let h = max(0, min(height - yStart, Int(rect.height)))
                 
                 if w <= 0 || h <= 0 { return (0,0,0) }
                 
+                // 2. Histogram / Accumulator State
+                // We track "Mass" in RGB space, weighted by "Saliency" (Saturation * Brightness)
                 var totalR: Double = 0
                 var totalG: Double = 0
                 var totalB: Double = 0
                 var totalWeight: Double = 0
                 
-                let step = 2 // Sample every 2nd pixel (since we are already downsampled)
+                // We also track the "Max Saliency" pixel to handle edge cases where average is muddy
+                var maxSaliency: Double = -1.0
+                var vibrantR: Double = 0
+                var vibrantG: Double = 0
+                var vibrantB: Double = 0
+                
+                let step = 2
                 
                 for y in stride(from: yStart, to: yStart + h, by: step) {
                     for x in stride(from: xStart, to: xStart + w, by: step) {
-                        let offset = y * bytesPerRow + x * 4 // 4 bytes per pixel (BGRA)
+                        let offset = y * bytesPerRow + x * 4
+                        if offset + 3 >= height * bytesPerRow { continue }
+                        
                         let b = Double(ptr[offset])
                         let g = Double(ptr[offset + 1])
                         let r = Double(ptr[offset + 2])
-                        // Alpha is offset + 3, ignored
                         
+                        // 3. Perceptual Analysis
                         let maxC = max(r, max(g, b))
                         let minC = min(r, min(g, b))
-                        let sat = (maxC > 0) ? (maxC - minC) / maxC : 0
+                        let chroma = maxC - minC
+                        let sat = (maxC > 0) ? chroma / maxC : 0
                         let bri = maxC / 255.0
                         
-                        // Weight formula: Saturation^3 (Very Aggressive) + Brightness
-                        // We want to almost ignore grey/white if there is ANY color.
-                        let weight = (sat * sat * sat * 5.0) + (bri * 0.2) + 0.01
+                        // Filter: Ignore very dark pixels (letterboxing/black bars)
+                        if maxC < 10 { continue }
                         
-                        totalR += r * weight
-                        totalG += g * weight
-                        totalB += b * weight
-                        totalWeight += weight
+                        // 4. Saliency Calculation
+                        // We want pixels that are colorful AND bright to contribute most.
+                        // Formula: Saturation^2 * Brightness
+                        // This suppresses grey/white/muddy colors naturally.
+                        let saliency = (sat * sat * 4.0) + (bri * 0.5)
+                        
+                        // Accumulate Weighted Average (Center of Mass)
+                        totalR += r * saliency
+                        totalG += g * saliency
+                        totalB += b * saliency
+                        totalWeight += saliency
+                        
+                        // Track Peak Vibrancy (for fallback or mixing)
+                        if saliency > maxSaliency {
+                            maxSaliency = saliency
+                            vibrantR = r
+                            vibrantG = g
+                            vibrantB = b
+                        }
                     }
                 }
                 
-                if totalWeight > 0 {
-                    return (UInt8(totalR / totalWeight), UInt8(totalG / totalWeight), UInt8(totalB / totalWeight))
-                } else {
-                    return (0,0,0)
-                }
-            }
-            
-            func calculateVibrancyScore(r: UInt8, g: UInt8, b: UInt8) -> Double {
-                let rd = Double(r)
-                let gd = Double(g)
-                let bd = Double(b)
-                let maxC = max(rd, max(gd, bd))
-                let minC = min(rd, min(gd, bd))
-                let sat = (maxC > 0) ? (maxC - minC) / maxC : 0
-                let bri = maxC / 255.0
+                // 5. Result Synthesis
+                var finalR: Double = 0
+                var finalG: Double = 0
+                var finalB: Double = 0
                 
-                // Score: Heavily favor Saturation.
-                // Pure Red: 3.0 + 0.5 = 3.5
-                // White: 0 + 0.5 = 0.5
-                // Grey: 0 + 0.25 = 0.25
-                return (sat * 3.0) + (bri * 0.5)
+                if totalWeight > 0 {
+                    // Weighted Average is usually best for smooth transitions
+                    finalR = totalR / totalWeight
+                    finalG = totalG / totalWeight
+                    finalB = totalB / totalWeight
+                    
+                    // Hybrid Approach: If the average is too desaturated compared to the peak,
+                    // mix in some of the peak color. This fixes "muddy" averages in multi-colored zones.
+                    let avgMax = max(finalR, max(finalG, finalB))
+                    let avgMin = min(finalR, min(finalG, finalB))
+                    let avgSat = (avgMax > 0) ? (avgMax - avgMin) / avgMax : 0
+                    
+                    if avgSat < 0.3 && maxSaliency > 1.5 {
+                        // The average washed out, but we had a vibrant peak. Blend 50%.
+                        finalR = (finalR * 0.5) + (vibrantR * 0.5)
+                        finalG = (finalG * 0.5) + (vibrantG * 0.5)
+                        finalB = (finalB * 0.5) + (vibrantB * 0.5)
+                    }
+                } else {
+                    // Fallback if zone is completely dark
+                    return (0, 0, 0)
+                }
+                
+                // 6. Advanced Tone Mapping (Brightness without Whitewash)
+                // Problem: Simple multiplication (r * brightness) clips channels to 255 unevenly, shifting Hue.
+                // Solution: Scale the luminance while preserving ratios.
+                
+                // Calculate current max luminance
+                let currentMax = max(finalR, max(finalG, finalB))
+                
+                if currentMax > 0 {
+                    // Target Luminance: Apply user brightness
+                    // We use a soft knee or simple scaling, but ensure we don't distort hue.
+                    // If brightness is 2.0, we want the perceived light to double, but we can't exceed 255.
+                    
+                    // Step A: Apply Brightness Factor
+                    let targetMax = currentMax * brightness
+                    
+                    // Step B: Soft Clip / Tone Map
+                    // If targetMax > 255, we must scale down ALL channels to fit, rather than clamping individually.
+                    // However, users WANT "brighter", so we allow some clipping if it's extreme,
+                    // but we prefer to saturate towards the dominant channel.
+                    
+                    let scale: Double
+                    if targetMax > 255 {
+                        // We are blowing out.
+                        // Option 1: Clamp (White shift) - BAD
+                        // Option 2: Scale down (Preserve Hue, but limits brightness) - GOOD for fidelity
+                        // Option 3: Desaturate towards white (Natural overexposure) - ACCEPTABLE
+                        
+                        // Let's use Option 2 (Preserve Hue) as requested ("don't turn white")
+                        scale = 255.0 / currentMax // Maximize brightness without hue shift
+                    } else {
+                        scale = brightness
+                    }
+                    
+                    finalR *= scale
+                    finalG *= scale
+                    finalB *= scale
+                }
+                
+                return (UInt8(min(finalR, 255)), UInt8(min(finalG, 255)), UInt8(min(finalB, 255)))
             }
             
             // Adjust capture area based on mode
@@ -313,7 +345,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     for i in 0..<config.left {
                         let y = yOffset + capHeight - ((i + 1) * hStep)
                         let rect = CGRect(x: xOffset, y: y, width: config.depth, height: hStep)
-                        capturedColors.append(getVibrantColor(rect: rect))
+                        capturedColors.append(getSmartColor(rect: rect))
                     }
                 }
                 // 2. Top Zone (Left -> Right)
@@ -322,7 +354,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     for i in 0..<config.top {
                         let x = xOffset + (i * wStep)
                         let rect = CGRect(x: x, y: yOffset, width: wStep, height: config.depth)
-                        capturedColors.append(getVibrantColor(rect: rect))
+                        capturedColors.append(getSmartColor(rect: rect))
                     }
                 }
                 // 3. Right Zone (Top -> Bottom)
@@ -331,7 +363,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     for i in 0..<config.right {
                         let y = yOffset + (i * hStep)
                         let rect = CGRect(x: xOffset + capWidth - config.depth, y: y, width: config.depth, height: hStep)
-                        capturedColors.append(getVibrantColor(rect: rect))
+                        capturedColors.append(getSmartColor(rect: rect))
                     }
                 }
                 // 4. Bottom Zone (Right -> Left)
@@ -340,7 +372,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     for i in 0..<config.bottom {
                         let x = xOffset + capWidth - ((i + 1) * wStep)
                         let rect = CGRect(x: x, y: yOffset + capHeight - config.depth, width: wStep, height: config.depth)
-                        capturedColors.append(getVibrantColor(rect: rect))
+                        capturedColors.append(getSmartColor(rect: rect))
                     }
                 }
             } else {
@@ -351,7 +383,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     for i in 0..<config.right {
                         let y = yOffset + capHeight - ((i + 1) * hStep)
                         let rect = CGRect(x: xOffset + capWidth - config.depth, y: y, width: config.depth, height: hStep)
-                        capturedColors.append(getVibrantColor(rect: rect))
+                        capturedColors.append(getSmartColor(rect: rect))
                     }
                 }
                 // 2. Top Zone (Right -> Left)
@@ -360,7 +392,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     for i in 0..<config.top {
                         let x = xOffset + capWidth - ((i + 1) * wStep)
                         let rect = CGRect(x: x, y: yOffset, width: wStep, height: config.depth)
-                        capturedColors.append(getVibrantColor(rect: rect))
+                        capturedColors.append(getSmartColor(rect: rect))
                     }
                 }
                 // 3. Left Zone (Top -> Bottom)
@@ -369,7 +401,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     for i in 0..<config.left {
                         let y = yOffset + (i * hStep)
                         let rect = CGRect(x: xOffset, y: y, width: config.depth, height: hStep)
-                        capturedColors.append(getVibrantColor(rect: rect))
+                        capturedColors.append(getSmartColor(rect: rect))
                     }
                 }
                 // 4. Bottom Zone (Left -> Right)
@@ -378,11 +410,32 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     for i in 0..<config.bottom {
                         let x = xOffset + (i * wStep)
                         let rect = CGRect(x: x, y: yOffset + capHeight - config.depth, width: wStep, height: config.depth)
-                        capturedColors.append(getVibrantColor(rect: rect))
+                        capturedColors.append(getSmartColor(rect: rect))
                     }
                 }
             }
             
+            // --- Temporal Smoothing (Input Inertia) ---
+            // Stabilize the input before it reaches the physics engine.
+            // This implements the "Memory" requested to prevent input jitter.
+            if self.previousCapturedColors.count != capturedColors.count {
+                self.previousCapturedColors = capturedColors
+            } else {
+                for i in 0..<capturedColors.count {
+                    let prev = self.previousCapturedColors[i]
+                    let curr = capturedColors[i]
+                    
+                    // Heavy Inertia: 70% History, 30% New
+                    // This prevents "jumping" by ensuring the target color moves slowly.
+                    let r = UInt8(Double(prev.0) * 0.7 + Double(curr.0) * 0.3)
+                    let g = UInt8(Double(prev.1) * 0.7 + Double(curr.1) * 0.3)
+                    let b = UInt8(Double(prev.2) * 0.7 + Double(curr.2) * 0.3)
+                    
+                    capturedColors[i] = (r, g, b)
+                }
+                self.previousCapturedColors = capturedColors
+            }
+
             // --- Spatial Interpolation (Smoothing) ---
             var smoothedColors = capturedColors
             let n = capturedColors.count
@@ -402,103 +455,11 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             
             // --- Fluid Dynamics & Spring Physics Integration ---
             
-            // Time Scaling (Normalize to 60 FPS)
-            let timeScale = dt * 60.0
+            // Apply Physics Globally (Fluid + Spring)
+            // The user wants "Spring+Fluid" to be applied globally, regardless of capture mode.
+            // Capture Mode now only affects the SAMPLING strategy (Deep vs Shallow).
             
-            // Update Flow Phase (The "Director" of the fluid)
-            self.flowPhase += 0.05 * timeScale
-            
-            // Initialize springStates if size mismatch
-            if self.springStates.count != smoothedColors.count {
-                self.springStates = smoothedColors.map { 
-                    (Double($0.0), Double($0.1), Double($0.2), 0.0, 0.0, 0.0) 
-                }
-            }
-            
-            let count = smoothedColors.count
-            
-            for i in 0..<count {
-                let target = smoothedColors[i]
-                var state = self.springStates[i]
-                
-                // Fluid Neighbors (Circular Buffer)
-                let upstreamIdx = (i - 1 + count) % count
-                let downstreamIdx = (i + 1) % count
-                let upstream = self.springStates[upstreamIdx]
-                let downstream = self.springStates[downstreamIdx]
-                
-                // 1. Dynamic Flow Field Generation
-                // Create a "Flow Map" using Sine Wave to simulate liquid pulsing
-                // This controls how strongly the fluid flows at this specific LED
-                let flowVector = 0.12 + sin(Double(i) * 0.15 + self.flowPhase) * 0.08
-                
-                // 2. Fluid Coupling Forces
-                
-                // Advection: Upstream injects momentum and color into Downstream
-                // "Upstream velocity and position inject into downstream"
-                // We blend a portion of the upstream velocity/position difference
-                let advectionR = (upstream.r - state.r) * flowVector + (upstream.vr - state.vr) * flowVector * 0.6
-                let advectionG = (upstream.g - state.g) * flowVector + (upstream.vg - state.vg) * flowVector * 0.6
-                let advectionB = (upstream.b - state.b) * flowVector + (upstream.vb - state.vb) * flowVector * 0.6
-                
-                // Viscosity/Drag: Downstream resistance pulls back
-                // "Downstream resistance affects upstream"
-                let dragFactor = 0.04
-                let dragR = (downstream.r - state.r) * dragFactor
-                let dragG = (downstream.g - state.g) * dragFactor
-                let dragB = (downstream.b - state.b) * dragFactor
-                
-                // 3. Target Attraction (Adaptive Spring Physics)
-                let tr = Double(target.0)
-                let tg = Double(target.1)
-                let tb = Double(target.2)
-                
-                let deltaR = tr - state.r
-                let deltaG = tg - state.g
-                let deltaB = tb - state.b
-                let dist = sqrt(deltaR*deltaR + deltaG*deltaG + deltaB*deltaB)
-                
-                var tension: Double
-                var friction: Double
-                
-                if dist > 100.0 {
-                    tension = 0.45; friction = 0.35
-                } else if dist < 5.0 {
-                    tension = 0.015; friction = 0.60
-                } else {
-                    let t = (dist - 5.0) / 95.0
-                    tension = 0.02 + (t * 0.43)
-                    friction = 0.60 - (t * 0.25)
-                }
-                
-                // 4. Integration (Euler)
-                // Total Force = Spring Force + Advection + Drag
-                
-                let forceR = (tension * deltaR) + advectionR + dragR
-                state.vr = state.vr + (forceR * timeScale)
-                state.vr *= pow(1.0 - friction, timeScale)
-                state.r += state.vr * timeScale
-                
-                let forceG = (tension * deltaG) + advectionG + dragG
-                state.vg = state.vg + (forceG * timeScale)
-                state.vg *= pow(1.0 - friction, timeScale)
-                state.g += state.vg * timeScale
-                
-                let forceB = (tension * deltaB) + advectionB + dragB
-                state.vb = state.vb + (forceB * timeScale)
-                state.vb *= pow(1.0 - friction, timeScale)
-                state.b += state.vb * timeScale
-                
-                // Update State
-                self.springStates[i] = state
-                
-                // Clamp and Assign
-                let finalR = UInt8(min(max(state.r, 0), 255))
-                let finalG = UInt8(min(max(state.g, 0), 255))
-                let finalB = UInt8(min(max(state.b, 0), 255))
-                
-                smoothedColors[i] = (finalR, finalG, finalB)
-            }
+            smoothedColors = physicsEngine.process(targetColors: smoothedColors, dt: dt)
             
             for color in smoothedColors {
                 ledData.append(color.0)

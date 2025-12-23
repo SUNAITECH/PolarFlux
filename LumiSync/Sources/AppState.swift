@@ -55,18 +55,31 @@ class AppState: ObservableObject {
     // Sync Settings
     @Published var syncMode: SyncMode = .full
     @Published var screenOrientation: ScreenOrientation = .standard
+    @Published var targetFrameRate: Double = 60.0
+    @Published var searchDepth: Double = 0.8 // 80% inwards search
+    @Published var syncBrightness: Double = 1.0 // Separate brightness for Sync
     
     // Effect Settings
     @Published var selectedEffect: EffectType = .rainbow
     @Published var effectSpeeds: [EffectType: Double] = [
         .rainbow: 1.0,
         .breathing: 1.0,
-        .marquee: 1.0
+        .marquee: 1.0,
+        .knightRider: 1.0,
+        .police: 1.0,
+        .candle: 1.0,
+        .plasma: 1.0,
+        .strobe: 2.0
     ]
     @Published var effectColors: [EffectType: Color] = [
-        .rainbow: .red, // Not used for rainbow
+        .rainbow: .red, // Not used
         .breathing: .blue,
-        .marquee: .green
+        .marquee: .green,
+        .knightRider: .red, // Not used (fixed red)
+        .police: .blue, // Not used (fixed red/blue)
+        .candle: .orange, // Not used (fixed orange)
+        .plasma: .purple, // Not used (rainbow)
+        .strobe: .white // Not used (fixed white)
     ]
     
     // Manual Settings
@@ -237,6 +250,16 @@ class AppState: ObservableObject {
         stopKeepAlive()
     }
     
+    // Restart Sync if settings change
+    func restartSync() {
+        if isRunning && currentMode == .sync {
+            Task {
+                await screenCapture.stopStream()
+                startSync()
+            }
+        }
+    }
+    
     // MARK: - Sync Mode
     private func startSync() {
         // Check permission first
@@ -293,7 +316,8 @@ class AppState: ObservableObject {
                 ledCount: totalLeds,
                 mode: mode,
                 orientation: orientation,
-                useDominantColor: useDominant
+                brightness: self.syncBrightness,
+                targetFrameRate: self.targetFrameRate
             )
         }
     }

@@ -592,3 +592,120 @@
 [11:29:23.456 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
 [11:29:25.066 PM] Device connected: SK0127,<"--(
 [11:29:25.066 PM] Starting mode: Screen Sync
+[0:22:02.001 AM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[0:22:02.002 AM] Connecting to /dev/cu.usbserial-1140 at 115200
+[0:22:02.005 AM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[0:22:03.611 AM] Device connected: SK0127,<"--(
+[0:22:03.612 AM] Starting mode: Screen Sync
+[0:22:03.638 AM] Stopping
+[0:22:11.600 AM] Starting mode: Screen Sync
+[0:22:11.608 AM] Stopping
+[0:22:38.079 AM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[0:22:38.081 AM] Connecting to /dev/cu.usbserial-1140 at 115200
+[0:22:38.083 AM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[0:22:39.693 AM] Device connected: SK0127,<"--(
+[0:22:39.694 AM] Starting mode: Screen Sync
+[0:22:54.873 AM] Stopping
+[0:22:54.911 AM] Starting mode: Effects
+[0:25:33.975 AM] Stopping
+[0:25:36.028 AM] Starting mode: Effects
+[0:25:36.536 AM] Stopping
+[0:25:38.200 AM] Starting mode: Effects
+[0:26:09.967 AM] Stopping
+[0:26:10.266 AM] Starting mode: Manual
+[0:26:18.662 AM] Stopping
+[0:26:18.680 AM] Starting mode: Music Mode
+[0:26:22.344 AM] Stopping
+[0:26:22.414 AM] Starting mode: Screen Sync
+[0:31:34.481 AM] Stopping
+[0:31:41.032 AM] Stopping
+[0:31:41.594 AM] Starting mode: Screen Sync
+[0:32:21.282 AM] Stopping
+[0:32:21.610 AM] Starting mode: Manual
+[0:32:25.950 AM] Stopping
+[0:32:25.999 AM] Starting mode: Screen Sync
+[0:53:13.335 AM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[0:53:13.336 AM] Connecting to /dev/cu.usbserial-1140 at 115200
+[0:53:13.339 AM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[0:53:14.948 AM] Device connected: SK0127,<"--(
+[0:53:14.949 AM] Starting mode: Screen Sync
+[0:53:14.976 AM] Stopping
+[0:53:29.194 AM] Starting mode: Screen Sync
+[0:53:29.206 AM] Stopping
+[0:53:35.454 AM] Starting mode: Screen Sync
+[0:53:35.461 AM] Stopping
+[0:53:50.402 AM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[0:53:50.403 AM] Connecting to /dev/cu.usbserial-1140 at 115200
+[0:53:50.406 AM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[0:53:52.016 AM] Device connected: SK0127,<"--(
+[0:53:52.016 AM] Starting mode: Screen Sync
+[8:39:44.414 AM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[8:39:44.418 AM] Connecting to /dev/cu.usbserial-1140 at 115200
+[8:39:44.422 AM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[8:39:46.026 AM] Device connected: SK0127,<"--(
+[8:39:46.026 AM] Starting mode: Effects
+[8:41:19.513 AM] Stopping
+[8:41:19.554 AM] Starting mode: Screen Sync
+[8:41:19.567 AM] Stopping
+[8:41:33.635 AM] Starting mode: Screen Sync
+[8:41:33.648 AM] Stopping
+[8:41:48.425 AM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[8:41:48.427 AM] Connecting to /dev/cu.usbserial-1140 at 115200
+[8:41:48.429 AM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[8:41:50.035 AM] Device connected: SK0127,<"--(
+[8:41:50.036 AM] Starting mode: Screen Sync
+[8:44:15.936 AM] Starting auto-detection
+[8:44:15.937 AM] Stopping
+[8:44:16.038 AM] Auto-detect response: SK0127,<"--(
+[8:44:16.061 AM] Starting mode: Screen Sync
+[8:56:03.663 AM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[8:56:03.664 AM] Connecting to /dev/cu.usbserial-1140 at 115200
+[8:56:03.667 AM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[8:56:05.274 AM] Device connected: SK0127,<"--(
+[8:56:05.275 AM] Starting mode: Screen Sync
+[8:56:05.299 AM] Stopping
+[8:56:10.879 AM] Starting mode: Screen Sync
+[8:56:10.889 AM] Stopping
+[8:56:21.603 AM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[8:56:21.605 AM] Connecting to /dev/cu.usbserial-1140 at 115200
+[8:56:21.607 AM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[8:56:23.218 AM] Device connected: SK0127,<"--(
+[8:56:23.219 AM] Starting mode: Screen Sync
+[7:03:31.407 PM] Stopping
+[7:03:31.949 PM] Starting mode: Screen Sync
+[7:11:09.505 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[7:11:09.508 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[7:11:09.511 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[7:11:11.119 PM] Device connected: SK0127,<"--(
+[7:11:11.120 PM] Starting mode: Screen Sync
+[7:11:11.149 PM] Stopping
+[7:11:19.884 PM] Starting mode: Screen Sync
+[7:11:19.898 PM] Stopping
+[7:11:32.764 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[7:11:32.766 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[7:11:32.769 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[7:11:34.380 PM] Device connected: SK0127,<"--(
+[7:11:34.381 PM] Starting mode: Screen Sync
+[7:21:53.585 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[7:21:53.586 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[7:21:53.589 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[7:21:55.199 PM] Device connected: SK0127,<"--(
+[7:21:55.220 PM] Starting mode: Screen Sync
+[7:21:55.220 PM] Starting mode: Screen Sync
+[7:21:55.238 PM] Stopping
+[7:21:55.239 PM] Stopping
+[7:22:02.051 PM] Starting mode: Screen Sync
+[7:22:02.068 PM] Stopping
+[7:22:15.780 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[7:22:15.782 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[7:22:15.784 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[7:22:17.389 PM] Device connected: SK0127,<"--(
+[7:22:17.390 PM] Starting mode: Screen Sync
+[7:25:09.628 PM] Stopping
+[7:25:09.676 PM] Starting mode: Effects
+[7:25:15.949 PM] Stopping
+[7:25:15.994 PM] Starting mode: Screen Sync
+[7:25:18.165 PM] Stopping
+[7:25:18.197 PM] Starting mode: Effects
+[7:25:19.162 PM] Stopping
+[7:25:19.206 PM] Starting mode: Screen Sync

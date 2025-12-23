@@ -53,17 +53,16 @@ struct ContentView: View {
                         // Mode Specific Controls
                         if appState.currentMode == .sync {
                             VStack(alignment: .leading, spacing: 10) {
-                                Picker("Sync Area", selection: $appState.syncMode) {
-                                    Text("Full Screen").tag(SyncMode.full)
-                                    Text("Cinema (Bars)").tag(SyncMode.cinema)
-                                    Text("Left Half").tag(SyncMode.left)
-                                    Text("Right Half").tag(SyncMode.right)
-                                }
-                                .pickerStyle(MenuPickerStyle())
+                                ZoneSettingsView(appState: appState)
                                 
-                                Text("Configure orientation in Settings (⌘,)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                Divider()
+                                
+                                HStack {
+                                    Text("Target FPS: \(Int(appState.targetFrameRate))")
+                                    Slider(value: $appState.targetFrameRate, in: 15...120, step: 5) { _ in
+                                        appState.restartSync()
+                                    }
+                                }
                             }
                         } else if appState.currentMode == .music {
                             VStack(alignment: .leading, spacing: 10) {
@@ -144,11 +143,11 @@ struct ContentView: View {
                     // Brightness Control
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text("Brightness")
+                            Text(appState.currentMode == .sync ? "Sync Brightness" : "Brightness")
                                 .font(.headline)
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Text("\(Int(appState.brightness * 100))%")
+                            Text("\(Int((appState.currentMode == .sync ? appState.syncBrightness : appState.brightness) * 100))%")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -159,8 +158,17 @@ struct ContentView: View {
                             
                             // Custom Slider with Ticks
                             VStack(spacing: 4) {
-                                Slider(value: $appState.brightness, in: 0.1...1.0, step: 0.05)
+                                if appState.currentMode == .sync {
+                                    Slider(value: $appState.syncBrightness, in: 0.1...2.5, step: 0.1) { _ in
+                                        appState.restartSync()
+                                    }
+                                    .accentColor(.purple)
+                                } else {
+                                    Slider(value: $appState.brightness, in: 0.1...1.0, step: 0.05) { _ in
+                                        appState.restartSync()
+                                    }
                                     .accentColor(appState.isPowerLimited ? .orange : .blue)
+                                }
                             }
                             
                             Image(systemName: "sun.max")
