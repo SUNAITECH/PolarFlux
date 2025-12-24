@@ -62,24 +62,18 @@ class AppState: ObservableObject {
     // Effect Settings
     @Published var selectedEffect: EffectType = .rainbow
     @Published var effectSpeeds: [EffectType: Double] = [
-        .rainbow: 1.0,
-        .breathing: 1.0,
-        .marquee: 1.0,
-        .knightRider: 1.0,
-        .police: 1.0,
-        .candle: 1.0,
-        .plasma: 1.0,
-        .strobe: 2.0
+        .rainbow: 1.0, .breathing: 1.0, .marquee: 1.0, .knightRider: 1.0,
+        .police: 1.0, .candle: 1.0, .plasma: 1.0, .strobe: 2.0,
+        .atomic: 1.0, .fire: 1.0, .matrix: 1.0, .moodBlobs: 1.0,
+        .pacman: 1.0, .snake: 1.0, .sparks: 1.0, .traces: 1.0,
+        .trails: 1.0, .waves: 1.0, .collision: 1.0, .doubleSwirl: 1.0
     ]
     @Published var effectColors: [EffectType: Color] = [
-        .rainbow: .red, // Not used
-        .breathing: .blue,
-        .marquee: .green,
-        .knightRider: .red, // Not used (fixed red)
-        .police: .blue, // Not used (fixed red/blue)
-        .candle: .orange, // Not used (fixed orange)
-        .plasma: .purple, // Not used (rainbow)
-        .strobe: .white // Not used (fixed white)
+        .rainbow: .red, .breathing: .blue, .marquee: .green, .knightRider: .red,
+        .police: .blue, .candle: .orange, .plasma: .purple, .strobe: .white,
+        .atomic: .cyan, .fire: .orange, .matrix: .green, .moodBlobs: .blue,
+        .pacman: .yellow, .snake: .green, .sparks: .white, .traces: .blue,
+        .trails: .red, .waves: .blue, .collision: .red, .doubleSwirl: .purple
     ]
     
     // Manual Settings
@@ -148,6 +142,32 @@ class AppState: ObservableObject {
         serialPort.onDisconnect = { [weak self] in
             Logger.shared.log("Serial port disconnected unexpectedly")
             self?.handleDisconnection()
+        }
+
+        // Setup Sleep/Wake Observers
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.handleSleep()
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.handleWake()
+        }
+    }
+
+    private func handleSleep() {
+        if isRunning {
+            wasRunning = true
+            stop()
+            Logger.shared.log("System going to sleep. Stopping lights.")
+        }
+    }
+    
+    private func handleWake() {
+        if wasRunning {
+            Logger.shared.log("System woke up. Restarting lights in 2s...")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                self?.start()
+                self?.wasRunning = false
+            }
         }
     }
     
