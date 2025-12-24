@@ -92,7 +92,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         }
     }
     
-    func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, brightness: Double, targetFrameRate: Double) async {
+    func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, brightness: Double, targetFrameRate: Double, calibration: (r: Double, g: Double, b: Double), gamma: Double, saturation: Double) async {
         // Stop existing stream if any
         if let stream = stream {
             try? await stream.stopCapture()
@@ -102,28 +102,40 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let streamConfig = SCStreamConfiguration()
         
         // 1. Optimization: Downsample for Performance
-        // We don't need 4K for LED sampling. 360p height is plenty for ambient light.
         let scaleFactor = 360.0 / Double(display.height)
         streamConfig.width = Int(Double(display.width) * scaleFactor)
         streamConfig.height = 360
         streamConfig.showsCursor = false
-        streamConfig.pixelFormat = kCVPixelFormatType_32BGRA // Efficient for CPU access
-        streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(targetFrameRate)) // Target FPS
-        streamConfig.queueDepth = 3 // Keep buffer small to reduce latency
+        streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
+        streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(targetFrameRate))
+        streamConfig.queueDepth = 3
         
         do {
             let stream = SCStream(filter: filter, configuration: streamConfig, delegate: self)
+            
+            // Patch Point 1: Synchronize state updates on the processing queue to prevent race conditions
+            processingQueue.sync {
+                self.currentConfig = config
+                self.currentLedCount = ledCount
+                self.currentMode = mode
+                self.currentOrientation = orientation
+                self.currentBrightness = brightness
+                self.currentTargetFrameRate = targetFrameRate
+                self.currentCalibration = calibration
+                self.currentGamma = gamma
+                self.currentSaturation = saturation
+                
+                self.zoneStates.removeAll()
+                self.physicsEngine.reset()
+                self.lastFrameTime = 0
+                self.lastProcessTime = 0
+                self.lastOutputColors.removeAll()
+                self.currentSceneIntensity = 0.0
+            }
+            
             try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: processingQueue)
             try await stream.startCapture()
             self.stream = stream
-            
-            // Store config for processing
-            self.currentConfig = config
-            self.currentLedCount = ledCount
-            self.currentMode = mode
-            self.currentOrientation = orientation
-            self.currentBrightness = brightness
-            self.currentTargetFrameRate = targetFrameRate
             
         } catch {
             print("Failed to start stream: \(error)")
@@ -144,7 +156,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var currentOrientation: ScreenOrientation = .standard
     private var currentBrightness: Double = 1.0
     private var currentTargetFrameRate: Double = 60.0
+    private var currentCalibration: (r: Double, g: Double, b: Double) = (1.0, 1.0, 1.0)
+    private var currentGamma: Double = 1.0
+    private var currentSaturation: Double = 1.0
     private var lastProcessTime: TimeInterval = 0
+    private var lastOutputColors: [(UInt8, UInt8, UInt8)] = []
+    private var currentSceneIntensity: Double = 0.0
     
     // MARK: - SCStreamDelegate
     func stream(_ stream: SCStream, didStopWithError error: Error) {
@@ -492,19 +509,58 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             for (i, rect) in zones.enumerated() {
                 let (r, g, b) = sampleZone(rect: rect, stateIndex: i)
                 
-                // Calculate Euclidean distance for Scene Intensity (Patch Point 1)
-                let state = zoneStates[i]
-                let dr = r - state.lastR
-                let dg = g - state.lastG
-                let db = b - state.lastB
-                let distance = sqrt(dr*dr + dg*dg + db*db)
+                // --- Patch Point 1: Bi-directional Scene Intensity (Feedback Coupling) ---
+                // Instead of just tracking input change (unidirectional), we track the 
+                // "System Error" (Target - Current Output). This ensures the system stays 
+                // reactive until the LEDs actually reach the target.
+                
+                var distance: Double = 0
+                if i < lastOutputColors.count {
+                    let lastOut = lastOutputColors[i]
+                    let dr = r - Double(lastOut.0)
+                    let dg = g - Double(lastOut.1)
+                    let db = b - Double(lastOut.2)
+                    distance = sqrt(dr*dr + dg*dg + db*db)
+                } else {
+                    // Fallback to input delta if no output history exists
+                    let state = zoneStates[i]
+                    let dr = r - state.lastR
+                    let dg = g - state.lastG
+                    let db = b - state.lastB
+                    distance = sqrt(dr*dr + dg*dg + db*db)
+                }
                 zoneDistances.append(distance)
                 
-                // Tone Mapping
-                let currentMax = max(r, max(g, b))
-                var finalR = r
-                var finalG = g
-                var finalB = b
+                // Tone Mapping & White Balance Calibration (Patch Point 3)
+                // 1. Apply Saturation Boost
+                var r_cal = r
+                var g_cal = g
+                var b_cal = b
+                
+                if currentSaturation != 1.0 {
+                    let gray = 0.299 * r + 0.587 * g + 0.114 * b
+                    r_cal = max(0, gray + (r - gray) * currentSaturation)
+                    g_cal = max(0, gray + (g - gray) * currentSaturation)
+                    b_cal = max(0, gray + (b - gray) * currentSaturation)
+                }
+                
+                // 2. Apply White Balance Calibration Gains
+                r_cal *= currentCalibration.r
+                g_cal *= currentCalibration.g
+                b_cal *= currentCalibration.b
+                
+                // 3. Apply Gamma Correction
+                if currentGamma != 1.0 {
+                    r_cal = pow(r_cal / 255.0, currentGamma) * 255.0
+                    g_cal = pow(g_cal / 255.0, currentGamma) * 255.0
+                    b_cal = pow(b_cal / 255.0, currentGamma) * 255.0
+                }
+                
+                // 4. Tone Mapping (Preserving Calibrated Ratios)
+                let currentMax = max(r_cal, max(g_cal, b_cal))
+                var finalR = r_cal
+                var finalG = g_cal
+                var finalB = b_cal
                 
                 if currentMax > 0 {
                     let targetMax = currentMax * brightness
@@ -518,9 +574,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             }
             
             // 4. Scene Intensity Calculation (Patch Point 1)
-            var sceneIntensity: Double = 0
             if !zoneDistances.isEmpty {
-                // Use Median to filter out local noise/spikes
                 let sortedDistances = zoneDistances.sorted()
                 let medianDistance: Double
                 let mid = sortedDistances.count / 2
@@ -531,9 +585,16 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 }
                 
                 // Map median distance to [0, 1]
-                // A distance of 0 means no change, 100+ is a very dramatic scene change.
-                // We use a smooth scaling function.
-                sceneIntensity = min(max(medianDistance / 120.0, 0.0), 1.0)
+                let newIntensity = min(max(medianDistance / 120.0, 0.0), 1.0)
+                
+                // --- Patch Point 2: Temporal Hysteresis ---
+                // We use a slow-decaying intensity to prevent rapid oscillation and 
+                // ensure the system stays "hot" during complex transitions.
+                if newIntensity > currentSceneIntensity {
+                    currentSceneIntensity = newIntensity // Instant attack
+                } else {
+                    currentSceneIntensity = (currentSceneIntensity * 0.85) + (newIntensity * 0.15) // Smooth decay
+                }
                 
                 // Update "last" values for next frame
                 for i in 0..<zones.count {
@@ -544,7 +605,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             }
             
             // 5. Physics & Spatial Constraint
-            var smoothedColors = physicsEngine.process(targetColors: capturedColors, dt: dt, sceneIntensity: sceneIntensity)
+            var smoothedColors = physicsEngine.process(targetColors: capturedColors, dt: dt, sceneIntensity: currentSceneIntensity)
+            self.lastOutputColors = smoothedColors // Store for feedback loop
             
             // 6. Spatial Consistency Constraint (Post-Process)
             // Check for outliers and pull them in

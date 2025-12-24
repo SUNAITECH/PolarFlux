@@ -337,7 +337,10 @@ class AppState: ObservableObject {
                 mode: mode,
                 orientation: orientation,
                 brightness: self.syncBrightness,
-                targetFrameRate: self.targetFrameRate
+                targetFrameRate: self.targetFrameRate,
+                calibration: (r: self.calibrationR, g: self.calibrationG, b: self.calibrationB),
+                gamma: self.gamma,
+                saturation: self.saturation
             )
         }
     }
@@ -537,91 +540,98 @@ class AppState: ObservableObject {
         
         var finalData = data
         
-        // Apply Saturation Boost
-        if saturation != 1.0 {
-            for i in stride(from: 0, to: finalData.count, by: 3) {
-                if i + 2 < finalData.count {
-                    let r = Double(finalData[i]) / 255.0
-                    let g = Double(finalData[i+1]) / 255.0
-                    let b = Double(finalData[i+2]) / 255.0
-                    
-                    // RGB to HSV
-                    let maxC = max(r, max(g, b))
-                    let minC = min(r, min(g, b))
-                    let delta = maxC - minC
-                    
-                    var h: Double = 0
-                    var s: Double = 0
-                    let v: Double = maxC
-                    
-                    if delta != 0 {
-                        s = delta / maxC
+        // --- Patch Point 4: Unified Pipeline ---
+        // If we are in Sync mode, Calibration, Gamma, and Saturation have already been applied 
+        // in the ScreenCapture engine (before tone mapping) for better accuracy.
+        // We only apply them here for non-sync modes.
+        
+        if currentMode != .sync {
+            // 1. Apply Saturation Boost
+            if saturation != 1.0 {
+                for i in stride(from: 0, to: finalData.count, by: 3) {
+                    if i + 2 < finalData.count {
+                        let r = Double(finalData[i]) / 255.0
+                        let g = Double(finalData[i+1]) / 255.0
+                        let b = Double(finalData[i+2]) / 255.0
                         
-                        if r == maxC {
-                            h = (g - b) / delta
-                        } else if g == maxC {
-                            h = 2 + (b - r) / delta
-                        } else {
-                            h = 4 + (r - g) / delta
+                        // RGB to HSV
+                        let maxC = max(r, max(g, b))
+                        let minC = min(r, min(g, b))
+                        let delta = maxC - minC
+                        
+                        var h: Double = 0
+                        var s: Double = 0
+                        let v: Double = maxC
+                        
+                        if delta != 0 {
+                            s = delta / maxC
+                            
+                            if r == maxC {
+                                h = (g - b) / delta
+                            } else if g == maxC {
+                                h = 2 + (b - r) / delta
+                            } else {
+                                h = 4 + (r - g) / delta
+                            }
+                            h *= 60
+                            if h < 0 { h += 360 }
                         }
-                        h *= 60
-                        if h < 0 { h += 360 }
+                        
+                        // Apply Saturation Gain
+                        s = min(max(s * saturation, 0), 1.0)
+                        
+                        // HSV to RGB
+                        let c = v * s
+                        let x = c * (1 - abs((h / 60).truncatingRemainder(dividingBy: 2) - 1))
+                        let m = v - c
+                        
+                        var r1 = 0.0, g1 = 0.0, b1 = 0.0
+                        if h < 60 { r1 = c; g1 = x; b1 = 0 }
+                        else if h < 120 { r1 = x; g1 = c; b1 = 0 }
+                        else if h < 180 { r1 = 0; g1 = c; b1 = x }
+                        else if h < 240 { r1 = 0; g1 = x; b1 = c }
+                        else if h < 300 { r1 = x; g1 = 0; b1 = c }
+                        else { r1 = c; g1 = 0; b1 = x }
+                        
+                        finalData[i] = UInt8((r1 + m) * 255)
+                        finalData[i+1] = UInt8((g1 + m) * 255)
+                        finalData[i+2] = UInt8((b1 + m) * 255)
                     }
-                    
-                    // Apply Saturation Gain
-                    s = min(max(s * saturation, 0), 1.0)
-                    
-                    // HSV to RGB
-                    let c = v * s
-                    let x = c * (1 - abs((h / 60).truncatingRemainder(dividingBy: 2) - 1))
-                    let m = v - c
-                    
-                    var r1 = 0.0, g1 = 0.0, b1 = 0.0
-                    if h < 60 { r1 = c; g1 = x; b1 = 0 }
-                    else if h < 120 { r1 = x; g1 = c; b1 = 0 }
-                    else if h < 180 { r1 = 0; g1 = c; b1 = x }
-                    else if h < 240 { r1 = 0; g1 = x; b1 = c }
-                    else if h < 300 { r1 = x; g1 = 0; b1 = c }
-                    else { r1 = c; g1 = 0; b1 = x }
-                    
-                    finalData[i] = UInt8((r1 + m) * 255)
-                    finalData[i+1] = UInt8((g1 + m) * 255)
-                    finalData[i+2] = UInt8((b1 + m) * 255)
+                }
+            }
+            
+            // 2. Apply Gamma Correction
+            if gamma != 1.0 {
+                for i in 0..<finalData.count {
+                    let normalized = Double(finalData[i]) / 255.0
+                    let corrected = pow(normalized, gamma) * 255.0
+                    finalData[i] = UInt8(min(max(corrected, 0), 255))
+                }
+            }
+            
+            // 3. Apply Calibration
+            if calibrationR != 1.0 || calibrationG != 1.0 || calibrationB != 1.0 {
+                for i in stride(from: 0, to: finalData.count, by: 3) {
+                    if i + 2 < finalData.count {
+                        finalData[i] = UInt8(min(Double(finalData[i]) * calibrationR, 255.0))
+                        finalData[i+1] = UInt8(min(Double(finalData[i+1]) * calibrationG, 255.0))
+                        finalData[i+2] = UInt8(min(Double(finalData[i+2]) * calibrationB, 255.0))
+                    }
                 }
             }
         }
         
-        // Apply Gamma Correction
-        if gamma != 1.0 {
-            for i in 0..<finalData.count {
-                let normalized = Double(finalData[i]) / 255.0
-                let corrected = pow(normalized, gamma) * 255.0
-                finalData[i] = UInt8(min(max(corrected, 0), 255))
-            }
-        }
+        // 4. Apply Power Management & Brightness (Always applied at the end)
+        let effectiveBrightness = (currentMode == .sync) ? 1.0 : brightness // Sync brightness is already applied in ScreenCapture
         
-        // Apply Calibration
-        if calibrationR != 1.0 || calibrationG != 1.0 || calibrationB != 1.0 {
-            for i in stride(from: 0, to: finalData.count, by: 3) {
-                if i + 2 < finalData.count {
-                    finalData[i] = UInt8(min(Double(finalData[i]) * calibrationR, 255.0))
-                    finalData[i+1] = UInt8(min(Double(finalData[i+1]) * calibrationG, 255.0))
-                    finalData[i+2] = UInt8(min(Double(finalData[i+2]) * calibrationB, 255.0))
-                }
-            }
-        }
-        
-        // Apply Power Management Logic
         switch powerMode {
         case .abl:
             // Automatic Brightness Limiter
-            // Calculate total brightness sum
             var totalSum: Double = 0
             for byte in finalData {
                 totalSum += Double(byte)
             }
             
-            // Max possible sum (all white)
             let maxPossible = Double(finalData.count) * 255.0
             let threshold = maxPossible * powerLimit
             
@@ -646,19 +656,16 @@ class AppState: ObservableObject {
                 }
             }
             
-            // Apply user brightness on top
-            if brightness < 1.0 {
+            if effectiveBrightness < 1.0 {
                 for i in 0..<finalData.count {
-                    finalData[i] = UInt8(Double(finalData[i]) * brightness)
+                    finalData[i] = UInt8(Double(finalData[i]) * effectiveBrightness)
                 }
             }
             
         case .globalCap:
-            // Global Cap: Limit the maximum output brightness
-            // Effective brightness is min(userBrightness, powerLimit)
-            let effectiveBrightness = min(brightness, powerLimit)
+            let capBrightness = min(effectiveBrightness, powerLimit)
             
-            if brightness > powerLimit {
+            if effectiveBrightness > powerLimit {
                 DispatchQueue.main.async {
                     if !self.isPowerLimited {
                         self.isPowerLimited = true
@@ -674,24 +681,22 @@ class AppState: ObservableObject {
                 }
             }
             
-            if effectiveBrightness < 1.0 {
+            if capBrightness < 1.0 {
                 for i in 0..<finalData.count {
-                    finalData[i] = UInt8(Double(finalData[i]) * effectiveBrightness)
+                    finalData[i] = UInt8(Double(finalData[i]) * capBrightness)
                 }
             }
             
         case .smartFallback:
-            // Smart Fallback: Just apply user brightness normally
             DispatchQueue.main.async {
                 if self.isPowerLimited {
                     self.isPowerLimited = false
                     self.limitReason = ""
                 }
             }
-            // Fallback logic is handled in handleDisconnection
-            if brightness < 1.0 {
+            if effectiveBrightness < 1.0 {
                 for i in 0..<finalData.count {
-                    finalData[i] = UInt8(Double(finalData[i]) * brightness)
+                    finalData[i] = UInt8(Double(finalData[i]) * effectiveBrightness)
                 }
             }
         }
