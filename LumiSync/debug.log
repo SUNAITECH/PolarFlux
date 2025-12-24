@@ -763,3 +763,22 @@
 [11:18:07.365 PM] System going to sleep. Stopping lights.
 [8:21:46.098 AM] System woke up. Restarting lights in 2s...
 [8:21:48.619 AM] Starting mode: Screen Sync
+[6:46:34.208 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[6:46:34.211 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[6:46:34.214 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[6:46:35.656 PM] Starting mode: Screen Sync
+[6:46:35.668 PM] Stopping
+[6:46:35.824 PM] Device connected: SK0127,<"--(
+[6:46:35.825 PM] Starting mode: Screen Sync
+[6:46:35.849 PM] Stopping
+[6:46:41.352 PM] Starting mode: Screen Sync
+[6:46:41.364 PM] Stopping
+[6:46:50.698 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[6:46:50.700 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[6:46:50.702 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[6:46:52.309 PM] Device connected: SK0127,<"--(
+[6:46:52.310 PM] Starting mode: Screen Sync
+[6:49:36.513 PM] Stopping
+[6:49:36.541 PM] Starting mode: Effects
+[6:49:44.902 PM] Stopping
+[6:49:44.943 PM] Starting mode: Screen Sync

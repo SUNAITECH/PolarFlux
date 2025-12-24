@@ -59,6 +59,16 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         var errorCov: Double = 1.0
         var q: Double = 0.1 // Process Noise (System dynamics)
         var r: Double = 2.0 // Measurement Noise (Sensor noise)
+        var alpha: Double = 0.2 // Temporal smoothing factor
+        
+        // 4. Scene Change Detection (Patch Point 1)
+        var lastR: Double = 0
+        var lastG: Double = 0
+        var lastB: Double = 0
+        
+        // 5. Saliency Statistics Accumulators (Patch Point 2)
+        var saliencyMeanAcc: Double = 0
+        var saliencyVarAcc: Double = 0
     }
     
     private var zoneStates: [ZoneState] = []
@@ -292,8 +302,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 var state = zoneStates[stateIndex]
                 
                 // 1. Temporal Accumulation (Buffer Mixing)
-                // Blend current frame stats into history with Alpha = 0.2 (Strong smoothing)
-                let alpha = 0.2
+                // Use dynamic alpha from state (Patch Point 3)
+                let alpha = state.alpha
                 state.accR = (state.accR * (1.0 - alpha)) + (frameR * alpha)
                 state.accG = (state.accG * (1.0 - alpha)) + (frameG * alpha)
                 state.accB = (state.accB * (1.0 - alpha)) + (frameB * alpha)
@@ -304,18 +314,24 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 state.peakB = (state.peakB * (1.0 - alpha)) + (framePeakB * alpha)
                 state.peakSaliency = (state.peakSaliency * (1.0 - alpha)) + (framePeakSaliency * alpha)
                 
+                // Patch Point 2: Smooth Saliency Statistics
+                let frameMeanSaliency = saliencySum / max(1, pixelCount)
+                let frameVarSaliency = (saliencySqSum / max(1, pixelCount)) - (frameMeanSaliency * frameMeanSaliency)
+                
+                state.saliencyMeanAcc = (state.saliencyMeanAcc * (1.0 - alpha)) + (frameMeanSaliency * alpha)
+                state.saliencyVarAcc = (state.saliencyVarAcc * (1.0 - alpha)) + (max(0, frameVarSaliency) * alpha)
+                
                 // 2. Dynamic Hybrid Mixing
-                // Calculate Coefficient of Variation (CV) of Saliency
-                // CV = StdDev / Mean
+                // Calculate Coefficient of Variation (CV) of Saliency using smoothed statistics
                 var finalR: Double = 0
                 var finalG: Double = 0
                 var finalB: Double = 0
                 
                 if state.accWeight > 0 {
-                    let meanSaliency = saliencySum / max(1, pixelCount)
-                    let variance = (saliencySqSum / max(1, pixelCount)) - (meanSaliency * meanSaliency)
-                    let stdDev = sqrt(max(0, variance))
-                    let cv = (meanSaliency > 0) ? (stdDev / meanSaliency) : 0
+                    let smoothedMean = state.saliencyMeanAcc
+                    let smoothedVar = state.saliencyVarAcc
+                    let stdDev = sqrt(max(0, smoothedVar))
+                    let cv = (smoothedMean > 0) ? (stdDev / smoothedMean) : 0
                     
                     // Base: Weighted Average
                     let avgR = state.accR / state.accWeight
@@ -344,10 +360,25 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 let resG = finalG - predG
                 let resB = finalB - predB
                 
-                // Adaptive Noise (R): If residual is huge, reduce R (trust measurement)
-                // If residual is small, increase R (trust prediction/smooth)
+                // Patch Point 3: Elastic Parameters (Dynamic alpha and q)
                 let residualMag = sqrt(resR*resR + resG*resG + resB*resB)
-                let adaptiveR = state.r / (1.0 + (residualMag * 0.05))
+                
+                // Define interpolation range for residual magnitude
+                let minRes: Double = 2.0
+                let maxRes: Double = 40.0
+                let t = min(max((residualMag - minRes) / (maxRes - minRes), 0.0), 1.0)
+                
+                // 1. Dynamic Alpha: 0.1 (stable) to 0.3 (active)
+                // Lower alpha when stable to trust history more.
+                state.alpha = 0.1 + (t * 0.2)
+                
+                // 2. Dynamic Q (Process Noise): 0.05 (stable) to 0.2 (active)
+                // Lower Q when stable to trust the prediction model more.
+                // Higher Q when active to allow the filter to follow measurements faster.
+                state.q = 0.05 + (t * 0.15)
+                
+                // Adaptive Measurement Noise (R): Keep existing logic but refine
+                let adaptiveR = state.r / (1.0 + (residualMag * 0.1))
                 
                 // Kalman Gain
                 let k = predP / (predP + adaptiveR)
@@ -456,10 +487,18 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             
             // 3. Processing Loop
             var capturedColors: [(UInt8, UInt8, UInt8)] = []
-            var totalChangeMagnitude: Double = 0
+            var zoneDistances: [Double] = []
             
             for (i, rect) in zones.enumerated() {
                 let (r, g, b) = sampleZone(rect: rect, stateIndex: i)
+                
+                // Calculate Euclidean distance for Scene Intensity (Patch Point 1)
+                let state = zoneStates[i]
+                let dr = r - state.lastR
+                let dg = g - state.lastG
+                let db = b - state.lastB
+                let distance = sqrt(dr*dr + dg*dg + db*db)
+                zoneDistances.append(distance)
                 
                 // Tone Mapping
                 let currentMax = max(r, max(g, b))
@@ -475,50 +514,33 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     finalB *= scale
                 }
                 
-                // Calculate Change Magnitude for Scene Intensity
-                // We compare current output with previous output (stored in physics engine or here)
-                // For simplicity, we use the Kalman residual we just calculated? 
-                // No, we need global change. Let's accumulate the 'velocity' from the Kalman filter?
-                // Or just use the raw difference from previous frame.
-                // Let's use the Kalman 'residualMag' we computed inside sampleZone? 
-                // We can't access it easily. Let's just approximate with current vs previous state.
-                // Actually, let's just use the physics engine's job for this?
-                // The user asked to calculate it HERE and pass it.
-                
                 capturedColors.append((UInt8(min(finalR, 255)), UInt8(min(finalG, 255)), UInt8(min(finalB, 255))))
             }
             
-            // 4. Scene Intensity Calculation
-            // Calculate average change vector norm
-            // Since we don't have easy access to "previous frame final output" here (it's in physics),
-            // we can use the physics engine's internal state or just pass a dummy for now?
-            // Better: Let's calculate it from the `zoneStates` changes.
-            // But `zoneStates` is already updated.
-            // Let's assume `sceneIntensity` is derived from the aggregate `errorCov` or similar?
-            // No, let's just calculate it in the Physics Engine where we have history.
-            // Wait, the user said "Real-time calculate... as descriptor... map to stiffness".
-            // I'll calculate it by comparing `capturedColors` with `previousCapturedColors` (which I removed? No, I should keep it for this).
-            // Ah, I removed `previousCapturedColors` in the edit. I'll re-add a local tracker or just let Physics handle it.
-            // Actually, I'll calculate it inside Physics Engine since it has `states` (previous frame).
-            // So I will pass `0.0` here and let Physics Engine calculate it internally? 
-            // No, I modified Physics Engine to TAKE `sceneIntensity`.
-            // Okay, I will calculate it by comparing `capturedColors` to `zoneStates.est` (which is current).
-            // Wait, `zoneStates.est` IS `capturedColors` (mostly).
-            // I need the *previous* frame's colors.
-            // I'll add `prevR, prevG, prevB` to ZoneState.
-            
+            // 4. Scene Intensity Calculation (Patch Point 1)
             var sceneIntensity: Double = 0
-            for i in 0..<zones.count {
-                // We can't easily get prev without storing it.
-                // Let's just use a simplified metric: The average "Innovation" (Residual) from the Kalman filter.
-                // If the residuals were high, the scene is changing.
-                // I'll add `lastResidual` to ZoneState in next iteration, but for now, let's use a global heuristic.
-                // Heuristic: Variance of the colors across the screen? No.
-                // Let's use the `dt`? No.
-                // Okay, I'll skip precise calculation here and pass 0.5 (medium) or implement it properly in next step if needed.
-                // Actually, I can just use the `accWeight` change?
-                // Let's use a placeholder 0.5 for now, as the Physics Engine handles the smoothing well.
-                sceneIntensity = 0.5 
+            if !zoneDistances.isEmpty {
+                // Use Median to filter out local noise/spikes
+                let sortedDistances = zoneDistances.sorted()
+                let medianDistance: Double
+                let mid = sortedDistances.count / 2
+                if sortedDistances.count % 2 == 0 {
+                    medianDistance = (sortedDistances[mid - 1] + sortedDistances[mid]) / 2.0
+                } else {
+                    medianDistance = sortedDistances[mid]
+                }
+                
+                // Map median distance to [0, 1]
+                // A distance of 0 means no change, 100+ is a very dramatic scene change.
+                // We use a smooth scaling function.
+                sceneIntensity = min(max(medianDistance / 120.0, 0.0), 1.0)
+                
+                // Update "last" values for next frame
+                for i in 0..<zones.count {
+                    zoneStates[i].lastR = zoneStates[i].estR
+                    zoneStates[i].lastG = zoneStates[i].estG
+                    zoneStates[i].lastB = zoneStates[i].estB
+                }
             }
             
             // 5. Physics & Spatial Constraint

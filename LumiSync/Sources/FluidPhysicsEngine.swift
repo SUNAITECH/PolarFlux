@@ -38,19 +38,30 @@ class FluidPhysicsEngine {
         var smoothedColors = [(UInt8, UInt8, UInt8)]()
         smoothedColors.reserveCapacity(count)
         
-        // Dynamic Physics Parameters based on Scene Intensity
-        // High Intensity (Action) -> Higher Tension (Stiff), Lower Friction (Fast)
-        // Low Intensity (Static) -> Lower Tension (Soft), Higher Friction (Damped)
+        // --- Patch Point 4: Advanced Physics Parameter Mapping ---
         
-        // Base Parameters
-        let baseTension = 0.015
-        let baseFriction = 0.60
+        // 1. Define Extreme Parameter Sets
+        // Calm Scene: Low stiffness (soft), High damping (heavy/slow)
+        let stiffness_low = 0.012
+        let damping_high = 0.88
         
-        // Modifiers (Intensity is 0.0 to 1.0+)
-        // If intensity is high (e.g. 0.5), we want tension to go up to ~0.1 and friction down to ~0.3
-        let intensity = min(sceneIntensity, 1.0)
-        let dynamicTension = baseTension + (intensity * 0.08)
-        let dynamicFriction = max(0.2, baseFriction - (intensity * 0.3))
+        // Intense Scene: High stiffness (tight), Low damping (fast/responsive)
+        let stiffness_high = 0.18
+        let damping_low = 0.32
+        
+        // 2. Response Curve (Smoothstep)
+        // This ensures a non-linear transition that is stable at the ends and smooth in the middle.
+        func smoothstep(edge0: Double, edge1: Double, x: Double) -> Double {
+            let t = min(max((x - edge0) / (edge1 - edge0), 0.0), 1.0)
+            return t * t * (3.0 - 2.0 * t)
+        }
+        
+        let intensity = min(max(sceneIntensity, 0.0), 1.0)
+        let mix = smoothstep(edge0: 0.0, edge1: 1.0, x: intensity)
+        
+        // 3. Interpolate Parameters
+        let dynamicTension = stiffness_low + (stiffness_high - stiffness_low) * mix
+        let dynamicFriction = damping_high + (damping_low - damping_high) * mix
         
         for i in 0..<count {
             let target = targetColors[i]
@@ -89,19 +100,20 @@ class FluidPhysicsEngine {
             var friction: Double
             
             // Hybrid Physics: Combine Distance-Based Adaptive Physics with Scene-Intensity Dynamics
-            if dist > 100.0 {
-                // Snap logic for massive changes overrides subtle dynamics
-                tension = 0.35; friction = 0.40
+            if dist > 120.0 {
+                // Snap logic for massive changes (e.g. scene cuts)
+                tension = 0.45; friction = 0.35
             } else if dist < 5.0 {
-                // Very close: Use dynamic parameters to settle
+                // Very close: Use dynamic parameters to settle perfectly
                 tension = dynamicTension
                 friction = dynamicFriction
             } else {
-                // Interpolate
-                let t = (dist - 5.0) / 95.0
-                // Blend between dynamic (soft) and snap (hard)
-                tension = dynamicTension + (t * (0.35 - dynamicTension))
-                friction = dynamicFriction + (t * (0.40 - dynamicFriction))
+                // Interpolate between dynamic parameters and snap parameters based on distance
+                let distT = min(max((dist - 5.0) / 115.0, 0.0), 1.0)
+                let distMix = distT * distT // Quadratic for faster snap response
+                
+                tension = dynamicTension + (0.45 - dynamicTension) * distMix
+                friction = dynamicFriction + (0.35 - dynamicFriction) * distMix
             }
             
             // 4. Integration (Euler)
