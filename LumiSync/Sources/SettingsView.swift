@@ -167,6 +167,44 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            Section(header: Text("Perspective Origin").font(.headline)) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("Origin Mode:", selection: $appState.perspectiveOriginMode) {
+                        ForEach(PerspectiveOriginMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    .onChange(of: appState.perspectiveOriginMode) { _ in
+                        if appState.currentMode == .sync && appState.isRunning {
+                            appState.restartSync()
+                        }
+                    }
+
+                    Text("Auto centers the origin when all sides have LEDs or snaps to the golden-ratio point closest to the missing side.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    OriginPreview(originPosition: $appState.manualOriginPosition, mode: appState.perspectiveOriginMode)
+                        .frame(height: 140)
+                        .padding(.vertical, 4)
+
+                    if appState.perspectiveOriginMode == .manual {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Manual Position: \(Int(appState.manualOriginPosition * 100))%")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            Slider(value: $appState.manualOriginPosition, in: 0...1, step: 0.01) { editing in
+                                if !editing && appState.currentMode == .sync && appState.isRunning {
+                                    appState.restartSync()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         .padding()
     }
@@ -339,6 +377,66 @@ struct SettingsView: View {
                 .frame(width: 100, alignment: .leading)
             TextField("", text: text)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
+        }
+    }
+}
+
+struct OriginPreview: View {
+    @Binding var originPosition: Double
+    var mode: PerspectiveOriginMode
+
+    private let goldenGuide: [Double] = [0.382, 0.618]
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let height = max(geo.size.height, 1.0)
+            let centerX = width / 2
+            let clampedOrigin = min(max(originPosition, 0.0), 1.0)
+            let originY = clampedOrigin * height
+
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.secondary.opacity(0.4), lineWidth: 1)
+
+                // Vertical center line
+                Path { path in
+                    path.move(to: CGPoint(x: centerX, y: 0))
+                    path.addLine(to: CGPoint(x: centerX, y: height))
+                }
+                .stroke(Color.accentColor.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+
+                // Golden ratio guide lines
+                ForEach(goldenGuide, id: \.self) { point in
+                    Path { path in
+                        let y = CGFloat(point) * height
+                        path.move(to: CGPoint(x: centerX - 12, y: y))
+                        path.addLine(to: CGPoint(x: centerX + 12, y: y))
+                    }
+                    .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
+                }
+
+                // Origin indicator
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 18, height: 18)
+                    .position(x: centerX, y: originY)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Origin")
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                    Text("Position: \(Int(clampedOrigin * 100))%")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(8)
+            }
+            .contentShape(Rectangle())
+                .gesture(mode == .manual ? DragGesture(minimumDistance: 0).onChanged { value in
+                    let normalized = min(max(value.location.y / height, 0.0), 1.0)
+                    originPosition = normalized
+                } : nil)
         }
     }
 }

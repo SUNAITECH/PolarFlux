@@ -43,12 +43,12 @@ class FluidPhysicsEngine {
         // 1. Define Extreme Parameter Sets
         // Calm Scene: Low stiffness (soft), High damping (heavy/slow)
         // Increased base stiffness and reduced damping to make colors more "vibrant" and less "washed out" by smoothing.
-        let stiffness_low = 0.025
-        let damping_high = 0.82
+    let stiffness_low = 0.02
+    let damping_high = 0.88
         
-        // Intense Scene: High stiffness (tight), Low damping (fast/responsive)
-        let stiffness_high = 0.25
-        let damping_low = 0.25
+    // Intense Scene: High stiffness (tight), Low damping (fast/responsive)
+    let stiffness_high = 0.2
+    let damping_low = 0.42
         
         // 2. Response Curve (Smoothstep)
         // This ensures a non-linear transition that is stable at the ends and smooth in the middle.
@@ -76,14 +76,14 @@ class FluidPhysicsEngine {
             
             // 1. Dynamic Flow Field Generation
             // Reduced flow vector to decrease spatial "blurring" between LEDs.
-            let flowVector = 0.06 + sin(Double(i) * 0.15 + self.flowPhase) * 0.04
+            let flowVector = 0.06 + sin(Double(i) * 0.15 + self.flowPhase) * 0.03
             
             // 2. Fluid Coupling Forces
             let advectionR = (upstream.r - state.r) * flowVector + (upstream.vr - state.vr) * flowVector * 0.4
             let advectionG = (upstream.g - state.g) * flowVector + (upstream.vg - state.vg) * flowVector * 0.4
             let advectionB = (upstream.b - state.b) * flowVector + (upstream.vb - state.vb) * flowVector * 0.4
             
-            let dragFactor = 0.02
+            let dragFactor = 0.04
             let dragR = (downstream.r - state.r) * dragFactor
             let dragG = (downstream.g - state.g) * dragFactor
             let dragB = (downstream.b - state.b) * dragFactor

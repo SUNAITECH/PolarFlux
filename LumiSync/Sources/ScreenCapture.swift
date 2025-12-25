@@ -33,6 +33,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     // Physics Engine
     private let physicsEngine = FluidPhysicsEngine()
     private var lastFrameTime: TimeInterval = 0
+    private var currentOriginPreference = OriginPreference(mode: .auto, manualNormalized: 0.5)
     
     // --- Frontier Tech: Advanced State Management ---
     
@@ -92,7 +93,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         }
     }
     
-    func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, brightness: Double, targetFrameRate: Double, calibration: (r: Double, g: Double, b: Double), gamma: Double, saturation: Double) async {
+    func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, brightness: Double, targetFrameRate: Double, calibration: (r: Double, g: Double, b: Double), gamma: Double, saturation: Double, originPreference: OriginPreference) async {
         // Stop existing stream if any
         if let stream = stream {
             try? await stream.stopCapture()
@@ -124,6 +125,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 self.currentCalibration = calibration
                 self.currentGamma = gamma
                 self.currentSaturation = saturation
+                self.currentOriginPreference = originPreference
                 
                 self.zoneStates.removeAll()
                 self.physicsEngine.reset()
@@ -286,9 +288,10 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             case .right: xOffset = width / 2; capWidth = width / 2
             }
             
-            // 2. Perspective Origin (Golden Ratio Point on Vertical Center Line)
+            // 2. Perspective Origin (Golden Ratio Point on Vertical Center Line or manual override)
             let originX = Double(xOffset) + Double(capWidth) / 2.0
-            let originY = Double(yOffset) + Double(capHeight) * 0.618
+            let normalizedOriginY = normalizedOriginY(for: config)
+            let originY = Double(yOffset) + normalizedOriginY * Double(capHeight)
             
             // 3. Generate Perimeter Boundary Points for LEDs
             var boundaryPoints: [CGPoint] = []
@@ -638,6 +641,30 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             }
             
             return ledData
+    }
+
+    private func normalizedOriginY(for config: ZoneConfig) -> Double {
+        let clampedManual = min(max(currentOriginPreference.manualNormalized, 0.0), 1.0)
+        if currentOriginPreference.mode == .manual {
+            return clampedManual
+        }
+
+        let goldenRatio = 0.618
+        let sides: [(String, Int)] = [
+            ("top", config.top),
+            ("bottom", config.bottom),
+            ("left", config.left),
+            ("right", config.right)
+        ]
+
+        let missing = sides.filter { $0.1 == 0 }
+        guard missing.count == 1 else { return 0.5 }
+
+        switch missing[0].0 {
+        case "top": return max(0.0, min(1.0, 1.0 - goldenRatio))
+        case "bottom": return min(1.0, goldenRatio)
+        default: return 0.5
+        }
     }
     
     // Old method kept for compatibility but unused

@@ -58,6 +58,8 @@ class AppState: ObservableObject {
     @Published var targetFrameRate: Double = 60.0
     @Published var searchDepth: Double = 0.8 // 80% inwards search
     @Published var syncBrightness: Double = 1.0 // Separate brightness for Sync
+    @Published var perspectiveOriginMode: PerspectiveOriginMode = .auto
+    @Published var manualOriginPosition: Double = 0.5
     
     // Effect Settings
     @Published var selectedEffect: EffectType = .rainbow
@@ -371,7 +373,8 @@ class AppState: ObservableObject {
                 targetFrameRate: self.targetFrameRate,
                 calibration: (r: self.calibrationR, g: self.calibrationG, b: self.calibrationB),
                 gamma: self.gamma,
-                saturation: self.saturation
+                saturation: self.saturation,
+                originPreference: OriginPreference(mode: self.perspectiveOriginMode, manualNormalized: self.manualOriginPosition)
             )
         }
     }
@@ -810,6 +813,8 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(colors, forKey: "effectColors")
         
         UserDefaults.standard.set(screenOrientation.rawValue, forKey: "screenOrientation")
+    UserDefaults.standard.set(perspectiveOriginMode.rawValue, forKey: "perspectiveOriginMode")
+    UserDefaults.standard.set(manualOriginPosition, forKey: "manualOriginPosition")
         
         // Save Manual Color
         UserDefaults.standard.set(manualR, forKey: "manualR")
@@ -893,6 +898,14 @@ class AppState: ObservableObject {
         
         if let orientStr = UserDefaults.standard.string(forKey: "screenOrientation"), let orient = ScreenOrientation(rawValue: orientStr) {
             screenOrientation = orient
+        }
+
+        if let originModeStr = UserDefaults.standard.string(forKey: "perspectiveOriginMode"), let originMode = PerspectiveOriginMode(rawValue: originModeStr) {
+            perspectiveOriginMode = originMode
+        }
+        let manualOrigin = UserDefaults.standard.double(forKey: "manualOriginPosition")
+        if manualOrigin >= 0 && manualOrigin <= 1 {
+            manualOriginPosition = manualOrigin
         }
         
         let mr = UserDefaults.standard.double(forKey: "manualR")
