@@ -42,12 +42,13 @@ class FluidPhysicsEngine {
         
         // 1. Define Extreme Parameter Sets
         // Calm Scene: Low stiffness (soft), High damping (heavy/slow)
-        let stiffness_low = 0.012
-        let damping_high = 0.88
+        // Increased base stiffness and reduced damping to make colors more "vibrant" and less "washed out" by smoothing.
+        let stiffness_low = 0.025
+        let damping_high = 0.82
         
         // Intense Scene: High stiffness (tight), Low damping (fast/responsive)
-        let stiffness_high = 0.18
-        let damping_low = 0.32
+        let stiffness_high = 0.25
+        let damping_low = 0.25
         
         // 2. Response Curve (Smoothstep)
         // This ensures a non-linear transition that is stable at the ends and smooth in the middle.
@@ -74,14 +75,15 @@ class FluidPhysicsEngine {
             let downstream = states[downstreamIdx]
             
             // 1. Dynamic Flow Field Generation
-            let flowVector = 0.12 + sin(Double(i) * 0.15 + self.flowPhase) * 0.08
+            // Reduced flow vector to decrease spatial "blurring" between LEDs.
+            let flowVector = 0.06 + sin(Double(i) * 0.15 + self.flowPhase) * 0.04
             
             // 2. Fluid Coupling Forces
-            let advectionR = (upstream.r - state.r) * flowVector + (upstream.vr - state.vr) * flowVector * 0.6
-            let advectionG = (upstream.g - state.g) * flowVector + (upstream.vg - state.vg) * flowVector * 0.6
-            let advectionB = (upstream.b - state.b) * flowVector + (upstream.vb - state.vb) * flowVector * 0.6
+            let advectionR = (upstream.r - state.r) * flowVector + (upstream.vr - state.vr) * flowVector * 0.4
+            let advectionG = (upstream.g - state.g) * flowVector + (upstream.vg - state.vg) * flowVector * 0.4
+            let advectionB = (upstream.b - state.b) * flowVector + (upstream.vb - state.vb) * flowVector * 0.4
             
-            let dragFactor = 0.04
+            let dragFactor = 0.02
             let dragR = (downstream.r - state.r) * dragFactor
             let dragG = (downstream.g - state.g) * dragFactor
             let dragB = (downstream.b - state.b) * dragFactor

@@ -244,12 +244,13 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 
                 let saturation = (avg > 0) ? (dev / avg) : 0
                 
-                // Sigmoid-like mapping for Saturation (Center at 0.3, Slope 10)
-                // This prevents noise (low sat) from counting, and clamps high sat without explosion.
-                let satWeight = 1.0 / (1.0 + exp(-10.0 * (saturation - 0.3)))
+                // Sigmoid-like mapping for Saturation (Center at 0.4, Slope 15)
+                // We move the center up and increase slope to aggressively favor highly saturated colors.
+                // This ensures that vibrant "peaks" dominate the sampling weight.
+                let satWeight = 1.0 / (1.0 + exp(-15.0 * (saturation - 0.4)))
                 
                 // Brightness Weight (Linear is fine, but let's suppress very dark)
-                let briWeight = (y > 2500) ? 1.0 : (y / 2500.0) // 2500 = 50^2
+                let briWeight = (y > 1600) ? 1.0 : (y / 1600.0) // 1600 = 40^2, slightly lower threshold
                 
                 return satWeight * briWeight
             }
@@ -356,9 +357,10 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     let avgB = state.accB / state.accWeight
                     
                     // Dynamic Mix Factor
-                    // Low CV (< 0.5) -> Uniform scene -> Trust Average (Mix = 0)
-                    // High CV (> 1.0) -> Complex scene -> Trust Peak (Mix -> 1.0)
-                    let mixFactor = min(max((cv - 0.5) * 2.0, 0.0), 0.8) // Cap at 80% peak
+                    // Low CV (< 0.3) -> Uniform scene -> Trust Average (Mix = 0)
+                    // High CV (> 0.8) -> Complex scene -> Trust Peak (Mix -> 1.0)
+                    // We lower the thresholds and increase the cap to 1.0 to allow peak colors to fully take over.
+                    let mixFactor = min(max((cv - 0.3) * 2.0, 0.0), 1.0) 
                     
                     finalR = (avgR * (1.0 - mixFactor)) + (state.peakR * mixFactor)
                     finalG = (avgG * (1.0 - mixFactor)) + (state.peakG * mixFactor)
@@ -385,14 +387,13 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 let maxRes: Double = 40.0
                 let t = min(max((residualMag - minRes) / (maxRes - minRes), 0.0), 1.0)
                 
-                // 1. Dynamic Alpha: 0.1 (stable) to 0.3 (active)
-                // Lower alpha when stable to trust history more.
-                state.alpha = 0.1 + (t * 0.2)
+                // 1. Dynamic Alpha: 0.2 (stable) to 0.5 (active)
+                // Increased base and peak alpha to reduce "smoothing" and increase responsiveness.
+                state.alpha = 0.2 + (t * 0.3)
                 
-                // 2. Dynamic Q (Process Noise): 0.05 (stable) to 0.2 (active)
-                // Lower Q when stable to trust the prediction model more.
-                // Higher Q when active to allow the filter to follow measurements faster.
-                state.q = 0.05 + (t * 0.15)
+                // 2. Dynamic Q (Process Noise): 0.1 (stable) to 0.4 (active)
+                // Increased Q to allow the filter to follow vibrant changes more aggressively.
+                state.q = 0.1 + (t * 0.3)
                 
                 // Adaptive Measurement Noise (R): Keep existing logic but refine
                 let adaptiveR = state.r / (1.0 + (residualMag * 0.1))
@@ -539,9 +540,13 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 
                 if currentSaturation != 1.0 {
                     let gray = 0.299 * r + 0.587 * g + 0.114 * b
-                    r_cal = max(0, gray + (r - gray) * currentSaturation)
-                    g_cal = max(0, gray + (g - gray) * currentSaturation)
-                    b_cal = max(0, gray + (b - gray) * currentSaturation)
+                    
+                    // Saturation Expansion: Non-linearly boost the difference from gray.
+                    // This makes vibrant colors "pop" significantly more than a linear boost.
+                    let boost = currentSaturation * 1.1 // 10% extra base boost
+                    r_cal = max(0, gray + (r - gray) * boost)
+                    g_cal = max(0, gray + (g - gray) * boost)
+                    b_cal = max(0, gray + (b - gray) * boost)
                 }
                 
                 // 2. Apply White Balance Calibration Gains
