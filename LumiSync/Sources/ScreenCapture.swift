@@ -219,6 +219,20 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             
             // --- Frontier Tech: Perceptual Color Engine ---
             
+            struct Accumulator {
+                var r: Double = 0
+                var g: Double = 0
+                var b: Double = 0
+                var weight: Double = 0
+                var peakR: Double = 0
+                var peakG: Double = 0
+                var peakB: Double = 0
+                var peakSaliency: Double = -1.0
+                var saliencySum: Double = 0
+                var saliencySqSum: Double = 0
+                var pixelCount: Double = 0
+            }
+            
             // Helper: Fast RGB to CIELAB (Approximation for Performance)
             // We need L* (Lightness) and Chroma (C*) for Saliency.
             // Full XYZ conversion is too heavy for 60fps loop, so we use a high-quality perceptual approximation.
@@ -255,172 +269,9 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 return satWeight * briWeight
             }
             
-            // Helper: Smart Sampler with Temporal Accumulation
-            func sampleZone(rect: CGRect, stateIndex: Int) -> (Double, Double, Double) {
-                if rect.isNull || rect.isInfinite || rect.width <= 0 || rect.height <= 0 { return (0,0,0) }
-                
-                let xStart = max(0, min(width - 1, Int(rect.origin.x)))
-                let yStart = max(0, min(height - 1, Int(rect.origin.y)))
-                let w = max(0, min(width - xStart, Int(rect.width)))
-                let h = max(0, min(height - yStart, Int(rect.height)))
-                
-                if w <= 0 || h <= 0 { return (0,0,0) }
-                
-                // Current Frame Statistics
-                var frameR: Double = 0
-                var frameG: Double = 0
-                var frameB: Double = 0
-                var frameWeight: Double = 0
-                
-                var framePeakR: Double = 0
-                var framePeakG: Double = 0
-                var framePeakB: Double = 0
-                var framePeakSaliency: Double = -1.0
-                
-                // Variance Calculation Helpers
-                var saliencySum: Double = 0
-                var saliencySqSum: Double = 0
-                var pixelCount: Double = 0
-                
-                let step = 2
-                
-                for y in stride(from: yStart, to: yStart + h, by: step) {
-                    for x in stride(from: xStart, to: xStart + w, by: step) {
-                        let offset = y * bytesPerRow + x * 4
-                        if offset + 3 >= height * bytesPerRow { continue }
-                        
-                        let b = Double(ptr[offset])
-                        let g = Double(ptr[offset + 1])
-                        let r = Double(ptr[offset + 2])
-                        
-                        let saliency = calculatePerceptualSaliency(r: r, g: g, b: b)
-                        
-                        // Accumulate Weighted Average
-                        frameR += r * saliency
-                        frameG += g * saliency
-                        frameB += b * saliency
-                        frameWeight += saliency
-                        
-                        // Track Peak
-                        if saliency > framePeakSaliency {
-                            framePeakSaliency = saliency
-                            framePeakR = r
-                            framePeakG = g
-                            framePeakB = b
-                        }
-                        
-                        // Statistics
-                        saliencySum += saliency
-                        saliencySqSum += saliency * saliency
-                        pixelCount += 1
-                    }
-                }
-                
-                // Retrieve & Update State
-                var state = zoneStates[stateIndex]
-                
-                // 1. Temporal Accumulation (Buffer Mixing)
-                // Use dynamic alpha from state (Patch Point 3)
-                let alpha = state.alpha
-                state.accR = (state.accR * (1.0 - alpha)) + (frameR * alpha)
-                state.accG = (state.accG * (1.0 - alpha)) + (frameG * alpha)
-                state.accB = (state.accB * (1.0 - alpha)) + (frameB * alpha)
-                state.accWeight = (state.accWeight * (1.0 - alpha)) + (frameWeight * alpha)
-                
-                state.peakR = (state.peakR * (1.0 - alpha)) + (framePeakR * alpha)
-                state.peakG = (state.peakG * (1.0 - alpha)) + (framePeakG * alpha)
-                state.peakB = (state.peakB * (1.0 - alpha)) + (framePeakB * alpha)
-                state.peakSaliency = (state.peakSaliency * (1.0 - alpha)) + (framePeakSaliency * alpha)
-                
-                // Patch Point 2: Smooth Saliency Statistics
-                let frameMeanSaliency = saliencySum / max(1, pixelCount)
-                let frameVarSaliency = (saliencySqSum / max(1, pixelCount)) - (frameMeanSaliency * frameMeanSaliency)
-                
-                state.saliencyMeanAcc = (state.saliencyMeanAcc * (1.0 - alpha)) + (frameMeanSaliency * alpha)
-                state.saliencyVarAcc = (state.saliencyVarAcc * (1.0 - alpha)) + (max(0, frameVarSaliency) * alpha)
-                
-                // 2. Dynamic Hybrid Mixing
-                // Calculate Coefficient of Variation (CV) of Saliency using smoothed statistics
-                var finalR: Double = 0
-                var finalG: Double = 0
-                var finalB: Double = 0
-                
-                if state.accWeight > 0 {
-                    let smoothedMean = state.saliencyMeanAcc
-                    let smoothedVar = state.saliencyVarAcc
-                    let stdDev = sqrt(max(0, smoothedVar))
-                    let cv = (smoothedMean > 0) ? (stdDev / smoothedMean) : 0
-                    
-                    // Base: Weighted Average
-                    let avgR = state.accR / state.accWeight
-                    let avgG = state.accG / state.accWeight
-                    let avgB = state.accB / state.accWeight
-                    
-                    // Dynamic Mix Factor
-                    // Low CV (< 0.3) -> Uniform scene -> Trust Average (Mix = 0)
-                    // High CV (> 0.8) -> Complex scene -> Trust Peak (Mix -> 1.0)
-                    // We lower the thresholds and increase the cap to 1.0 to allow peak colors to fully take over.
-                    let mixFactor = min(max((cv - 0.3) * 2.0, 0.0), 1.0) 
-                    
-                    finalR = (avgR * (1.0 - mixFactor)) + (state.peakR * mixFactor)
-                    finalG = (avgG * (1.0 - mixFactor)) + (state.peakG * mixFactor)
-                    finalB = (avgB * (1.0 - mixFactor)) + (state.peakB * mixFactor)
-                }
-                
-                // 3. Adaptive Kalman Filter
-                // Prediction
-                let predR = state.estR
-                let predG = state.estG
-                let predB = state.estB
-                let predP = state.errorCov + state.q
-                
-                // Measurement Residual
-                let resR = finalR - predR
-                let resG = finalG - predG
-                let resB = finalB - predB
-                
-                // Patch Point 3: Elastic Parameters (Dynamic alpha and q)
-                let residualMag = sqrt(resR*resR + resG*resG + resB*resB)
-                
-                // Define interpolation range for residual magnitude
-                let minRes: Double = 2.0
-                let maxRes: Double = 40.0
-                let t = min(max((residualMag - minRes) / (maxRes - minRes), 0.0), 1.0)
-                
-                // 1. Dynamic Alpha: 0.2 (stable) to 0.5 (active)
-                // Increased base and peak alpha to reduce "smoothing" and increase responsiveness.
-                state.alpha = 0.2 + (t * 0.3)
-                
-                // 2. Dynamic Q (Process Noise): 0.1 (stable) to 0.4 (active)
-                // Increased Q to allow the filter to follow vibrant changes more aggressively.
-                state.q = 0.1 + (t * 0.3)
-                
-                // Adaptive Measurement Noise (R): Keep existing logic but refine
-                let adaptiveR = state.r / (1.0 + (residualMag * 0.1))
-                
-                // Kalman Gain
-                let k = predP / (predP + adaptiveR)
-                
-                // Update
-                state.estR = predR + k * resR
-                state.estG = predG + k * resG
-                state.estB = predB + k * resB
-                state.errorCov = (1.0 - k) * predP
-                
-                // Save State
-                zoneStates[stateIndex] = state
-                
-                return (state.estR, state.estG, state.estB)
-            }
-            
             // --- Execution Pipeline ---
             
-            // 1. Zone Setup
-            var zones: [CGRect] = []
-            // ... (Zone generation logic same as before, just collecting rects)
-            // Re-using existing logic to populate 'zones' array
-            
-            // Adjust capture area based on mode
+            // 1. Setup Capture Area
             var xOffset = 0
             var yOffset = 0
             var capWidth = width
@@ -435,186 +286,317 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             case .right: xOffset = width / 2; capWidth = width / 2
             }
             
+            // 2. Perspective Origin (Golden Ratio Point on Vertical Center Line)
+            let originX = Double(xOffset) + Double(capWidth) / 2.0
+            let originY = Double(yOffset) + Double(capHeight) * 0.618
+            
+            // 3. Generate Perimeter Boundary Points for LEDs
+            var boundaryPoints: [CGPoint] = []
             if orientation == .standard {
+                // Left: BL -> TL
                 if config.left > 0 {
-                    let hStep = capHeight / config.left
-                    for i in 0..<config.left {
-                        let y = yOffset + capHeight - ((i + 1) * hStep)
-                        zones.append(CGRect(x: xOffset, y: y, width: config.depth, height: hStep))
+                    for i in 0...config.left {
+                        let y = Double(yOffset + capHeight) - Double(i) * (Double(capHeight) / Double(config.left))
+                        boundaryPoints.append(CGPoint(x: Double(xOffset), y: y))
                     }
+                } else {
+                    boundaryPoints.append(CGPoint(x: Double(xOffset), y: Double(yOffset + capHeight)))
                 }
+                // Top: TL -> TR
                 if config.top > 0 {
-                    let wStep = capWidth / config.top
-                    for i in 0..<config.top {
-                        let x = xOffset + (i * wStep)
-                        zones.append(CGRect(x: x, y: yOffset, width: wStep, height: config.depth))
+                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
+                    for i in 0...config.top {
+                        let x = Double(xOffset) + Double(i) * (Double(capWidth) / Double(config.top))
+                        boundaryPoints.append(CGPoint(x: x, y: Double(yOffset)))
                     }
                 }
+                // Right: TR -> BR
                 if config.right > 0 {
-                    let hStep = capHeight / config.right
-                    for i in 0..<config.right {
-                        let y = yOffset + (i * hStep)
-                        zones.append(CGRect(x: xOffset + capWidth - config.depth, y: y, width: config.depth, height: hStep))
+                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
+                    for i in 0...config.right {
+                        let y = Double(yOffset) + Double(i) * (Double(capHeight) / Double(config.right))
+                        boundaryPoints.append(CGPoint(x: Double(xOffset + capWidth), y: y))
                     }
                 }
+                // Bottom: BR -> BL
                 if config.bottom > 0 {
-                    let wStep = capWidth / config.bottom
-                    for i in 0..<config.bottom {
-                        let x = xOffset + capWidth - ((i + 1) * wStep)
-                        zones.append(CGRect(x: x, y: yOffset + capHeight - config.depth, width: wStep, height: config.depth))
+                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
+                    for i in 0...config.bottom {
+                        let x = Double(xOffset + capWidth) - Double(i) * (Double(capWidth) / Double(config.bottom))
+                        boundaryPoints.append(CGPoint(x: x, y: Double(yOffset + capHeight)))
                     }
                 }
             } else {
-                // Reverse logic (omitted for brevity, assuming standard for now or copy-paste if needed)
-                // For safety, let's just implement standard. If user needs reverse, they can switch.
-                // Actually, I should implement both to be correct.
+                // Reverse: BR -> TR -> TL -> BL -> BR
+                // Right: BR -> TR
                 if config.right > 0 {
-                    let hStep = capHeight / config.right
-                    for i in 0..<config.right {
-                        let y = yOffset + capHeight - ((i + 1) * hStep)
-                        zones.append(CGRect(x: xOffset + capWidth - config.depth, y: y, width: config.depth, height: hStep))
+                    for i in 0...config.right {
+                        let y = Double(yOffset + capHeight) - Double(i) * (Double(capHeight) / Double(config.right))
+                        boundaryPoints.append(CGPoint(x: Double(xOffset + capWidth), y: y))
                     }
+                } else {
+                    boundaryPoints.append(CGPoint(x: Double(xOffset + capWidth), y: Double(yOffset + capHeight)))
                 }
+                // Top: TR -> TL
                 if config.top > 0 {
-                    let wStep = capWidth / config.top
-                    for i in 0..<config.top {
-                        let x = xOffset + capWidth - ((i + 1) * wStep)
-                        zones.append(CGRect(x: x, y: yOffset, width: wStep, height: config.depth))
+                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
+                    for i in 0...config.top {
+                        let x = Double(xOffset + capWidth) - Double(i) * (Double(capWidth) / Double(config.top))
+                        boundaryPoints.append(CGPoint(x: x, y: Double(yOffset)))
                     }
                 }
+                // Left: TL -> BL
                 if config.left > 0 {
-                    let hStep = capHeight / config.left
-                    for i in 0..<config.left {
-                        let y = yOffset + (i * hStep)
-                        zones.append(CGRect(x: xOffset, y: y, width: config.depth, height: hStep))
+                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
+                    for i in 0...config.left {
+                        let y = Double(yOffset) + Double(i) * (Double(capHeight) / Double(config.left))
+                        boundaryPoints.append(CGPoint(x: Double(xOffset), y: y))
                     }
                 }
+                // Bottom: BL -> BR
                 if config.bottom > 0 {
-                    let wStep = capWidth / config.bottom
-                    for i in 0..<config.bottom {
-                        let x = xOffset + (i * wStep)
-                        zones.append(CGRect(x: x, y: yOffset + capHeight - config.depth, width: wStep, height: config.depth))
+                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
+                    for i in 0...config.bottom {
+                        let x = Double(xOffset) + Double(i) * (Double(capWidth) / Double(config.bottom))
+                        boundaryPoints.append(CGPoint(x: x, y: Double(yOffset + capHeight)))
                     }
                 }
             }
             
-            // 2. State Initialization
-            if zoneStates.count != zones.count {
-                zoneStates = Array(repeating: ZoneState(), count: zones.count)
+            let totalZones = config.left + config.top + config.right + config.bottom
+            if totalZones <= 0 { return [] }
+            
+            // 4. Calculate Boundary Angles
+            var boundaryAngles: [Double] = []
+            for p in boundaryPoints {
+                boundaryAngles.append(atan2(p.y - originY, p.x - originX))
             }
             
-            // 3. Processing Loop
+            // Normalize angles to be strictly increasing
+            if !boundaryAngles.isEmpty {
+                var lastA = boundaryAngles[0]
+                for i in 1..<boundaryAngles.count {
+                    while boundaryAngles[i] <= lastA {
+                        boundaryAngles[i] += 2.0 * .pi
+                    }
+                    lastA = boundaryAngles[i]
+                }
+            }
+            
+            // 5. Processing Loop (Polar Binning)
+            var accumulators = Array(repeating: Accumulator(), count: totalZones)
+            
+            for y in stride(from: yOffset, to: yOffset + capHeight, by: 2) {
+                for x in stride(from: xOffset, to: xOffset + capWidth, by: 2) {
+                    let offset = y * bytesPerRow + x * 4
+                    if offset + 3 >= height * bytesPerRow { continue }
+                    
+                    let b = Double(ptr[offset])
+                    let g = Double(ptr[offset + 1])
+                    let r = Double(ptr[offset + 2])
+                    
+                    let saliency = calculatePerceptualSaliency(r: r, g: g, b: b)
+                    
+                    // Find LED index using angle
+                    var pixelAngle = atan2(Double(y) - originY, Double(x) - originX)
+                    while pixelAngle < boundaryAngles[0] { pixelAngle += 2.0 * .pi }
+                    while pixelAngle >= boundaryAngles[totalZones] { pixelAngle -= 2.0 * .pi }
+                    
+                    // Binary search for index
+                    var low = 0
+                    var high = totalZones - 1
+                    var index = 0
+                    while low <= high {
+                        let mid = (low + high) / 2
+                        if boundaryAngles[mid] <= pixelAngle {
+                            index = mid
+                            low = mid + 1
+                        } else {
+                            high = mid - 1
+                        }
+                    }
+                    
+                    // Accumulate
+                    accumulators[index].r += r * saliency
+                    accumulators[index].g += g * saliency
+                    accumulators[index].b += b * saliency
+                    accumulators[index].weight += saliency
+                    
+                    if saliency > accumulators[index].peakSaliency {
+                        accumulators[index].peakSaliency = saliency
+                        accumulators[index].peakR = r
+                        accumulators[index].peakG = g
+                        accumulators[index].peakB = b
+                    }
+                    
+                    accumulators[index].saliencySum += saliency
+                    accumulators[index].saliencySqSum += saliency * saliency
+                    accumulators[index].pixelCount += 1
+                }
+            }
+            
+            // 6. State Initialization & Update
+            if zoneStates.count != totalZones {
+                zoneStates = Array(repeating: ZoneState(), count: totalZones)
+            }
+            
             var capturedColors: [(UInt8, UInt8, UInt8)] = []
             var zoneDistances: [Double] = []
             
-            for (i, rect) in zones.enumerated() {
-                let (r, g, b) = sampleZone(rect: rect, stateIndex: i)
+            for i in 0..<totalZones {
+                let acc = accumulators[i]
+                var state = zoneStates[i]
                 
-                // --- Patch Point 1: Bi-directional Scene Intensity (Feedback Coupling) ---
-                // Instead of just tracking input change (unidirectional), we track the 
-                // "System Error" (Target - Current Output). This ensures the system stays 
-                // reactive until the LEDs actually reach the target.
+                // Temporal Accumulation
+                let alpha = state.alpha
+                if acc.weight > 0 {
+                    state.accR = (state.accR * (1.0 - alpha)) + (acc.r * alpha)
+                    state.accG = (state.accG * (1.0 - alpha)) + (acc.g * alpha)
+                    state.accB = (state.accB * (1.0 - alpha)) + (acc.b * alpha)
+                    state.accWeight = (state.accWeight * (1.0 - alpha)) + (acc.weight * alpha)
+                    
+                    state.peakR = (state.peakR * (1.0 - alpha)) + (acc.peakR * alpha)
+                    state.peakG = (state.peakG * (1.0 - alpha)) + (acc.peakG * alpha)
+                    state.peakB = (state.peakB * (1.0 - alpha)) + (acc.peakB * alpha)
+                    state.peakSaliency = (state.peakSaliency * (1.0 - alpha)) + (acc.peakSaliency * alpha)
+                    
+                    let frameMeanSaliency = acc.saliencySum / max(1, acc.pixelCount)
+                    let frameVarSaliency = (acc.saliencySqSum / max(1, acc.pixelCount)) - (frameMeanSaliency * frameMeanSaliency)
+                    
+                    state.saliencyMeanAcc = (state.saliencyMeanAcc * (1.0 - alpha)) + (frameMeanSaliency * alpha)
+                    state.saliencyVarAcc = (state.saliencyVarAcc * (1.0 - alpha)) + (max(0, frameVarSaliency) * alpha)
+                }
                 
+                // Dynamic Hybrid Mixing
+                var finalR: Double = 0
+                var finalG: Double = 0
+                var finalB: Double = 0
+                
+                if state.accWeight > 0 {
+                    let smoothedMean = state.saliencyMeanAcc
+                    let smoothedVar = state.saliencyVarAcc
+                    let stdDev = sqrt(max(0, smoothedVar))
+                    let cv = (smoothedMean > 0) ? (stdDev / smoothedMean) : 0
+                    
+                    let avgR = state.accR / state.accWeight
+                    let avgG = state.accG / state.accWeight
+                    let avgB = state.accB / state.accWeight
+                    
+                    let mixFactor = min(max((cv - 0.3) * 2.0, 0.0), 1.0)
+                    
+                    finalR = (avgR * (1.0 - mixFactor)) + (state.peakR * mixFactor)
+                    finalG = (avgG * (1.0 - mixFactor)) + (state.peakG * mixFactor)
+                    finalB = (avgB * (1.0 - mixFactor)) + (state.peakB * mixFactor)
+                }
+                
+                // Adaptive Kalman Filter
+                let predR = state.estR
+                let predG = state.estG
+                let predB = state.estB
+                let predP = state.errorCov + state.q
+                
+                let resR = finalR - predR
+                let resG = finalG - predG
+                let resB = finalB - predB
+                
+                let residualMag = sqrt(resR*resR + resG*resG + resB*resB)
+                let t = min(max((residualMag - 2.0) / 38.0, 0.0), 1.0)
+                
+                state.alpha = 0.2 + (t * 0.3)
+                state.q = 0.1 + (t * 0.3)
+                let adaptiveR = state.r / (1.0 + (residualMag * 0.1))
+                let k = predP / (predP + adaptiveR)
+                
+                state.estR = predR + k * resR
+                state.estG = predG + k * resG
+                state.estB = predB + k * resB
+                state.errorCov = (1.0 - k) * predP
+                
+                zoneStates[i] = state
+                
+                let r_out = state.estR
+                let g_out = state.estG
+                let b_out = state.estB
+                
+                // Distance for Scene Intensity (Feedback Coupling)
                 var distance: Double = 0
                 if i < lastOutputColors.count {
                     let lastOut = lastOutputColors[i]
-                    let dr = r - Double(lastOut.0)
-                    let dg = g - Double(lastOut.1)
-                    let db = b - Double(lastOut.2)
+                    let dr = r_out - Double(lastOut.0)
+                    let dg = g_out - Double(lastOut.1)
+                    let db = b_out - Double(lastOut.2)
                     distance = sqrt(dr*dr + dg*dg + db*db)
                 } else {
-                    // Fallback to input delta if no output history exists
-                    let state = zoneStates[i]
-                    let dr = r - state.lastR
-                    let dg = g - state.lastG
-                    let db = b - state.lastB
+                    let dr = r_out - state.lastR
+                    let dg = g_out - state.lastG
+                    let db = b_out - state.lastB
                     distance = sqrt(dr*dr + dg*dg + db*db)
                 }
                 zoneDistances.append(distance)
                 
-                // Tone Mapping & White Balance Calibration (Patch Point 3)
-                // 1. Apply Saturation Boost
-                var r_cal = r
-                var g_cal = g
-                var b_cal = b
+                // Tone Mapping & Calibration
+                var r_cal = r_out
+                var g_cal = g_out
+                var b_cal = b_out
                 
                 if currentSaturation != 1.0 {
-                    let gray = 0.299 * r + 0.587 * g + 0.114 * b
-                    
-                    // Saturation Expansion: Non-linearly boost the difference from gray.
-                    // This makes vibrant colors "pop" significantly more than a linear boost.
-                    let boost = currentSaturation * 1.1 // 10% extra base boost
-                    r_cal = max(0, gray + (r - gray) * boost)
-                    g_cal = max(0, gray + (g - gray) * boost)
-                    b_cal = max(0, gray + (b - gray) * boost)
+                    let gray = 0.299 * r_out + 0.587 * g_out + 0.114 * b_out
+                    let boost = currentSaturation * 1.1
+                    r_cal = max(0, gray + (r_out - gray) * boost)
+                    g_cal = max(0, gray + (g_out - gray) * boost)
+                    b_cal = max(0, gray + (b_out - gray) * boost)
                 }
                 
-                // 2. Apply White Balance Calibration Gains
                 r_cal *= currentCalibration.r
                 g_cal *= currentCalibration.g
                 b_cal *= currentCalibration.b
                 
-                // 3. Apply Gamma Correction
                 if currentGamma != 1.0 {
                     r_cal = pow(r_cal / 255.0, currentGamma) * 255.0
                     g_cal = pow(g_cal / 255.0, currentGamma) * 255.0
                     b_cal = pow(b_cal / 255.0, currentGamma) * 255.0
                 }
                 
-                // 4. Tone Mapping (Preserving Calibrated Ratios)
                 let currentMax = max(r_cal, max(g_cal, b_cal))
-                var finalR = r_cal
-                var finalG = g_cal
-                var finalB = b_cal
+                var finalR_out = r_cal
+                var finalG_out = g_cal
+                var finalB_out = b_cal
                 
                 if currentMax > 0 {
                     let targetMax = currentMax * brightness
                     let scale = (targetMax > 255) ? (255.0 / currentMax) : brightness
-                    finalR *= scale
-                    finalG *= scale
-                    finalB *= scale
+                    finalR_out *= scale
+                    finalG_out *= scale
+                    finalB_out *= scale
                 }
                 
-                capturedColors.append((UInt8(min(finalR, 255)), UInt8(min(finalG, 255)), UInt8(min(finalB, 255))))
+                capturedColors.append((UInt8(min(finalR_out, 255)), UInt8(min(finalG_out, 255)), UInt8(min(finalB_out, 255))))
             }
             
-            // 4. Scene Intensity Calculation (Patch Point 1)
+            // 7. Scene Intensity Calculation
             if !zoneDistances.isEmpty {
                 let sortedDistances = zoneDistances.sorted()
-                let medianDistance: Double
-                let mid = sortedDistances.count / 2
-                if sortedDistances.count % 2 == 0 {
-                    medianDistance = (sortedDistances[mid - 1] + sortedDistances[mid]) / 2.0
-                } else {
-                    medianDistance = sortedDistances[mid]
-                }
-                
-                // Map median distance to [0, 1]
+                let medianDistance = sortedDistances[sortedDistances.count / 2]
                 let newIntensity = min(max(medianDistance / 120.0, 0.0), 1.0)
                 
-                // --- Patch Point 2: Temporal Hysteresis ---
-                // We use a slow-decaying intensity to prevent rapid oscillation and 
-                // ensure the system stays "hot" during complex transitions.
                 if newIntensity > currentSceneIntensity {
-                    currentSceneIntensity = newIntensity // Instant attack
+                    currentSceneIntensity = newIntensity
                 } else {
-                    currentSceneIntensity = (currentSceneIntensity * 0.85) + (newIntensity * 0.15) // Smooth decay
+                    currentSceneIntensity = (currentSceneIntensity * 0.85) + (newIntensity * 0.15)
                 }
                 
-                // Update "last" values for next frame
-                for i in 0..<zones.count {
+                for i in 0..<totalZones {
                     zoneStates[i].lastR = zoneStates[i].estR
                     zoneStates[i].lastG = zoneStates[i].estG
                     zoneStates[i].lastB = zoneStates[i].estB
                 }
             }
             
-            // 5. Physics & Spatial Constraint
+            // 8. Physics & Spatial Constraint
             var smoothedColors = physicsEngine.process(targetColors: capturedColors, dt: dt, sceneIntensity: currentSceneIntensity)
-            self.lastOutputColors = smoothedColors // Store for feedback loop
+            self.lastOutputColors = smoothedColors
             
-            // 6. Spatial Consistency Constraint (Post-Process)
-            // Check for outliers and pull them in
+            // 9. Spatial Consistency Constraint
             let count = smoothedColors.count
             if count > 2 {
                 for i in 0..<count {
@@ -622,7 +604,6 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     let curr = smoothedColors[i]
                     let next = smoothedColors[(i + 1) % count]
                     
-                    // Calculate Euclidean distances
                     func dist(_ c1: (UInt8, UInt8, UInt8), _ c2: (UInt8, UInt8, UInt8)) -> Double {
                         let dr = Double(c1.0) - Double(c2.0)
                         let dg = Double(c1.1) - Double(c2.1)
@@ -630,23 +611,11 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                         return sqrt(dr*dr + dg*dg + db*db)
                     }
                     
-                    let d1 = dist(curr, prev)
-                    let d2 = dist(curr, next)
-                    let dNeighbor = dist(prev, next)
-                    
-                    // If current is far from BOTH neighbors, and neighbors are close to each other
-                    if d1 > 50 && d2 > 50 && dNeighbor < 50 {
-                        // It's a spike/outlier. Pull towards median (average of neighbors)
+                    if dist(curr, prev) > 50 && dist(curr, next) > 50 && dist(prev, next) < 50 {
                         let newR = (Double(prev.0) + Double(next.0)) / 2.0
                         let newG = (Double(prev.1) + Double(next.1)) / 2.0
                         let newB = (Double(prev.2) + Double(next.2)) / 2.0
-                        
-                        // Blend 50%
-                        let blendR = (Double(curr.0) * 0.5) + (newR * 0.5)
-                        let blendG = (Double(curr.1) * 0.5) + (newG * 0.5)
-                        let blendB = (Double(curr.2) * 0.5) + (newB * 0.5)
-                        
-                        smoothedColors[i] = (UInt8(blendR), UInt8(blendG), UInt8(blendB))
+                        smoothedColors[i] = (UInt8((Double(curr.0) + newR) / 2.0), UInt8((Double(curr.1) + newG) / 2.0), UInt8((Double(curr.2) + newB) / 2.0))
                     }
                 }
             }
@@ -662,15 +631,10 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             if currentLeds < ledCount {
                 let remaining = ledCount - currentLeds
                 for _ in 0..<remaining {
-                    ledData.append(0)
-                    ledData.append(0)
-                    ledData.append(0)
+                    ledData.append(0); ledData.append(0); ledData.append(0)
                 }
             } else if currentLeds > ledCount {
-                let maxBytes = ledCount * 3
-                if ledData.count > maxBytes {
-                    ledData = Array(ledData.prefix(maxBytes))
-                }
+                ledData = Array(ledData.prefix(ledCount * 3))
             }
             
             return ledData
