@@ -16,6 +16,11 @@ struct SettingsView: View {
                     Label("LED Layout", systemImage: "lightbulb.led")
                 }
             
+            audioSettings
+                .tabItem {
+                    Label("Audio", systemImage: "waveform")
+                }
+            
             calibrationSettings
                 .tabItem {
                     Label("Calibration", systemImage: "slider.horizontal.3")
@@ -32,6 +37,25 @@ struct SettingsView: View {
                 }
         }
         .frame(width: 480)
+        .padding()
+    }
+    
+    var audioSettings: some View {
+        Form {
+            Section(header: Text("Music Mode Settings").font(.headline)) {
+                Picker("Microphone:", selection: $appState.selectedMicrophoneUID) {
+                    ForEach(appState.availableMicrophones, id: \.uid) { mic in
+                        Text(mic.name).tag(mic.uid)
+                    }
+                }
+                .pickerStyle(MenuPickerStyle())
+                
+                Button("Refresh Microphones") {
+                    appState.refreshMicrophones()
+                }
+                .padding(.top, 10)
+            }
+        }
         .padding()
     }
     
@@ -115,7 +139,33 @@ struct SettingsView: View {
             }
             
             Section(header: Text("Capture Settings").font(.headline)) {
+                Picker("Sync Mode:", selection: $appState.syncMode) {
+                    ForEach(SyncMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(MenuPickerStyle())
+                .onChange(of: appState.syncMode) { _ in appState.restartSync() }
+                
+                Divider()
+                
                 settingsRow(label: "Capture Depth:", text: $appState.depth)
+                
+                Divider()
+                
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Target FPS:")
+                        Spacer()
+                        Text("\(Int(appState.targetFrameRate))")
+                            .monospacedDigit()
+                    }
+                    Slider(value: $appState.targetFrameRate, in: 15...120, step: 5) { _ in
+                        if appState.isRunning && appState.currentMode == .sync {
+                            appState.restartSync()
+                        }
+                    }
+                }
             }
         }
         .padding()
@@ -238,7 +288,11 @@ struct SettingsView: View {
                     
                     Divider().padding(.vertical)
                     
-                    // Removed "Use Dominant Color" toggle as the new Smart Sampler handles this automatically.
+                    Toggle("Use Dominant Color Saliency", isOn: $appState.useDominantColor)
+                        .disabled(isCalibrationLocked)
+                    Text("When enabled, the engine prioritizes the most 'important' colors in each zone rather than a simple average.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     
                     Button("Reset Calibration") {
                         appState.calibrationR = 1.0
@@ -260,6 +314,20 @@ struct SettingsView: View {
             Section {
                 Toggle("Launch at Login", isOn: $appState.launchAtLogin)
                     .toggleStyle(CheckboxToggleStyle())
+                
+                Divider().padding(.vertical, 8)
+                
+                Button(role: .destructive) {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    HStack {
+                        Image(systemName: "power")
+                        Text("Quit LumiSync")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
             }
         }
         .padding()

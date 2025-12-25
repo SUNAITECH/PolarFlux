@@ -215,7 +215,11 @@ class AppState: ObservableObject {
     }
     
     func start() {
-        if isRunning { return }
+        if isRunning { 
+            // If already running, just switch the mode logic
+            switchMode()
+            return 
+        }
         
         statusMessage = "Connecting..."
         
@@ -225,22 +229,47 @@ class AppState: ObservableObject {
             if self.connectSerial() {
                 DispatchQueue.main.async {
                     self.isRunning = true
-                    self.statusMessage = "Running: \(self.currentMode.rawValue)"
-                    Logger.shared.log("Starting mode: \(self.currentMode.rawValue)")
-                    
-                    self.startKeepAlive()
-                    
-                    switch self.currentMode {
-                    case .sync:
-                        self.startSync()
-                    case .music:
-                        self.startMusic()
-                    case .effect:
-                        self.startEffect()
-                    case .manual:
-                        self.startManual()
-                    }
+                    self.switchMode()
                 }
+            }
+        }
+    }
+    
+    private func switchMode() {
+        self.statusMessage = "Running: \(self.currentMode.rawValue)"
+        Logger.shared.log("Switching to mode: \(self.currentMode.rawValue)")
+        
+        // 1. Stop all current mode-specific engines and clear callbacks
+        loopTimer?.cancel()
+        loopTimer = nil
+        lastSentData = nil // Clear last sent data to prevent keep-alive from sending old mode data
+        
+        // Clear screen capture callback immediately to prevent old frames from being sent
+        screenCapture.onFrameProcessed = nil
+        
+        Task {
+            await self.screenCapture.stopStream()
+        }
+        
+        self.audioProcessor.stop()
+        self.effectEngine.stop()
+        
+        // 2. Small delay to ensure previous mode's last packets are cleared from serial buffer
+        // and to allow async stopStream to progress.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self, self.isRunning else { return }
+            
+            self.startKeepAlive()
+            
+            switch self.currentMode {
+            case .sync:
+                self.startSync()
+            case .music:
+                self.startMusic()
+            case .effect:
+                self.startEffect()
+            case .manual:
+                self.startManual()
             }
         }
     }
@@ -300,6 +329,8 @@ class AppState: ObservableObject {
     }
     
     private func startSyncStream() {
+        guard isRunning && currentMode == .sync else { return }
+        
         let config = ZoneConfig(
             left: Int(leftZone) ?? 0,
             top: Int(topZone) ?? 0,
@@ -347,6 +378,7 @@ class AppState: ObservableObject {
     
     // MARK: - Music Mode
     private func startMusic() {
+        guard isRunning && currentMode == .music else { return }
         audioProcessor.start()
     }
     
@@ -384,6 +416,7 @@ class AppState: ObservableObject {
     
     // MARK: - Effect Mode
     private func startEffect() {
+        guard isRunning && currentMode == .effect else { return }
         let totalLeds = Int(ledCount) ?? 100
         // Convert Color to RGB
         var r: UInt8 = 255
@@ -474,17 +507,13 @@ class AppState: ObservableObject {
         } else {
             // Switch to manual and start
             currentMode = .manual
-            if !isRunning {
-                start()
-            } else {
-                // Restart to switch mode logic
-                stop()
-                start()
-            }
+            start() // start() now handles switching logic if already running
         }
     }
     
     private func startManual() {
+        guard isRunning && currentMode == .manual else { return }
+        
         // Ensure currentColor is set from manualColor if nil
         if currentColor == nil {
             if let rgb = manualColor.cgColor?.components {
@@ -531,6 +560,7 @@ class AppState: ObservableObject {
     
     // MARK: - Helper
     private func sendData(_ data: [UInt8]) {
+        guard isRunning else { return }
         // Double check busy state to prevent flooding
         if isSending { return }
         isSending = true
@@ -759,6 +789,7 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(bottomZone, forKey: "bottomZone")
         UserDefaults.standard.set(depth, forKey: "depth")
         UserDefaults.standard.set(brightness, forKey: "brightness")
+        UserDefaults.standard.set(syncBrightness, forKey: "syncBrightness")
         UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
         UserDefaults.standard.set(powerMode.rawValue, forKey: "powerMode")
         UserDefaults.standard.set(powerLimit, forKey: "powerLimit")
@@ -807,6 +838,8 @@ class AppState: ObservableObject {
         if let d = UserDefaults.standard.string(forKey: "depth") { depth = d }
         let br = UserDefaults.standard.double(forKey: "brightness")
         if br > 0 { brightness = br }
+        let sbr = UserDefaults.standard.double(forKey: "syncBrightness")
+        if sbr > 0 { syncBrightness = sbr }
         launchAtLogin = UserDefaults.standard.bool(forKey: "launchAtLogin")
         
         if let pm = UserDefaults.standard.string(forKey: "powerMode"), let mode = PowerMode(rawValue: pm) {
