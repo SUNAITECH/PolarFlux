@@ -1048,3 +1048,53 @@
 [11:53:54.286 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
 [11:53:55.891 PM] Device connected: SK0127,<"--(
 [11:53:55.892 PM] Switching to mode: Screen Sync
+[0:01:23.563 AM] Starting auto-detection
+[0:01:23.565 AM] Stopping
+[0:01:23.669 AM] Auto-detect response: SK0127,<"--(
+[0:01:23.681 AM] Switching to mode: Screen Sync
+[0:01:26.676 AM] Starting auto-detection
+[0:01:26.677 AM] Stopping
+[0:01:26.782 AM] Auto-detect response: SK0127,<"--(
+[0:01:26.804 AM] Switching to mode: Screen Sync
+[0:20:57.157 AM] Stopping
+[0:20:57.159 AM] System going to sleep. Stopping lights.
+[8:22:20.203 AM] System woke up. Restarting lights in 2s...
+[8:22:22.351 AM] Switching to mode: Screen Sync
+[8:32:21.802 AM] Stopping
+[8:32:21.803 AM] System going to sleep. Stopping lights.
+[8:19:21.066 PM] System woke up. Restarting lights in 2s...
+[8:19:23.172 PM] Switching to mode: Screen Sync
+[10:13:04.307 PM] Stopping
+[10:13:04.953 PM] Switching to mode: Screen Sync
+[10:29:51.083 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[10:29:51.087 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[10:29:51.089 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[10:29:52.700 PM] Device connected: SK0127,<"--(
+[10:29:52.701 PM] Switching to mode: Screen Sync
+[10:29:52.810 PM] Stopping
+[10:30:00.267 PM] Switching to mode: Screen Sync
+[10:30:00.377 PM] Stopping
+[10:30:21.347 PM] Logger initialized. Log file: /Users/Jaden/Downloads/lightstrip/LumiSync/debug.log
+[10:30:21.348 PM] Connecting to /dev/cu.usbserial-1140 at 115200
+[10:30:21.350 PM] Connected to /dev/cu.usbserial-1140 with baud rate 115200
+[10:30:22.955 PM] Device connected: SK0127,<"--(
+[10:30:22.956 PM] Switching to mode: Screen Sync
+[10:31:12.680 PM] Starting auto-detection
+[10:31:12.680 PM] Stopping
+[10:31:13.559 PM] Auto-detect response: SK0127,<"--(
+[10:31:13.604 PM] Switching to mode: Screen Sync
+[10:31:14.428 PM] Starting auto-detection
+[10:31:14.428 PM] Stopping
+[10:31:14.532 PM] Auto-detect response: SK0127,<"--(
+[10:31:14.552 PM] Switching to mode: Screen Sync
+[10:31:16.387 PM] Starting auto-detection
+[10:31:16.387 PM] Stopping
+[10:31:16.640 PM] Auto-detect response: SK0127,<"--(
+[10:31:16.688 PM] Switching to mode: Screen Sync
+[10:31:38.999 PM] Stopping
+[10:31:45.536 PM] Stopping
+[10:31:46.105 PM] Switching to mode: Screen Sync
+[10:36:48.575 PM] System going to sleep. Stopping lights.
+[10:36:48.576 PM] Stopping
+[10:36:52.293 PM] System woke up. Restarting lights...
+[10:36:52.333 PM] Switching to mode: Screen Sync

@@ -36,7 +36,7 @@ struct SettingsView: View {
                     Label("General", systemImage: "gear")
                 }
         }
-        .frame(width: 480)
+    .frame(minWidth: 540, minHeight: 640)
         .padding()
     }
     

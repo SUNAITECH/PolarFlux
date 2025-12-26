@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import ScreenCaptureKit
+import AppKit
 
 enum LightingMode: String, CaseIterable, Identifiable {
     case sync = "Screen Sync"
@@ -110,6 +111,16 @@ class AppState: ObservableObject {
     // Persistence
     @Published var wasRunning: Bool = false
     
+    private enum ResumeTrigger {
+        case none
+        case afterSleep
+        case afterDisplaySleep
+        case afterLock
+    }
+
+    private var pendingResumeTrigger: ResumeTrigger = .none
+    private var autoResumeScheduled = false
+
     private var isSending = false
     private var isCapturing = false
     private var cachedDisplay: SCDisplay?
@@ -153,23 +164,75 @@ class AppState: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.handleWake()
         }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.handleScreensDidSleep()
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.handleScreensDidWake()
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.sessionDidResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.handleSessionLocked()
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.sessionDidBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.handleSessionUnlocked()
+        }
     }
 
     private func handleSleep() {
-        if isRunning {
-            wasRunning = true
-            stop()
-            Logger.shared.log("System going to sleep. Stopping lights.")
-        }
+        pauseLighting(for: .afterSleep,
+                      logMessage: "System going to sleep. Stopping lights.",
+                      statusText: "System sleeping — lights paused")
     }
-    
+
     private func handleWake() {
-        if wasRunning {
-            Logger.shared.log("System woke up. Restarting lights in 2s...")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-                self?.start()
-                self?.wasRunning = false
-            }
+        scheduleResumeIfNeeded(after: .afterSleep,
+                               resumeText: "System woke up. Restarting lights...")
+    }
+
+    private func handleScreensDidSleep() {
+        pauseLighting(for: .afterDisplaySleep,
+                      logMessage: "Displays dimmed — pausing LEDs.",
+                      statusText: "Displays sleeping — lights paused")
+    }
+
+    private func handleScreensDidWake() {
+        scheduleResumeIfNeeded(after: .afterDisplaySleep,
+                               resumeText: "Display active again. Restarting lights...")
+    }
+
+    private func handleSessionLocked() {
+        pauseLighting(for: .afterLock,
+                      logMessage: "Session locked. Keeping LEDs off.",
+                      statusText: "Session locked — lights paused")
+    }
+
+    private func handleSessionUnlocked() {
+        scheduleResumeIfNeeded(after: .afterLock,
+                               resumeText: "Session unlocked. Restarting lights...")
+    }
+
+    private func pauseLighting(for reason: ResumeTrigger, logMessage: String, statusText: String) {
+        guard isRunning else { return }
+        pendingResumeTrigger = reason
+        wasRunning = true
+        Logger.shared.log(logMessage)
+        stop()
+        statusMessage = statusText
+    }
+
+    private func scheduleResumeIfNeeded(after reason: ResumeTrigger, resumeText: String) {
+        guard pendingResumeTrigger == reason else { return }
+        pendingResumeTrigger = .none
+        autoResumeScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self = self else { return }
+            guard self.autoResumeScheduled else { return }
+            self.autoResumeScheduled = false
+            guard self.wasRunning, !self.isRunning else { return }
+            Logger.shared.log(resumeText)
+            self.statusMessage = resumeText
+            self.start()
+            self.wasRunning = false
         }
     }
     
@@ -278,6 +341,9 @@ class AppState: ObservableObject {
     
     func stop() {
         Logger.shared.log("Stopping")
+        if autoResumeScheduled {
+            autoResumeScheduled = false
+        }
         isRunning = false
         statusMessage = "Stopped"
         

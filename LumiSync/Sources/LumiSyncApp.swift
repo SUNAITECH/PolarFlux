@@ -14,7 +14,7 @@ struct LumiSyncApp: App {
         
         Window("Settings", id: "settings") {
             SettingsView(appState: appState)
-                .frame(width: 500, height: 600)
+                .frame(minWidth: 560, minHeight: 660)
         }
         
         Settings {
