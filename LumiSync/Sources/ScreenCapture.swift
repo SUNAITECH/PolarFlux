@@ -388,6 +388,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             
             // 5. Processing Loop (Polar Binning)
             var accumulators = Array(repeating: Accumulator(), count: totalZones)
+            let maxRadialDistance = max(1.0, sqrt(Double(capWidth) * Double(capWidth) + Double(capHeight) * Double(capHeight)) / 2.0)
+            let distanceCompensationFactor = 0.6
             
             for y in stride(from: yOffset, to: yOffset + capHeight, by: 2) {
                 for x in stride(from: xOffset, to: xOffset + capWidth, by: 2) {
@@ -419,11 +421,18 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                         }
                     }
                     
+                    let dx = Double(x) - originX
+                    let dy = Double(y) - originY
+                    let radialDistance = sqrt(dx*dx + dy*dy)
+                    let normalizedRadial = min(max(radialDistance / maxRadialDistance, 0.0), 1.0)
+                    let distanceWeight = 1.0 + distanceCompensationFactor * normalizedRadial
+                    let weightedSaliency = saliency * distanceWeight
+
                     // Accumulate
-                    accumulators[index].r += r * saliency
-                    accumulators[index].g += g * saliency
-                    accumulators[index].b += b * saliency
-                    accumulators[index].weight += saliency
+                    accumulators[index].r += r * weightedSaliency
+                    accumulators[index].g += g * weightedSaliency
+                    accumulators[index].b += b * weightedSaliency
+                    accumulators[index].weight += weightedSaliency
                     
                     if saliency > accumulators[index].peakSaliency {
                         accumulators[index].peakSaliency = saliency
@@ -432,8 +441,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                         accumulators[index].peakB = b
                     }
                     
-                    accumulators[index].saliencySum += saliency
-                    accumulators[index].saliencySqSum += saliency * saliency
+                    accumulators[index].saliencySum += weightedSaliency
+                    accumulators[index].saliencySqSum += weightedSaliency * weightedSaliency
                     accumulators[index].pixelCount += 1
                 }
             }
