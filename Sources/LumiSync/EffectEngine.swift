@@ -37,15 +37,15 @@ class EffectEngine {
     
     var onFrame: (([UInt8]) -> Void)?
     
-    func start(effect: EffectType, ledCount: Int, speed: Double, color: (r: UInt8, g: UInt8, b: UInt8)) {
+    func start(effect: EffectType, ledCount: Int, speed: Double, color: (r: UInt8, g: UInt8, b: UInt8), fps: Double = 60.0) {
         self.currentEffect = effect
         self.step = 0
         self.physicsEngine.reset()
         self.lastFrameTime = Date().timeIntervalSince1970
         
         // Speed: 1.0 = 0.05s interval. 2.0 = 0.025s. 0.5 = 0.1s.
-        let interval = 0.016 // Run at 60 FPS for physics
-        let stepIncrement = Int(speed * 3.0) // Adjust step speed based on user speed
+        let interval = 1.0 / fps
+        let stepIncrement = Int(speed * (180.0 / fps)) // Adjust step speed based on user speed and FPS
         
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in

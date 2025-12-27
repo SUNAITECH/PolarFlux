@@ -38,7 +38,6 @@ class AppState: ObservableObject {
     @Published var topZone: String = "60"
     @Published var rightZone: String = "20"
     @Published var bottomZone: String = "0"
-    @Published var depth: String = "100"
     
     @Published var brightness: Double = 1.0
     @Published var statusMessage: String = "Ready"
@@ -54,13 +53,42 @@ class AppState: ObservableObject {
     @Published var isRunning: Bool = false
     
     // Sync Settings
-    @Published var syncMode: SyncMode = .full
     @Published var screenOrientation: ScreenOrientation = .standard
     @Published var targetFrameRate: Double = 60.0
     @Published var searchDepth: Double = 0.8 // 80% inwards search
     @Published var syncBrightness: Double = 1.0 // Separate brightness for Sync
     @Published var perspectiveOriginMode: PerspectiveOriginMode = .auto
     @Published var manualOriginPosition: Double = 0.5
+    
+    // Computed property for the actual origin used in sampling
+    var currentOriginY: Double {
+        if perspectiveOriginMode == .manual {
+            return manualOriginPosition
+        }
+        
+        let goldenRatio = 0.618
+        let top = Int(topZone) ?? 0
+        let bottom = Int(bottomZone) ?? 0
+        let left = Int(leftZone) ?? 0
+        let right = Int(rightZone) ?? 0
+        
+        let sides: [(String, Int)] = [
+            ("top", top),
+            ("bottom", bottom),
+            ("left", left),
+            ("right", right)
+        ]
+        
+        let missing = sides.filter { $0.1 == 0 }
+        if missing.count == 1 {
+            switch missing[0].0 {
+            case "top": return 1.0 - goldenRatio
+            case "bottom": return goldenRatio
+            default: return 0.5
+            }
+        }
+        return 0.5
+    }
     
     // Effect Settings
     @Published var selectedEffect: EffectType = .rainbow
@@ -91,7 +119,6 @@ class AppState: ObservableObject {
     @Published var calibrationB: Double = 1.0
     @Published var gamma: Double = 1.0
     @Published var saturation: Double = 1.0
-    @Published var useDominantColor: Bool = true
     
     // Audio Settings
     @Published var availableMicrophones: [AudioInputDevice] = []
@@ -403,12 +430,10 @@ class AppState: ObservableObject {
             left: Int(leftZone) ?? 0,
             top: Int(topZone) ?? 0,
             right: Int(rightZone) ?? 0,
-            bottom: Int(bottomZone) ?? 0,
-            depth: Int(depth) ?? 100
+            bottom: Int(bottomZone) ?? 0
         )
         let totalLeds = Int(ledCount) ?? 100
-                let orientation = self.screenOrientation
-                let mode = self.syncMode
+        let orientation = self.screenOrientation
         
         // Setup Callback
         screenCapture.onFrameProcessed = { [weak self] data in
@@ -432,11 +457,10 @@ class AppState: ObservableObject {
                 display: display,
                 config: config,
                 ledCount: totalLeds,
-                mode: mode,
                 orientation: orientation,
                 brightness: self.syncBrightness,
                 targetFrameRate: self.targetFrameRate,
-                calibration: (r: self.calibrationR, g: self.calibrationG, b: self.calibrationB),
+                calibration: (self.calibrationR, self.calibrationG, self.calibrationB),
                 gamma: self.gamma,
                 saturation: self.saturation,
                 originPreference: OriginPreference(mode: self.perspectiveOriginMode, manualNormalized: self.manualOriginPosition)
@@ -502,7 +526,7 @@ class AppState: ObservableObject {
             }
         }
         
-        effectEngine.start(effect: selectedEffect, ledCount: totalLeds, speed: speed, color: (r, g, b))
+        effectEngine.start(effect: selectedEffect, ledCount: totalLeds, speed: speed, color: (r, g, b), fps: targetFrameRate)
     }
     
     func restartEffect() {
@@ -882,7 +906,6 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(topZone, forKey: "topZone")
         UserDefaults.standard.set(rightZone, forKey: "rightZone")
         UserDefaults.standard.set(bottomZone, forKey: "bottomZone")
-        UserDefaults.standard.set(depth, forKey: "depth")
         UserDefaults.standard.set(brightness, forKey: "brightness")
         UserDefaults.standard.set(syncBrightness, forKey: "syncBrightness")
         UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
@@ -919,7 +942,6 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(calibrationB, forKey: "calibrationB")
         UserDefaults.standard.set(gamma, forKey: "gamma")
         UserDefaults.standard.set(saturation, forKey: "saturation")
-        UserDefaults.standard.set(useDominantColor, forKey: "useDominantColor")
         
         UserDefaults.standard.set(selectedMicrophoneUID, forKey: "selectedMicrophoneUID")
     }
@@ -932,7 +954,6 @@ class AppState: ObservableObject {
         if let tz = UserDefaults.standard.string(forKey: "topZone") { topZone = tz }
         if let rz = UserDefaults.standard.string(forKey: "rightZone") { rightZone = rz }
         if let bz = UserDefaults.standard.string(forKey: "bottomZone") { bottomZone = bz }
-        if let d = UserDefaults.standard.string(forKey: "depth") { depth = d }
         let br = UserDefaults.standard.double(forKey: "brightness")
         if br > 0 { brightness = br }
         let sbr = UserDefaults.standard.double(forKey: "syncBrightness")
@@ -956,9 +977,6 @@ class AppState: ObservableObject {
         if g > 0 { gamma = g }
         let sat = UserDefaults.standard.double(forKey: "saturation")
         if sat > 0 { saturation = sat }
-        if UserDefaults.standard.object(forKey: "useDominantColor") != nil {
-            useDominantColor = UserDefaults.standard.bool(forKey: "useDominantColor")
-        }
         
         if let modeStr = UserDefaults.standard.string(forKey: "currentMode"), let mode = LightingMode(rawValue: modeStr) {
             currentMode = mode

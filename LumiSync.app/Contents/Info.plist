@@ -5,15 +5,15 @@
     <key>CFBundleExecutable</key>
     <string>LumiSync</string>
     <key>CFBundleIdentifier</key>
-    <string>com.jaden.lumisync</string>
+    <string>com.sunaish.lumisync</string>
     <key>CFBundleName</key>
     <string>LumiSync</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>2025.12.28</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>20251228.1</string>
     <key>LSMinimumSystemVersion</key>
-    <string>11.0</string>
+    <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>

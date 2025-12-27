@@ -155,7 +155,7 @@ class AudioProcessor: NSObject {
                                      &id,
                                      UInt32(MemoryLayout<AudioDeviceID>.size))
                 if error != noErr {
-                    print("Failed to set audio device: \(error)")
+                    Logger.shared.log("Failed to set audio device: \(error)")
                 }
             }
         }
@@ -164,7 +164,7 @@ class AudioProcessor: NSObject {
         
         // Validate format
         if format.sampleRate == 0 || format.channelCount == 0 {
-            print("Error: Invalid audio input format. Check microphone settings.")
+            Logger.shared.log("Error: Invalid audio input format. Check microphone settings.")
             return
         }
         
@@ -179,7 +179,7 @@ class AudioProcessor: NSObject {
         do {
             try engine.start()
         } catch {
-            print("Audio engine start error: \(error)")
+            Logger.shared.log("Audio engine start error: \(error)")
         }
     }
     

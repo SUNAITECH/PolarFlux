@@ -191,7 +191,7 @@ class SerialPort {
         var data = [UInt8](cmd.utf8)
         let written = write(fileDescriptor, &data, data.count)
         if written < 0 {
-            print("Error writing command: \(errno)")
+            Logger.shared.log("Error writing command: \(errno)")
             return nil
         }
         

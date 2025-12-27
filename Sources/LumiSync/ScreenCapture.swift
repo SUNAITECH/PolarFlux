@@ -10,16 +10,6 @@ struct ZoneConfig {
     var top: Int
     var right: Int
     var bottom: Int
-    var depth: Int
-}
-
-enum SyncMode: String, CaseIterable, Identifiable {
-    case full = "Full Screen"
-    case cinema = "Cinema (Letterbox)"
-    case left = "Left Half"
-    case right = "Right Half"
-    
-    var id: String { self.rawValue }
 }
 
 class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
@@ -93,7 +83,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         }
     }
     
-    func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, brightness: Double, targetFrameRate: Double, calibration: (r: Double, g: Double, b: Double), gamma: Double, saturation: Double, originPreference: OriginPreference) async {
+    func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, orientation: ScreenOrientation, brightness: Double, targetFrameRate: Double, calibration: (r: Double, g: Double, b: Double), gamma: Double, saturation: Double, originPreference: OriginPreference) async {
         // Stop existing stream if any
         if let stream = stream {
             try? await stream.stopCapture()
@@ -118,7 +108,6 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             processingQueue.sync {
                 self.currentConfig = config
                 self.currentLedCount = ledCount
-                self.currentMode = mode
                 self.currentOrientation = orientation
                 self.currentBrightness = brightness
                 self.currentTargetFrameRate = targetFrameRate
@@ -152,9 +141,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     }
     
     // Stored context for the stream delegate
-    private var currentConfig: ZoneConfig = ZoneConfig(left:0, top:0, right:0, bottom:0, depth:0)
+    private var currentConfig: ZoneConfig = ZoneConfig(left:0, top:0, right:0, bottom:0)
     private var currentLedCount: Int = 0
-    private var currentMode: SyncMode = .full
     private var currentOrientation: ScreenOrientation = .standard
     private var currentBrightness: Double = 1.0
     private var currentTargetFrameRate: Double = 60.0
@@ -201,7 +189,6 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             bytesPerRow: bytesPerRow,
             config: currentConfig,
             ledCount: currentLedCount,
-            mode: currentMode,
             orientation: currentOrientation,
             dt: safeDt,
             brightness: currentBrightness
@@ -211,7 +198,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         onFrameProcessed?(ledData)
     }
     
-    private func processFrame(ptr: UnsafePointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, dt: Double, brightness: Double) -> [UInt8] {
+    private func processFrame(ptr: UnsafePointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, config: ZoneConfig, ledCount: Int, orientation: ScreenOrientation, dt: Double, brightness: Double) -> [UInt8] {
             
             // Safety Check
             if width <= 0 || height <= 0 { return [] }
@@ -274,19 +261,10 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             // --- Execution Pipeline ---
             
             // 1. Setup Capture Area
-            var xOffset = 0
-            var yOffset = 0
-            var capWidth = width
-            var capHeight = height
-            
-            switch mode {
-            case .full: break
-            case .cinema:
-                yOffset = Int(Double(height) * 0.15)
-                capHeight = Int(Double(height) * 0.7)
-            case .left: capWidth = width / 2
-            case .right: xOffset = width / 2; capWidth = width / 2
-            }
+            let xOffset = 0
+            let yOffset = 0
+            let capWidth = width
+            let capHeight = height
             
             // 2. Perspective Origin (Golden Ratio Point on Vertical Center Line or manual override)
             let originX = Double(xOffset) + Double(capWidth) / 2.0
@@ -680,10 +658,5 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         case "bottom": return min(1.0, goldenRatio)
         default: return 0.5
         }
-    }
-    
-    // Old method kept for compatibility but unused
-    func captureAndProcess(display: SCDisplay, config: ZoneConfig, ledCount: Int, mode: SyncMode, orientation: ScreenOrientation, useDominantColor: Bool) async -> [UInt8] {
-        return []
     }
 }

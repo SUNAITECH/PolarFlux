@@ -41,16 +41,27 @@ def create_icon():
     draw.polygon([(420, 380), (420, 644), (650, 512)], fill=triangle_color)
     
     # Save
-    if not os.path.exists('LumiSync.iconset'):
-        os.makedirs('LumiSync.iconset')
+    iconset_path = 'Resources/LumiSync.iconset'
+    if not os.path.exists(iconset_path):
+        os.makedirs(iconset_path)
         
-    img.save('LumiSync.iconset/icon_512x512@2x.png')
+    img.save(f'{iconset_path}/icon_512x512@2x.png')
     
     sizes = [16, 32, 128, 256, 512]
     for s in sizes:
         resized = img.resize((s, s), Image.Resampling.LANCZOS)
-        resized.save(f'LumiSync.iconset/icon_{s}x{s}.png')
-        resized.save(f'LumiSync.iconset/icon_{s//2}x{s//2}@2x.png')
+        resized.save(f'{iconset_path}/icon_{s}x{s}.png')
+        # Handle @2x
+        if s*2 <= 1024:
+            resized_2x = img.resize((s*2, s*2), Image.Resampling.LANCZOS)
+            resized_2x.save(f'{iconset_path}/icon_{s}x{s}@2x.png')
+
+    # Run iconutil
+    os.system(f'iconutil -c icns {iconset_path} -o Resources/LumiSync.icns')
+    print("Icon generated successfully at Resources/LumiSync.icns")
 
 if __name__ == "__main__":
+    # Change to project root if running from Scripts/
+    if os.path.basename(os.getcwd()) == 'Scripts':
+        os.chdir('..')
     create_icon()
