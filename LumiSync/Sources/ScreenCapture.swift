@@ -385,6 +385,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     lastA = boundaryAngles[i]
                 }
             }
+            guard let lowerBound = boundaryAngles.first, var upperBound = boundaryAngles.last else {
+                return []
+            }
+            if upperBound <= lowerBound {
+                upperBound = lowerBound + 2.0 * .pi
+            }
             
             // 5. Processing Loop (Polar Binning)
             var accumulators = Array(repeating: Accumulator(), count: totalZones)
@@ -404,8 +410,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     
                     // Find LED index using angle
                     var pixelAngle = atan2(Double(y) - originY, Double(x) - originX)
-                    while pixelAngle < boundaryAngles[0] { pixelAngle += 2.0 * .pi }
-                    while pixelAngle >= boundaryAngles[totalZones] { pixelAngle -= 2.0 * .pi }
+                    while pixelAngle < lowerBound { pixelAngle += 2.0 * .pi }
+                    while pixelAngle >= upperBound { pixelAngle -= 2.0 * .pi }
                     
                     // Binary search for index
                     var low = 0
