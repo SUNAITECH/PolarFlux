@@ -817,32 +817,61 @@ class AppState: ObservableObject {
 
         if !serialPort.isConnected {
             let baud = Int(baudRate) ?? 115200
-            Logger.shared.log("Connecting to \(selectedPort) at \(baud)")
-            if serialPort.connect(path: selectedPort, baudRate: baud) {
-                // Wait for device to settle (Arduino reset etc)
-                usleep(1500000) // 1.5s
+            
+            // 1. Try the selected port first
+            if !selectedPort.isEmpty {
+                Logger.shared.log("Connecting to \(selectedPort) at \(baud)")
+                if serialPort.connect(path: selectedPort, baudRate: baud) {
+                    if handleSuccessfulConnection() { return true }
+                }
+            }
+            
+            // 2. If selected port failed or was empty, try auto-discovery
+            Logger.shared.log("Selected port failed or empty. Starting auto-discovery...")
+            let ports = serialPort.listPorts()
+            for port in ports {
+                if port == selectedPort { continue } // Already tried
                 
-                // Handshake / Auto-detect
-                if let info = serialPort.getDeviceInfo() {
-                    let parts = info.split(separator: ",")
-                    if let model = parts.first.map({ String($0) }) {
+                Logger.shared.log("Trying auto-discovery on \(port)")
+                if serialPort.connect(path: port, baudRate: baud) {
+                    if handleSuccessfulConnection() {
                         DispatchQueue.main.async {
-                            self.applyModelConfig(modelName: model)
-                            self.statusMessage = "Connected: \(model)"
+                            self.selectedPort = port
+                            self.availablePorts = self.serialPort.listPorts()
                         }
+                        return true
                     }
                 }
-                
-                return true
-            } else {
-                Logger.shared.log("Connection Failed")
-                DispatchQueue.main.async {
-                    self.statusMessage = "Connection Failed"
-                }
-                return false
             }
+            
+            Logger.shared.log("Connection Failed - No valid device found")
+            DispatchQueue.main.async {
+                self.statusMessage = "Connection Failed"
+            }
+            return false
         }
         return true
+    }
+    
+    private func handleSuccessfulConnection() -> Bool {
+        // Wait for device to settle (Arduino reset etc)
+        usleep(1500000) // 1.5s
+        
+        // Handshake / Auto-detect
+        if let info = serialPort.getDeviceInfo() {
+            let parts = info.split(separator: ",")
+            if let model = parts.first.map({ String($0) }) {
+                DispatchQueue.main.async {
+                    self.applyModelConfig(modelName: model)
+                    self.statusMessage = "Connected: \(model)"
+                }
+                return true
+            }
+        }
+        
+        // If we connected but didn't get valid info, it might not be our device
+        serialPort.disconnect()
+        return false
     }
     
     func saveSettings() {
