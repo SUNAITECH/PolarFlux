@@ -18,6 +18,8 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>LumiSync needs access to the microphone for Music Mode.</string>
+    <key>CFBundleIconFile</key>
+    <string>LumiSync</string>
     <key>LSUIElement</key>
     <true/>
 </dict>

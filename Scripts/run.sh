@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 # LumiSync Pro Build System
 # Target: macOS 14.0+ (Universal Binary)
@@ -9,8 +9,18 @@ set -e
 # --- Configuration ---
 APP_NAME="LumiSync"
 BUNDLE_ID="com.sunaish.lumisync"
-# Use absolute path to avoid "getcwd" errors if the parent dir was moved
-PROJECT_ROOT="/Users/Jaden/Downloads/lightstrip"
+
+# Safety: Use script location to determine project root
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+PROJECT_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+
+# Safety Checks
+if [[ ! -d "$PROJECT_ROOT/Sources/LumiSync" ]]; then
+    echo "Error: Could not find Sources/LumiSync in $PROJECT_ROOT"
+    echo "Please ensure you are running this script from within the project structure."
+    exit 1
+fi
+
 BUILD_DIR="$PROJECT_ROOT/.build"
 APP_BUNDLE="$PROJECT_ROOT/$APP_NAME.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
@@ -80,29 +90,33 @@ build() {
     mkdir -p "$BUILD_DIR"
 
     # 2. Find Sources
-    SOURCES=$(find Sources/LumiSync -name "*.swift")
-    if [ -z "$SOURCES" ]; then error "No source files found!"; fi
+    # Use zsh globbing for safer file handling
+    local -a SOURCES
+    SOURCES=(Sources/LumiSync/**/*.swift)
+    if [[ ${#SOURCES} -eq 0 ]]; then error "No source files found!"; fi
 
     # 3. Compile for both architectures
     SDK_PATH=$(xcrun --show-sdk-path)
     
     log "Compiling for Apple Silicon..."
-    xcrun -sdk macosx swiftc $SOURCES \
-        -target arm64-apple-macosx14.0 \
+    xcrun -sdk macosx swiftc "${SOURCES[@]}" \
+        -target arm64-apple-macos14.0 \
         -sdk "$SDK_PATH" \
+        -o "$BUILD_DIR/LumiSync_arm64" \
         -O -whole-module-optimization \
-        -o "$BUILD_DIR/$APP_NAME-arm64"
+        -parse-as-library
 
     log "Compiling for Intel..."
-    xcrun -sdk macosx swiftc $SOURCES \
-        -target x86_64-apple-macosx14.0 \
+    xcrun -sdk macosx swiftc "${SOURCES[@]}" \
+        -target x86_64-apple-macos14.0 \
         -sdk "$SDK_PATH" \
+        -o "$BUILD_DIR/LumiSync_x86_64" \
         -O -whole-module-optimization \
-        -o "$BUILD_DIR/$APP_NAME-x86_64"
+        -parse-as-library
 
     # 4. Create Universal Binary
     log "Stitching Universal Binary (Lipo)..."
-    lipo -create "$BUILD_DIR/$APP_NAME-arm64" "$BUILD_DIR/$APP_NAME-x86_64" -output "$MACOS_DIR/$APP_NAME"
+    lipo -create "$BUILD_DIR/LumiSync_arm64" "$BUILD_DIR/LumiSync_x86_64" -output "$MACOS_DIR/$APP_NAME"
 
     # 5. Bundle Resources
     log "Packaging resources..."

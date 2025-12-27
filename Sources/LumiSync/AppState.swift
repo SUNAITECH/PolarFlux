@@ -1205,14 +1205,14 @@ class AppState: ObservableObject {
                                 let pixelIndex = (position - i + totalLeds) % totalLeds
                                 // Head is white, tail fades to blue
                                 if i == 0 {
-                                    data[pixelIndex * 3] = 255
-                                    data[pixelIndex * 3 + 1] = 255
-                                    data[pixelIndex * 3 + 2] = 255
+                                    data[pixelIndex * 3] = UInt8(255 * self.calibrationR)
+                                    data[pixelIndex * 3 + 1] = UInt8(255 * self.calibrationG)
+                                    data[pixelIndex * 3 + 2] = UInt8(255 * self.calibrationB)
                                 } else {
                                     let brightness = Double(snakeLength - i) / Double(snakeLength)
                                     data[pixelIndex * 3] = 0
                                     data[pixelIndex * 3 + 1] = 0
-                                    data[pixelIndex * 3 + 2] = UInt8(255 * brightness)
+                                    data[pixelIndex * 3 + 2] = UInt8(255 * brightness * self.calibrationB)
                                 }
                             }
                             

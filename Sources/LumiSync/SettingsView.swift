@@ -32,129 +32,157 @@ struct SettingsView: View {
             }
             .listStyle(SidebarListStyle())
             .navigationTitle("Settings")
+            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 300)
         } detail: {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    if let selection = selection {
-                        switch selection {
-                        case "Connection": connectionSettings
-                        case "LED Layout": ledSettings
-                        case "Audio": audioSettings
-                        case "Calibration": calibrationSettings
-                        case "Power": powerSettings
-                        case "General": generalSettings
-                        case "About": AboutView()
-                        default: Text("Select a category")
+            ZStack {
+                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 25) {
+                        if let selection = selection {
+                            switch selection {
+                            case "Connection": connectionSettings
+                            case "LED Layout": ledSettings
+                            case "Audio": audioSettings
+                            case "Calibration": calibrationSettings
+                            case "Power": powerSettings
+                            case "General": generalSettings
+                            case "About": AboutView()
+                            default: Text("Select a category")
+                            }
+                        } else {
+                            Text("Select a category")
+                                .font(.title)
+                                .foregroundColor(.secondary)
                         }
-                    } else {
-                        Text("Select a category")
                     }
+                    .padding(.horizontal, 40)
+                    .padding(.vertical, 30)
+                    .frame(maxWidth: 650, alignment: .leading)
                 }
-                .padding(30)
-                .frame(maxWidth: 600, alignment: .leading)
             }
-            .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(minWidth: 800, minHeight: 600)
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 900, minHeight: 650)
     }
     
     var audioSettings: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Music Mode Settings").font(.title2).bold()
+        VStack(alignment: .leading, spacing: 25) {
+            headerView(title: "Audio Input", subtitle: "Configure microphone for Music Mode", icon: "waveform")
             
-            Form {
-                Picker("Microphone:", selection: $appState.selectedMicrophoneUID) {
-                    ForEach(appState.availableMicrophones, id: \.uid) { mic in
-                        Text(mic.name).tag(mic.uid)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 15) {
+                    Picker("Microphone:", selection: $appState.selectedMicrophoneUID) {
+                        ForEach(appState.availableMicrophones, id: \.uid) { mic in
+                            Text(mic.name).tag(mic.uid)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    
+                    Button(action: { appState.refreshMicrophones() }) {
+                        Label("Refresh Devices", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .pickerStyle(MenuPickerStyle())
-                
-                Button("Refresh Microphones") {
-                    appState.refreshMicrophones()
-                }
+                .padding(10)
             }
         }
     }
     
     var connectionSettings: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Connection").font(.title2).bold()
+        VStack(alignment: .leading, spacing: 25) {
+            headerView(title: "Connection", subtitle: "Serial port and communication settings", icon: "cable.connector")
             
-            Form {
-                Picker("Serial Port:", selection: $appState.selectedPort) {
-                    if appState.availablePorts.isEmpty {
-                        Text("No ports found").tag("")
-                    } else {
-                        ForEach(appState.availablePorts, id: \.self) { port in
-                            Text(port).tag(port)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 15) {
+                    Picker("Serial Port:", selection: $appState.selectedPort) {
+                        if appState.availablePorts.isEmpty {
+                            Text("No ports found").tag("")
+                        } else {
+                            ForEach(appState.availablePorts, id: \.self) { port in
+                                Text(port).tag(port)
+                            }
                         }
                     }
-                }
-                .pickerStyle(MenuPickerStyle())
-                
-                Picker("Baud Rate:", selection: $appState.baudRate) {
-                    ForEach(appState.availableBaudRates, id: \.self) { rate in
-                        Text(rate).tag(rate)
+                    .pickerStyle(.menu)
+                    
+                    Picker("Baud Rate:", selection: $appState.baudRate) {
+                        ForEach(appState.availableBaudRates, id: \.self) { rate in
+                            Text(rate).tag(rate)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    
+                    Button(action: { appState.refreshPorts() }) {
+                        Label("Refresh Ports", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .pickerStyle(MenuPickerStyle())
-                
-                Button("Refresh Ports") {
-                    appState.refreshPorts()
-                }
+                .padding(10)
             }
         }
     }
     
     var ledSettings: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("LED Layout").font(.title2).bold()
+        VStack(alignment: .leading, spacing: 25) {
+            headerView(title: "LED Layout", subtitle: "Configure your LED strip zones", icon: "lightbulb.led")
             
-            Section(header: Text("Zone Configuration").font(.headline)) {
+            GroupBox("Zone Configuration") {
                 VStack(spacing: 12) {
                     HStack {
                         settingsRow(label: "Total LEDs:", text: $appState.ledCount)
                         Button("Auto Detect") {
                             appState.autoDetectDevice()
                         }
+                        .buttonStyle(.borderedProminent)
                     }
-                    Divider()
+                    Divider().padding(.vertical, 5)
                     settingsRow(label: "Top Zone:", text: $appState.topZone)
                     settingsRow(label: "Bottom Zone:", text: $appState.bottomZone)
                     settingsRow(label: "Left Zone:", text: $appState.leftZone)
                     settingsRow(label: "Right Zone:", text: $appState.rightZone)
                 }
+                .padding(10)
             }
             
-            Section(header: Text("Screen Sync Orientation").font(.headline)) {
-                Picker("Direction:", selection: $appState.screenOrientation) {
-                    Text("Standard (CW)").tag(ScreenOrientation.standard)
-                    Text("Reverse (CCW)").tag(ScreenOrientation.reverse)
-                }
-                .pickerStyle(MenuPickerStyle())
-                
-                Text("Standard: Bottom-Left -> Top -> Right -> Bottom")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Button(action: {
-                    appState.startOrientationTest()
-                }) {
-                    HStack {
-                        Image(systemName: "play.circle")
-                        Text("Run Orientation Test (Snake)")
+            GroupBox("Screen Sync Orientation") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker("Direction:", selection: $appState.screenOrientation) {
+                        Text("Standard (CW)").tag(ScreenOrientation.standard)
+                        Text("Reverse (CCW)").tag(ScreenOrientation.reverse)
                     }
+                    .pickerStyle(.segmented)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(appState.screenOrientation == .standard ? 
+                             "Standard: Bottom-Left → Top → Right → Bottom" : 
+                             "Reverse: Bottom-Right → Top → Left → Bottom")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text("The test will run a 'snake' light effect twice. Ensure the light starts from the bottom corner and moves along the strip in the correct direction.")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .italic()
+                    }
+                    
+                    Button(action: { appState.startOrientationTest() }) {
+                        Label("Run Orientation Test", systemImage: "play.circle")
+                    }
+                    .buttonStyle(.bordered)
                 }
+                .padding(10)
             }
             
-            Section(header: Text("Capture Settings").font(.headline)) {
-                VStack(alignment: .leading) {
+            GroupBox("Capture Settings") {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("Target FPS:")
+                        Text("Target FPS")
                         Spacer()
                         Text("\(Int(appState.targetFrameRate))")
                             .monospacedDigit()
+                            .bold()
                     }
                     Slider(value: $appState.targetFrameRate, in: 15...120, step: 5) { _ in
                         if appState.isRunning && appState.currentMode == .sync {
@@ -162,16 +190,17 @@ struct SettingsView: View {
                         }
                     }
                 }
+                .padding(10)
             }
 
-            Section(header: Text("Perspective Origin").font(.headline)) {
-                VStack(alignment: .leading, spacing: 12) {
+            GroupBox("Perspective Origin") {
+                VStack(alignment: .leading, spacing: 15) {
                     Picker("Origin Mode:", selection: $appState.perspectiveOriginMode) {
                         ForEach(PerspectiveOriginMode.allCases) { mode in
                             Text(mode.rawValue).tag(mode)
                         }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
+                    .pickerStyle(.segmented)
                     .onChange(of: appState.perspectiveOriginMode) { newMode, _ in
                         if appState.currentMode == .sync && appState.isRunning {
                             appState.restartSync()
@@ -183,14 +212,20 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
 
                     OriginPreview(appState: appState)
-                        .frame(height: 140)
-                        .padding(.vertical, 4)
+                        .frame(height: 160)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.2)))
 
                     if appState.perspectiveOriginMode == .manual {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Manual Position: \(Int(appState.manualOriginPosition * 100))%")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Manual Position")
+                                Spacer()
+                                Text("\(Int(appState.manualOriginPosition * 100))%")
+                                    .monospacedDigit()
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
 
                             Slider(value: $appState.manualOriginPosition, in: 0...1, step: 0.01) { editing in
                                 if !editing && appState.currentMode == .sync && appState.isRunning {
@@ -200,85 +235,78 @@ struct SettingsView: View {
                         }
                     }
                 }
+                .padding(10)
             }
         }
     }
     
     var powerSettings: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Power Safety").font(.title2).bold()
+        VStack(alignment: .leading, spacing: 25) {
+            headerView(title: "Power Safety", subtitle: "Protect your hardware and power supply", icon: "bolt.shield")
             
-            Form {
-                Picker("Safety Mode:", selection: $appState.powerMode) {
-                    Text("Smart Protection").tag(PowerMode.abl)
-                    Text("Safe Mode").tag(PowerMode.globalCap)
-                    Text("Auto-Recovery").tag(PowerMode.smartFallback)
-                }
-                .pickerStyle(RadioGroupPickerStyle())
-                
-                Divider()
-                
-                if appState.powerMode == .abl {
-                    VStack(alignment: .leading) {
-                        Text("Protection Level: \(Int(appState.powerLimit * 100))%")
-                        Slider(value: $appState.powerLimit, in: 0.5...1.0, step: 0.05)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 20) {
+                    Picker("Safety Mode:", selection: $appState.powerMode) {
+                        Text("Smart Protection").tag(PowerMode.abl)
+                        Text("Safe Mode").tag(PowerMode.globalCap)
+                        Text("Auto-Recovery").tag(PowerMode.smartFallback)
                     }
-                } else if appState.powerMode == .globalCap {
-                    VStack(alignment: .leading) {
-                        Text("Max Brightness Limit: \(Int(appState.powerLimit * 100))%")
-                        Slider(value: $appState.powerLimit, in: 0.1...1.0, step: 0.05)
+                    .pickerStyle(.radioGroup)
+                    
+                    Divider()
+                    
+                    if appState.powerMode == .abl {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Protection Level")
+                                Spacer()
+                                Text("\(Int(appState.powerLimit * 100))%")
+                                    .bold()
+                            }
+                            Slider(value: $appState.powerLimit, in: 0.5...1.0, step: 0.05)
+                        }
+                    } else if appState.powerMode == .globalCap {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Max Brightness Limit")
+                                Spacer()
+                                Text("\(Int(appState.powerLimit * 100))%")
+                                    .bold()
+                            }
+                            Slider(value: $appState.powerLimit, in: 0.1...1.0, step: 0.05)
+                        }
                     }
                 }
+                .padding(10)
             }
         }
     }
     
     var calibrationSettings: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 25) {
             HStack {
-                Text("Calibration").font(.title2).bold()
+                headerView(title: "Calibration", subtitle: "Fine-tune color accuracy and gamma", icon: "slider.horizontal.3")
                 Spacer()
-                Button(action: {
-                    isCalibrationLocked.toggle()
-                }) {
+                Button(action: { isCalibrationLocked.toggle() }) {
                     Image(systemName: isCalibrationLocked ? "lock.fill" : "lock.open.fill")
                         .foregroundColor(isCalibrationLocked ? .secondary : .blue)
+                        .font(.title3)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(.plain)
             }
             
-            Form {
+            GroupBox {
                 VStack(alignment: .leading, spacing: 15) {
-                    HStack {
-                        Text("Red Gain").frame(width: 80, alignment: .leading)
-                        Slider(value: $appState.calibrationR, in: 0.0...1.0).disabled(isCalibrationLocked)
-                        Text(String(format: "%.2f", appState.calibrationR)).frame(width: 40)
-                    }
-                    HStack {
-                        Text("Green Gain").frame(width: 80, alignment: .leading)
-                        Slider(value: $appState.calibrationG, in: 0.0...1.0).disabled(isCalibrationLocked)
-                        Text(String(format: "%.2f", appState.calibrationG)).frame(width: 40)
-                    }
-                    HStack {
-                        Text("Blue Gain").frame(width: 80, alignment: .leading)
-                        Slider(value: $appState.calibrationB, in: 0.0...1.0).disabled(isCalibrationLocked)
-                        Text(String(format: "%.2f", appState.calibrationB)).frame(width: 40)
-                    }
+                    calibrationRow(label: "Red Gain", value: $appState.calibrationR, color: .red)
+                    calibrationRow(label: "Green Gain", value: $appState.calibrationG, color: .green)
+                    calibrationRow(label: "Blue Gain", value: $appState.calibrationB, color: .blue)
                     
-                    Divider()
+                    Divider().padding(.vertical, 5)
                     
-                    HStack {
-                        Text("Gamma").frame(width: 80, alignment: .leading)
-                        Slider(value: $appState.gamma, in: 0.1...3.0).disabled(isCalibrationLocked)
-                        Text(String(format: "%.2f", appState.gamma)).frame(width: 40)
-                    }
-                    HStack {
-                        Text("Saturation").frame(width: 80, alignment: .leading)
-                        Slider(value: $appState.saturation, in: 0.0...3.0).disabled(isCalibrationLocked)
-                        Text(String(format: "%.2f", appState.saturation)).frame(width: 40)
-                    }
+                    calibrationRow(label: "Gamma", value: $appState.gamma, range: 0.1...3.0)
+                    calibrationRow(label: "Saturation", value: $appState.saturation, range: 0.0...3.0)
                     
-                    Button("Reset Calibration") {
+                    Button("Reset to Defaults") {
                         appState.calibrationR = 1.0
                         appState.calibrationG = 1.0
                         appState.calibrationB = 1.0
@@ -286,30 +314,71 @@ struct SettingsView: View {
                         appState.saturation = 1.0
                     }
                     .disabled(isCalibrationLocked)
+                    .buttonStyle(.bordered)
                 }
+                .padding(10)
+                .disabled(isCalibrationLocked)
             }
         }
     }
     
     var generalSettings: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("General").font(.title2).bold()
+        VStack(alignment: .leading, spacing: 25) {
+            headerView(title: "General", subtitle: "Application behavior and startup", icon: "gear")
             
-            Form {
-                Toggle("Launch at Login", isOn: $appState.launchAtLogin)
-                
-                Divider().padding(.vertical, 10)
-                
-                Button(role: .destructive) {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    HStack {
-                        Image(systemName: "power")
-                        Text("Quit LumiSync")
+            GroupBox {
+                VStack(alignment: .leading, spacing: 20) {
+                    Toggle("Launch at Login", isOn: $appState.launchAtLogin)
+                        .toggleStyle(.switch)
+                    
+                    Divider()
+                    
+                    Button(role: .destructive) {
+                        NSApplication.shared.terminate(nil)
+                    } label: {
+                        Label("Quit LumiSync", systemImage: "power")
+                            .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
+                .padding(10)
             }
+        }
+    }
+    
+    func headerView(title: String, subtitle: String, icon: String) -> some View {
+        HStack(spacing: 15) {
+            Image(systemName: icon)
+                .font(.system(size: 32))
+                .foregroundColor(.accentColor)
+                .frame(width: 45)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.title2)
+                    .bold()
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.bottom, 10)
+    }
+    
+    func calibrationRow(label: String, value: Binding<Double>, color: Color? = nil, range: ClosedRange<Double> = 0.0...1.0) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text(String(format: "%.2f", value.wrappedValue))
+                    .monospacedDigit()
+                    .foregroundColor(.secondary)
+            }
+            .font(.caption)
+            
+            Slider(value: value, in: range)
+                .accentColor(color ?? .accentColor)
         }
     }
     
@@ -318,7 +387,7 @@ struct SettingsView: View {
             Text(label)
                 .frame(width: 100, alignment: .leading)
             TextField("", text: text)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .textFieldStyle(.roundedBorder)
         }
     }
 }
