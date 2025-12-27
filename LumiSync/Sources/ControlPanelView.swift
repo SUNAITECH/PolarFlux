@@ -96,7 +96,7 @@ struct ControlPanelView: View {
                             }
                             .pickerStyle(.menu)
                             .labelsHidden()
-                            .onChange(of: appState.selectedEffect) { _ in
+                            .onChange(of: appState.selectedEffect) { newEffect, oldEffect in
                                 if appState.isRunning { appState.restartEffect() }
                             }
                             
@@ -208,7 +208,7 @@ struct ControlPanelView: View {
         .background(VisualEffectView(material: .popover, blendingMode: .withinWindow))
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: appState.currentMode)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: appState.isRunning)
-        .onChange(of: appState.currentMode) { _ in
+        .onChange(of: appState.currentMode) { newMode, _ in
             if appState.isRunning {
                 appState.start() // Now handles mode switching internally in AppState
             }

@@ -145,7 +145,7 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(MenuPickerStyle())
-                .onChange(of: appState.syncMode) { _ in appState.restartSync() }
+                .onChange(of: appState.syncMode) { newMode, _ in appState.restartSync() }
                 
                 Divider()
                 
@@ -176,7 +176,7 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(SegmentedPickerStyle())
-                    .onChange(of: appState.perspectiveOriginMode) { _ in
+                    .onChange(of: appState.perspectiveOriginMode) { newMode, _ in
                         if appState.currentMode == .sync && appState.isRunning {
                             appState.restartSync()
                         }

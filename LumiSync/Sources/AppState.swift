@@ -407,9 +407,8 @@ class AppState: ObservableObject {
             depth: Int(depth) ?? 100
         )
         let totalLeds = Int(ledCount) ?? 100
-        let orientation = self.screenOrientation
-        let useDominant = self.useDominantColor
-        let mode = self.syncMode
+                let orientation = self.screenOrientation
+                let mode = self.syncMode
         
         // Setup Callback
         screenCapture.onFrameProcessed = { [weak self] data in
@@ -1243,3 +1242,5 @@ class AppState: ObservableObject {
         }
     }
 }
+
+extension AppState: @unchecked Sendable {}
