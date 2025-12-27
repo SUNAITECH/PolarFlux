@@ -35,7 +35,7 @@ class LaunchAtLogin {
             do {
                 try plistContent.write(to: plistPath, atomically: true, encoding: .utf8)
             } catch {
-                print("Failed to write launch agent: \(error)")
+                // Failed to write launch agent
             }
         } else {
             try? FileManager.default.removeItem(at: plistPath)

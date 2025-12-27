@@ -824,8 +824,6 @@ class AppState: ObservableObject {
                 
                 // Handshake / Auto-detect
                 if let info = serialPort.getDeviceInfo() {
-                    Logger.shared.log("Device connected: \(info)")
-                    print("Device connected: \(info)")
                     let parts = info.split(separator: ",")
                     if let model = parts.first.map({ String($0) }) {
                         DispatchQueue.main.async {

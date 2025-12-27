@@ -140,7 +140,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             self.stream = stream
             
         } catch {
-            print("Failed to start stream: \(error)")
+            // Stream start failed
         }
     }
     
@@ -167,7 +167,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     
     // MARK: - SCStreamDelegate
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        print("Stream stopped with error: \(error.localizedDescription)")
+        // Stream stopped
     }
     
     // MARK: - SCStreamOutput

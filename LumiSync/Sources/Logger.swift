@@ -7,9 +7,13 @@ class Logger {
     private let queue = DispatchQueue(label: "com.lumisync.logger")
 
     private init() {
-        // Use a fixed path in the project directory for easy access as requested
-        let path = "/Users/Jaden/Downloads/lightstrip/LumiSync/debug.log"
-        self.logFileURL = URL(fileURLWithPath: path)
+        // Use a standard application support path for production logs
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let logDir = appSupport.appendingPathComponent("LumiSync", isDirectory: true)
+        try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+        
+        self.logFileURL = logDir.appendingPathComponent("app.log")
+        let path = logFileURL.path
         
         if !FileManager.default.fileExists(atPath: path) {
             FileManager.default.createFile(atPath: path, contents: nil)
@@ -19,14 +23,12 @@ class Logger {
             self.fileHandle = try FileHandle(forWritingTo: logFileURL)
             self.fileHandle?.seekToEndOfFile()
         } catch {
-            print("Failed to open log file: \(error)")
             self.fileHandle = nil
         }
-        
-        log("Logger initialized. Log file: \(path)")
     }
     
     func log(_ message: String) {
+        #if DEBUG
         queue.async {
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm:ss.SSS"
@@ -36,8 +38,9 @@ class Logger {
             if let data = logMessage.data(using: .utf8) {
                 self.fileHandle?.write(data)
             }
-            // Also print to console
+            // Also print to console in debug
             print(logMessage, terminator: "")
         }
+        #endif
     }
 }
