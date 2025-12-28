@@ -51,7 +51,7 @@ show_help() {
     echo "Commands:"
     echo "  build       Create a production-ready Universal App Bundle"
     echo "  run         Build and launch the application"
-    echo "  dmg         Package the application into a beautiful DMG"
+    echo "  dmg         Package the application into DMG"
     echo "  clean       Deep clean build artifacts and system junk"
     echo "  icon        Regenerate high-quality icons from source"
     echo "  help        Show this help menu"

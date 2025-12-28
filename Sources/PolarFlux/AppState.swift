@@ -144,6 +144,8 @@ class AppState: ObservableObject {
         }
     }
     
+    @Published var hasAutoDetected: Bool = false
+    
     // Persistence
     @Published var wasRunning: Bool = false
     
@@ -918,6 +920,7 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(brightness, forKey: "brightness")
         UserDefaults.standard.set(syncBrightness, forKey: "syncBrightness")
         UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
+        UserDefaults.standard.set(hasAutoDetected, forKey: "hasAutoDetected")
         UserDefaults.standard.set(powerMode.rawValue, forKey: "powerMode")
         UserDefaults.standard.set(powerLimit, forKey: "powerLimit")
         UserDefaults.standard.set(currentMode.rawValue, forKey: "currentMode")
@@ -968,6 +971,7 @@ class AppState: ObservableObject {
         let sbr = UserDefaults.standard.double(forKey: "syncBrightness")
         if sbr > 0 { syncBrightness = sbr }
         launchAtLogin = UserDefaults.standard.bool(forKey: "launchAtLogin")
+        hasAutoDetected = UserDefaults.standard.bool(forKey: "hasAutoDetected")
         
         if let pm = UserDefaults.standard.string(forKey: "powerMode"), let mode = PowerMode(rawValue: pm) {
             powerMode = mode
@@ -1046,7 +1050,13 @@ class AppState: ObservableObject {
         if wasRunning {
             // Delay slightly to allow UI to load
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.start()
+                if !self.hasAutoDetected {
+                    self.autoDetectDevice()
+                    self.hasAutoDetected = true
+                    self.saveSettings()
+                } else {
+                    self.start()
+                }
             }
         }
     }
@@ -1115,6 +1125,8 @@ class AppState: ObservableObject {
                 if let modelName = parts.first.map({ String($0) }) {
                     DispatchQueue.main.async {
                         self.applyModelConfig(modelName: modelName)
+                        self.hasAutoDetected = true
+                        self.saveSettings()
                         self.statusMessage = String(format: String(localized: "DETECTED"), modelName)
                         if wasRunning { self.start() }
                     }
