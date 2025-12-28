@@ -41,7 +41,7 @@ def create_icon():
     draw.polygon([(420, 380), (420, 644), (650, 512)], fill=triangle_color)
     
     # Save
-    iconset_path = 'Resources/LumiSync.iconset'
+    iconset_path = 'Resources/PolarFlux.iconset'
     if not os.path.exists(iconset_path):
         os.makedirs(iconset_path)
         
@@ -57,8 +57,8 @@ def create_icon():
             resized_2x.save(f'{iconset_path}/icon_{s}x{s}@2x.png')
 
     # Run iconutil
-    os.system(f'iconutil -c icns {iconset_path} -o Resources/LumiSync.icns')
-    print("Icon generated successfully at Resources/LumiSync.icns")
+    os.system(f'iconutil -c icns {iconset_path} -o Resources/PolarFlux.icns')
+    print("Icon generated successfully at Resources/PolarFlux.icns")
 
 if __name__ == "__main__":
     # Change to project root if running from Scripts/

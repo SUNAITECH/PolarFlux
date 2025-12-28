@@ -2,22 +2,22 @@
 import PackageDescription
 
 let package = Package(
-    name: "LumiSync",
+    name: "PolarFlux",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "LumiSync", targets: ["LumiSync"])
+        .executable(name: "PolarFlux", targets: ["PolarFlux"])
     ],
     dependencies: [],
     targets: [
         .executableTarget(
-            name: "LumiSync",
+            name: "PolarFlux",
             dependencies: [],
-            path: "Sources/LumiSync",
+            path: "Sources/PolarFlux",
             resources: [
                 .copy("../../Resources/Info.plist"),
-                .copy("../../Resources/LumiSync.icns")
+                .copy("../../Resources/PolarFlux.icns")
             ]
         )
     ]
