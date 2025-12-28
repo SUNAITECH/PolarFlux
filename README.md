@@ -68,8 +68,13 @@ The physics engine implements a second-order spring-damping system to govern col
 
 ### 1. Integration Logic
 The engine uses Euler integration for state updates:
-$$ v_{t+1} = v_t + (F_{attraction} + F_{advection} + F_{drag}) \times \Delta t $$
-$$ x_{t+1} = x_t + v_{t+1} \times \Delta t $$
+
+```math
+v_{t+1} = v_t + (F_{attraction} + F_{advection} + F_{drag}) \times \Delta t
+```
+```math
+x_{t+1} = x_t + v_{t+1} \times \Delta t
+```
 
 ### 2. Adaptive Dynamics
 - **Stiffness ($k$)**: Dynamically adjusted between $0.02$ and $0.2$ based on scene intensity.
@@ -116,7 +121,11 @@ PolarFlux implements the Skydimo-variant of the Adalight protocol:
 
 ### 1. Perceptual Saliency Formula
 The system avoids simple averaging to prevent color "muddiness." Instead, it calculates a saliency score for each pixel:
-$$ Saliency = \frac{1}{1 + e^{-15(S - 0.4)}} \times \text{LuminanceWeight} $$
+
+```math
+Saliency = \frac{1}{1 + e^{-15(S - 0.4)}} \times \text{LuminanceWeight}
+```
+
 Where:
 - **$S$ (Saturation)**: Calculated as the variance between RGB channels relative to the mean.
 - **Sigmoid Mapping**: The saturation is passed through a sigmoid function centered at 0.4 with a steepness of 15 to aggressively prioritize vibrant colors.
@@ -131,7 +140,11 @@ To stabilize colors in static scenes while maintaining responsiveness during mot
 
 ### 3. Scene Intensity Detection
 Median Euclidean distance between frames is smoothed using a first-order IIR filter:
-$$ I_{t} = 0.85 I_{t-1} + 0.15 D_{median} $$
+
+```math
+I_{t} = 0.85 I_{t-1} + 0.15 D_{median}
+```
+
 This intensity value $I_t$ modulates the stiffness $k$ of the physics engine via a `smoothstep` interpolation.
 
 ---

@@ -2,10 +2,7 @@ import SwiftUI
 
 struct AboutView: View {
     let version: String = {
-        let date = Date()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2025.12.28"
     }()
     
     var body: some View {

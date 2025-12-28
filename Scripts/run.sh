@@ -9,6 +9,7 @@ set -e
 # --- Configuration ---
 APP_NAME="PolarFlux"
 BUNDLE_ID="com.sunaish.polarflux"
+VERSION_STR="${VERSION:-$(date +%Y.%m.%d)}"
 
 # Safety: Use script location to determine project root
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -123,6 +124,9 @@ build() {
     log "Packaging resources..."
     if [ -f "Resources/Info.plist" ]; then
         cp Resources/Info.plist "$CONTENTS_DIR/"
+        # Inject version into Info.plist
+        plutil -replace CFBundleShortVersionString -string "$VERSION_STR" "$CONTENTS_DIR/Info.plist"
+        plutil -replace CFBundleVersion -string "$(date +%Y%m%d.%H%M)" "$CONTENTS_DIR/Info.plist"
     else
         error "Info.plist missing from Resources/"
     fi
@@ -148,7 +152,6 @@ dmg() {
     build
     log "Packaging into Modern DMG..."
     
-    VERSION_STR="${VERSION:-$(date +%Y.%m.%d)}"
     DMG_NAME="${APP_NAME}_v${VERSION_STR}.dmg"
     DMG_PATH="$PROJECT_ROOT/$DMG_NAME"
     TEMP_DMG="$BUILD_DIR/temp.dmg"
