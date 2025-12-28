@@ -1,4 +1,4 @@
-# PolarFlux: Technical Documentation
+# PolarFlux Documentation
 
 PolarFlux is a macOS-native ambient lighting synchronization system. It leverages `ScreenCaptureKit` for low-latency frame acquisition, `AVFoundation` for real-time audio analysis, and the `Accelerate` framework for hardware-accelerated digital signal processing. The system integrates a second-order fluid physics engine for temporal smoothing and a saliency-based sampling algorithm for color extraction.
 
