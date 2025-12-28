@@ -148,7 +148,8 @@ dmg() {
     build
     log "Packaging into Modern DMG..."
     
-    DMG_NAME="${APP_NAME}_v$(date +%Y.%m.%d).dmg"
+    VERSION_STR="${VERSION:-$(date +%Y.%m.%d)}"
+    DMG_NAME="${APP_NAME}_v${VERSION_STR}.dmg"
     DMG_PATH="$PROJECT_ROOT/$DMG_NAME"
     TEMP_DMG="$BUILD_DIR/temp.dmg"
     MOUNT_POINT="$BUILD_DIR/mnt"

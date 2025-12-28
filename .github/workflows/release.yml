@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '5.9'
+
+      - name: Build and Package DMG
+        run: |
+          chmod +x Scripts/run.sh
+          # Extract version from tag (e.g., v1.0.0 -> 1.0.0)
+          export VERSION=${GITHUB_REF_NAME#v}
+          ./Scripts/run.sh dmg
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.dmg"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

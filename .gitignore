@@ -1,2 +1,8 @@
 .DS_Store
 .build/
+*.app/
+*.dmg
+*.pkg
+DerivedData/
+.swiftpm/
+xcuserdata/
