@@ -197,8 +197,16 @@ EOF
 
     # 5. Finalize
     log "Finalizing DMG..."
+    sync
     chmod -Rf go-w "$MOUNT_POINT" || true
-    hdiutil detach "$MOUNT_POINT"
+    
+    # Attempt to detach multiple times if busy
+    for i in {1..5}; do
+        if hdiutil detach "$MOUNT_POINT" -force; then
+            break
+        fi
+        sleep 2
+    done
     hdiutil convert "$TEMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH"
     
     rm -f "$TEMP_DMG"
