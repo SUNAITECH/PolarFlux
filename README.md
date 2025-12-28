@@ -133,10 +133,17 @@ Where:
 
 ### 2. Adaptive Kalman Filter
 To stabilize colors in static scenes while maintaining responsiveness during motion, a 1D Kalman filter is applied per channel:
-- **State Vector**: $\hat{x}_k = [R, G, B]^T$.
-- **Process Noise ($Q$)**: Dynamically adjusted based on the frame-to-frame color residual.
-- **Measurement Noise ($R$)**: Inversely proportional to the scene intensity $I_t$.
-- **Update Equation**: $\hat{x}_{k|k} = \hat{x}_{k|k-1} + K_k(z_k - \hat{x}_{k|k-1})$.
+
+- **State Vector**:
+```math
+\hat{x}_k = [R, G, B]^T
+```
+- **Process Noise ($Q$):** Dynamically adjusted based on the frame-to-frame color residual.
+- **Measurement Noise ($R$):** Inversely proportional to the scene intensity $I_t$.
+- **Update Equation**:
+```math
+\hat{x}_{k|k} = \hat{x}_{k|k-1} + K_k(z_k - \hat{x}_{k|k-1})
+```
 
 ### 3. Scene Intensity Detection
 Median Euclidean distance between frames is smoothed using a first-order IIR filter:
