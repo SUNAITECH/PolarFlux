@@ -169,27 +169,31 @@ dmg() {
     ln -s /Applications "$MOUNT_POINT/Applications"
     
     # 4. Style the DMG using AppleScript
-    log "Applying modern styling..."
-    osascript <<EOF
-    tell application "Finder"
-        tell disk "$APP_NAME"
-            open
-            set current view of container window to icon view
-            set toolbar visible of container window to false
-            set statusbar visible of container window to false
-            set the bounds of container window to {400, 100, 1000, 500}
-            set viewOptions to the icon view options of container window
-            set icon size of viewOptions to 128
-            set arrangement of viewOptions to not arranged
-            set position of item "$APP_NAME.app" of container window to {180, 180}
-            set position of item "Applications" of container window to {420, 180}
-            close
-            open
-            update without registering applications
-            delay 2
+    if [[ "$CI" != "true" ]]; then
+        log "Applying modern styling..."
+        osascript <<EOF || warn "DMG styling failed (expected in CI environment)"
+        tell application "Finder"
+            tell disk "$APP_NAME"
+                open
+                set current view of container window to icon view
+                set toolbar visible of container window to false
+                set statusbar visible of container window to false
+                set the bounds of container window to {400, 100, 1000, 500}
+                set viewOptions to the icon view options of container window
+                set icon size of viewOptions to 128
+                set arrangement of viewOptions to not arranged
+                set position of item "$APP_NAME.app" of container window to {180, 180}
+                set position of item "Applications" of container window to {420, 180}
+                close
+                open
+                update without registering applications
+                delay 2
+            end tell
         end tell
-    end tell
 EOF
+    else
+        warn "Skipping DMG styling in CI environment."
+    fi
 
     # 5. Finalize
     log "Finalizing DMG..."
