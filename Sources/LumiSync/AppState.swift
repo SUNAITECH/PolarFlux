@@ -4,27 +4,36 @@ import ScreenCaptureKit
 import AppKit
 
 enum LightingMode: String, CaseIterable, Identifiable {
-    case sync = "Screen Sync"
-    case music = "Music Mode"
-    case effect = "Effects"
-    case manual = "Manual"
+    case sync = "SCREEN_SYNC"
+    case music = "MUSIC_MODE"
+    case effect = "EFFECTS"
+    case manual = "MANUAL"
     
     var id: String { self.rawValue }
+    var localizedName: String {
+        String(localized: String.LocalizationValue(self.rawValue))
+    }
 }
 
 enum PowerMode: String, CaseIterable, Identifiable {
-    case abl = "Auto Brightness Limiter"
-    case globalCap = "Global Brightness Cap"
-    case smartFallback = "Smart Fallback"
+    case abl = "AUTO_BRIGHTNESS_LIMITER"
+    case globalCap = "GLOBAL_BRIGHTNESS_CAP"
+    case smartFallback = "SMART_FALLBACK"
     
     var id: String { self.rawValue }
+    var localizedName: String {
+        String(localized: String.LocalizationValue(self.rawValue))
+    }
 }
 
 enum ScreenOrientation: String, CaseIterable, Identifiable {
-    case standard = "Standard (CW from Bottom-Left)"
-    case reverse = "Reverse (CCW from Bottom-Right)"
+    case standard = "STANDARD_CW_FULL"
+    case reverse = "REVERSE_CCW_FULL"
     
     var id: String { self.rawValue }
+    var localizedName: String {
+        String(localized: String.LocalizationValue(self.rawValue))
+    }
 }
 
 class AppState: ObservableObject {
@@ -40,7 +49,7 @@ class AppState: ObservableObject {
     @Published var bottomZone: String = "0"
     
     @Published var brightness: Double = 1.0
-    @Published var statusMessage: String = "Ready"
+    @Published var statusMessage: String = String(localized: "READY")
     
     // Power Management
     @Published var powerMode: PowerMode = .abl
@@ -208,34 +217,34 @@ class AppState: ObservableObject {
     private func handleSleep() {
         pauseLighting(for: .afterSleep,
                       logMessage: "System going to sleep. Stopping lights.",
-                      statusText: "System sleeping — lights paused")
+                      statusText: String(localized: "SYSTEM_SLEEPING"))
     }
 
     private func handleWake() {
         scheduleResumeIfNeeded(after: .afterSleep,
-                               resumeText: "System woke up. Restarting lights...")
+                               resumeText: String(localized: "SYSTEM_WAKING"))
     }
 
     private func handleScreensDidSleep() {
         pauseLighting(for: .afterDisplaySleep,
                       logMessage: "Displays dimmed — pausing LEDs.",
-                      statusText: "Displays sleeping — lights paused")
+                      statusText: String(localized: "DISPLAYS_SLEEPING"))
     }
 
     private func handleScreensDidWake() {
         scheduleResumeIfNeeded(after: .afterDisplaySleep,
-                               resumeText: "Display active again. Restarting lights...")
+                               resumeText: String(localized: "DISPLAYS_WAKING"))
     }
 
     private func handleSessionLocked() {
         pauseLighting(for: .afterLock,
                       logMessage: "Session locked. Keeping LEDs off.",
-                      statusText: "Session locked — lights paused")
+                      statusText: String(localized: "SESSION_LOCKED"))
     }
 
     private func handleSessionUnlocked() {
         scheduleResumeIfNeeded(after: .afterLock,
-                               resumeText: "Session unlocked. Restarting lights...")
+                               resumeText: String(localized: "SESSION_UNLOCKED"))
     }
 
     private func pauseLighting(for reason: ResumeTrigger, logMessage: String, statusText: String) {
@@ -275,18 +284,18 @@ class AppState: ObservableObject {
                 
                 // Stop current run
                 stop()
-                statusMessage = "Power Limit Reached - Reducing Brightness"
+                statusMessage = String(localized: "SMART_FALLBACK_TRIGGERED")
                 
                 // Attempt to restart after a short delay
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                     if !self.isRunning {
-                        self.statusMessage = "Auto-restarting with brightness \(Int(self.brightness * 100))%"
+                        self.statusMessage = String(format: String(localized: "AUTO_RESTARTING"), Int(self.brightness * 100))
                         self.start()
                     }
                 }
             } else {
                 stop()
-                statusMessage = "Connection Lost"
+                statusMessage = String(localized: "CONNECTION_LOST")
             }
         }
     }
@@ -313,7 +322,7 @@ class AppState: ObservableObject {
             return 
         }
         
-        statusMessage = "Connecting..."
+        statusMessage = String(localized: "CONNECTING")
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -328,7 +337,7 @@ class AppState: ObservableObject {
     }
     
     private func switchMode() {
-        self.statusMessage = "Running: \(self.currentMode.rawValue)"
+        self.statusMessage = String(format: String(localized: "RUNNING_MODE"), self.currentMode.localizedName)
         Logger.shared.log("Switching to mode: \(self.currentMode.rawValue)")
         
         // 1. Stop all current mode-specific engines and clear callbacks
@@ -372,7 +381,7 @@ class AppState: ObservableObject {
             autoResumeScheduled = false
         }
         isRunning = false
-        statusMessage = "Stopped"
+        statusMessage = String(localized: "STOPPED")
         
         loopTimer?.cancel()
         loopTimer = nil
@@ -410,7 +419,7 @@ class AppState: ObservableObject {
         Task {
             if await !ScreenCapture.checkPermission() {
                 DispatchQueue.main.async {
-                    self.statusMessage = "Screen Recording Permission Denied"
+                    self.statusMessage = String(localized: "PERMISSION_DENIED")
                     self.stop()
                 }
                 return
@@ -447,7 +456,7 @@ class AppState: ObservableObject {
             
             guard let display = self.cachedDisplay else {
                 DispatchQueue.main.async {
-                    self.statusMessage = "No Display Found"
+                    self.statusMessage = String(localized: "NO_DISPLAY_FOUND")
                     self.stop()
                 }
                 return
@@ -766,7 +775,7 @@ class AppState: ObservableObject {
                 DispatchQueue.main.async {
                     if !self.isPowerLimited {
                         self.isPowerLimited = true
-                        self.limitReason = "Brightness reduced by Smart Protection"
+                        self.limitReason = String(localized: "POWER_LIMITED_SMART")
                     }
                 }
             } else {
@@ -791,7 +800,7 @@ class AppState: ObservableObject {
                 DispatchQueue.main.async {
                     if !self.isPowerLimited {
                         self.isPowerLimited = true
-                        self.limitReason = "Capped by Safe Mode"
+                        self.limitReason = String(localized: "POWER_LIMITED_SAFE")
                     }
                 }
             } else {
@@ -870,7 +879,7 @@ class AppState: ObservableObject {
             
             Logger.shared.log("Connection Failed - No valid device found")
             DispatchQueue.main.async {
-                self.statusMessage = "Connection Failed"
+                self.statusMessage = String(localized: "CONNECTION_FAILED")
             }
             return false
         }
@@ -887,7 +896,7 @@ class AppState: ObservableObject {
             if let model = parts.first.map({ String($0) }) {
                 DispatchQueue.main.async {
                     self.applyModelConfig(modelName: model)
-                    self.statusMessage = "Connected: \(model)"
+                    self.statusMessage = String(format: String(localized: "CONNECTED"), model)
                 }
                 return true
             }
@@ -1090,7 +1099,7 @@ class AppState: ObservableObject {
     func autoDetectDevice() {
         Logger.shared.log("Starting auto-detection")
         guard connectSerial() else {
-            statusMessage = "Connect first to detect"
+            statusMessage = String(localized: "CONNECT_FIRST")
             return
         }
         
@@ -1106,7 +1115,7 @@ class AppState: ObservableObject {
                 if let modelName = parts.first.map({ String($0) }) {
                     DispatchQueue.main.async {
                         self.applyModelConfig(modelName: modelName)
-                        self.statusMessage = "Detected: \(modelName)"
+                        self.statusMessage = String(format: String(localized: "DETECTED"), modelName)
                         if wasRunning { self.start() }
                     }
                     return
@@ -1116,7 +1125,7 @@ class AppState: ObservableObject {
             }
             
             DispatchQueue.main.async {
-                self.statusMessage = "Detection failed"
+                self.statusMessage = String(localized: "DETECTION_FAILED")
                 if wasRunning { self.start() }
             }
         }
@@ -1124,7 +1133,7 @@ class AppState: ObservableObject {
     
     func applyModelConfig(modelName: String) {
         guard let config = skydimoModels[modelName] else {
-            statusMessage = "Unknown model: \(modelName)"
+            statusMessage = String(format: String(localized: "UNKNOWN_MODEL"), modelName)
             return
         }
         
@@ -1181,14 +1190,14 @@ class AppState: ObservableObject {
         stop()
         isTestingOrientation = true
         
-        statusMessage = "Connecting for Test..."
+        statusMessage = String(localized: "CONNECTING")
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
             if self.connectSerial() {
                 DispatchQueue.main.async {
-                    self.statusMessage = "Testing Orientation..."
+                    self.statusMessage = String(localized: "TESTING_ORIENTATION")
                     self.isRunning = true // Mark as running so stop button works
                     
                     var position = 0
@@ -1234,7 +1243,7 @@ class AppState: ObservableObject {
                                 if cycles >= 2 {
                                     self.isTestingOrientation = false
                                     self.stop()
-                                    self.statusMessage = "Test Complete"
+                                    self.statusMessage = String(localized: "TEST_COMPLETE")
                                     
                                     // Restore previous state if it was running
                                     if previousState {

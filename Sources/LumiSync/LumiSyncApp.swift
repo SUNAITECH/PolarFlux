@@ -12,7 +12,7 @@ struct LumiSyncApp: App {
         }
         .menuBarExtraStyle(.window)
         
-        Window("Settings", id: "settings") {
+        Window(String(localized: "SETTINGS"), id: "settings") {
             SettingsView(appState: appState)
                 .frame(minWidth: 560, minHeight: 660)
         }

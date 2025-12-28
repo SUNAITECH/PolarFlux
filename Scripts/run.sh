@@ -132,6 +132,10 @@ build() {
         warn "Icon missing, app will have default icon."
     fi
 
+    # Copy Localization Files (.lproj)
+    log "Packaging localizations..."
+    find Resources -name "*.lproj" -type d -exec cp -R {} "$RESOURCES_DIR/" \;
+
     # 6. Code Signing
     log "Applying Ad-hoc signature..."
     codesign --force --deep --sign - "$APP_BUNDLE"

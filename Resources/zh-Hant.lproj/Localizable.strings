@@ -1,0 +1,159 @@
+/* 
+  Localizable.strings
+  LumiSync
+*/
+
+"START_SYNC" = "開始同步";
+"STOP_SYNC" = "停止同步";
+"BRIGHTNESS" = "亮度";
+"EFFECT_SPEED" = "特效速度";
+"COLOR" = "顏色";
+"SETTINGS" = "設置";
+"QUIT" = "退出";
+
+/* Sidebar Sections */
+"HARDWARE" = "硬體";
+"PROCESSING" = "處理";
+"APP" = "應用";
+
+/* Sidebar Items */
+"CONNECTION" = "連接";
+"LED_LAYOUT" = "LED 佈局";
+"AUDIO" = "音訊設置";
+"MICROPHONE" = "麥克風:";
+"CALIBRATION" = "色彩校準";
+"POWER" = "電源";
+"GENERAL" = "常規";
+"ABOUT" = "關於";
+
+/* Connection Settings */
+"SERIAL_PORT" = "串口:";
+"BAUD_RATE" = "波特率:";
+"REFRESH_PORTS" = "刷新端口";
+"NO_PORTS_FOUND" = "未找到端口";
+
+/* LED Layout */
+"ZONE_CONFIG" = "區域配置";
+"TOTAL_LEDS" = "LED 總數:";
+"AUTO_DETECT" = "自動檢測";
+"AUTO" = "自動";
+"TOP_ZONE" = "頂部區域:";
+"BOTTOM_ZONE" = "底部區域:";
+"LEFT_ZONE" = "左側區域:";
+"RIGHT_ZONE" = "右側區域:";
+"SCREEN_SYNC_ORIENTATION" = "螢幕同步方向";
+"DIRECTION" = "方向:";
+"STANDARD_CW" = "標準 (順時針)";
+"REVERSE_CCW" = "反向 (逆時針)";
+"ORIENTATION_DESC_STANDARD" = "標準: 左下 → 頂部 → 右側 → 底部";
+"ORIENTATION_DESC_REVERSE" = "反向: 右下 → 頂部 → 左側 → 底部";
+"ORIENTATION_TEST_NOTE" = "測試將運行兩次“蛇形”跑馬燈。請確保燈光從底部角落開始，並沿燈帶按正確方向移動。";
+"RUN_ORIENTATION_TEST" = "運行方向測試";
+"CAPTURE_SETTINGS" = "採集設置";
+"TARGET_FPS" = "目標幀率";
+
+/* Perspective Origin */
+"PERSPECTIVE_ORIGIN" = "透視原點";
+"ORIGIN_MODE" = "原點模式:";
+"MANUAL_POSITION" = "手動位置";
+"ORIGIN_DESC" = "當所有側邊都有 LED 時自動居中原點，或者吸附到最靠近缺失側的黃金分割點。";
+
+/* Power Safety */
+"POWER_SAFETY" = "電源安全";
+"SAFETY_MODE" = "安全模式:";
+"SMART_PROTECTION" = "智能保護";
+"SAFE_MODE" = "安全模式";
+"AUTO_RECOVERY" = "自動恢復";
+"PROTECTION_LEVEL" = "保護等級";
+"MAX_BRIGHTNESS_LIMIT" = "最大亮度限制";
+
+/* Calibration */
+"RED_GAIN" = "紅色增益";
+"GREEN_GAIN" = "綠色增益";
+"BLUE_GAIN" = "藍色增益";
+"GAMMA" = "伽馬";
+"SATURATION" = "飽和度";
+"RESET_DEFAULTS" = "重置為默認值";
+
+/* General */
+"LAUNCH_AT_LOGIN" = "開機自啟動";
+"QUIT_LUMISYNC" = "退出 LumiSync";
+
+/* Common */
+"COLOR_R" = "R";
+"COLOR_G" = "G";
+"COLOR_B" = "B";
+"SELECT_CATEGORY" = "請選擇一個分類";
+"ORIGIN" = "原點";
+"POSITION_PERCENT" = "位置: %d%%";
+"UNKNOWN_MODEL" = "未知型號: %@";
+"UNKNOWN" = "未知";
+
+/* Status Messages */
+"CONNECTED" = "已連接: %@";
+"CONNECTION_FAILED" = "連接失敗";
+"CONNECT_FIRST" = "請先連接以進行檢測";
+"DETECTED" = "檢測到: %@";
+"DETECTION_FAILED" = "檢測失敗";
+"TESTING_ORIENTATION" = "正在測試方向...";
+"TEST_COMPLETE" = "測試完成";
+"NO_DISPLAY_FOUND" = "未找到顯示器";
+"PERMISSION_DENIED" = "螢幕錄製權限被拒絕";
+"POWER_LIMITED_SMART" = "智能保護已降低亮度";
+"POWER_LIMITED_SAFE" = "安全模式限制";
+
+/* AppState Status */
+"READY" = "就緒";
+"CONNECTING" = "正在連接...";
+"STOPPED" = "已停止";
+"RUNNING_MODE" = "運行中: %@";
+"SYSTEM_SLEEPING" = "系統休眠 — 燈效已暫停";
+"SYSTEM_WAKING" = "系統喚醒。正在重啟燈效...";
+"DISPLAYS_SLEEPING" = "顯示器休眠 — 燈效已暫停";
+"DISPLAYS_WAKING" = "顯示器已激活。正在重啟燈效...";
+"SESSION_LOCKED" = "會話鎖定 — 燈效已暫停";
+"SESSION_UNLOCKED" = "會話解鎖。正在重啟燈效...";
+"CONNECTION_LOST" = "連接丟失";
+"SMART_FALLBACK_TRIGGERED" = "達到功率限制 - 正在降低亮度";
+"AUTO_RESTARTING" = "正在以 %d%% 亮度自動重啟";
+
+/* Modes & Enums */
+"SCREEN_SYNC" = "螢幕同步";
+"MUSIC_MODE" = "音樂模式";
+"EFFECTS" = "動態燈效";
+"MANUAL" = "手動模式";
+
+"AUTO_BRIGHTNESS_LIMITER" = "自動亮度限制 (ABL)";
+"GLOBAL_BRIGHTNESS_CAP" = "全局亮度上限";
+"SMART_FALLBACK" = "智能故障恢復";
+
+"STANDARD_CW_FULL" = "標準 (從左下角順時針)";
+"REVERSE_CCW_FULL" = "反向 (從右下角逆時針)";
+
+/* Effects */
+"EFFECT_RAINBOW" = "彩虹";
+"EFFECT_BREATHING" = "呼吸";
+"EFFECT_MARQUEE" = "跑馬燈";
+"EFFECT_KNIGHT_RIDER" = "霹靂遊俠";
+"EFFECT_POLICE" = "警燈";
+"EFFECT_CANDLE" = "燭光";
+"EFFECT_PLASMA" = "等離子";
+"EFFECT_STROBE" = "頻閃";
+"EFFECT_ATOMIC" = "原子旋轉";
+"EFFECT_FIRE" = "火焰";
+"EFFECT_MATRIX" = "駭客任務";
+"EFFECT_MOOD_BLOBS" = "情緒色塊";
+"EFFECT_PACMAN" = "吃豆人";
+"EFFECT_SNAKE" = "貪食蛇";
+"EFFECT_SPARKS" = "火花";
+"EFFECT_TRACES" = "追蹤";
+"EFFECT_TRAILS" = "拖尾";
+"EFFECT_WAVES" = "波浪";
+"EFFECT_COLLISION" = "碰撞";
+"EFFECT_DOUBLE_SWIRL" = "雙重旋轉";
+
+/* About View */
+"VERSION" = "版本 %@";
+"LICENSE_AGREEMENT" = "許可協議";
+"COPYRIGHT" = "© 2025 上海蘇奈科技有限公司";
+"LICENSE_INFO" = "基於 MIT 許可證發佈";

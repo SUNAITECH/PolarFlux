@@ -2,28 +2,31 @@ import Foundation
 import SwiftUI
 
 enum EffectType: String, CaseIterable, Identifiable {
-    case rainbow = "Rainbow"
-    case breathing = "Breathing"
-    case marquee = "Marquee"
-    case knightRider = "Knight Rider"
-    case police = "Police Lights"
-    case candle = "Candle Flicker"
-    case plasma = "Plasma"
-    case strobe = "Strobe"
-    case atomic = "Atomic Swirl"
-    case fire = "Fire"
-    case matrix = "Matrix"
-    case moodBlobs = "Mood Blobs"
-    case pacman = "Pacman"
-    case snake = "Snake"
-    case sparks = "Sparks"
-    case traces = "Traces"
-    case trails = "Trails"
-    case waves = "Waves"
-    case collision = "Collision"
-    case doubleSwirl = "Double Swirl"
+    case rainbow = "EFFECT_RAINBOW"
+    case breathing = "EFFECT_BREATHING"
+    case marquee = "EFFECT_MARQUEE"
+    case knightRider = "EFFECT_KNIGHT_RIDER"
+    case police = "EFFECT_POLICE"
+    case candle = "EFFECT_CANDLE"
+    case plasma = "EFFECT_PLASMA"
+    case strobe = "EFFECT_STROBE"
+    case atomic = "EFFECT_ATOMIC"
+    case fire = "EFFECT_FIRE"
+    case matrix = "EFFECT_MATRIX"
+    case moodBlobs = "EFFECT_MOOD_BLOBS"
+    case pacman = "EFFECT_PACMAN"
+    case snake = "EFFECT_SNAKE"
+    case sparks = "EFFECT_SPARKS"
+    case traces = "EFFECT_TRACES"
+    case trails = "EFFECT_TRAILS"
+    case waves = "EFFECT_WAVES"
+    case collision = "EFFECT_COLLISION"
+    case doubleSwirl = "EFFECT_DOUBLE_SWIRL"
     
     var id: String { self.rawValue }
+    var localizedName: String {
+        String(localized: String.LocalizationValue(self.rawValue))
+    }
 }
 
 class EffectEngine {

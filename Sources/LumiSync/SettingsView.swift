@@ -8,38 +8,38 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
-                Section("Hardware") {
+                Section(String(localized: "HARDWARE")) {
                     NavigationLink(value: "Connection") {
-                        Label("Connection", systemImage: "cable.connector")
+                        Label(String(localized: "CONNECTION"), systemImage: "cable.connector")
                     }
                     NavigationLink(value: "LED Layout") {
-                        Label("LED Layout", systemImage: "lightbulb.led")
+                        Label(String(localized: "LED_LAYOUT"), systemImage: "lightbulb.led")
                     }
                 }
                 
-                Section("Processing") {
+                Section(String(localized: "PROCESSING")) {
                     NavigationLink(value: "Audio") {
-                        Label("Audio", systemImage: "waveform")
+                        Label(String(localized: "AUDIO"), systemImage: "waveform")
                     }
                     NavigationLink(value: "Calibration") {
-                        Label("Calibration", systemImage: "slider.horizontal.3")
+                        Label(String(localized: "CALIBRATION"), systemImage: "slider.horizontal.3")
                     }
                     NavigationLink(value: "Power") {
-                        Label("Power", systemImage: "bolt.shield")
+                        Label(String(localized: "POWER"), systemImage: "bolt.shield")
                     }
                 }
                 
-                Section("App") {
+                Section(String(localized: "APP")) {
                     NavigationLink(value: "General") {
-                        Label("General", systemImage: "gear")
+                        Label(String(localized: "GENERAL"), systemImage: "gear")
                     }
                     NavigationLink(value: "About") {
-                        Label("About", systemImage: "info.circle")
+                        Label(String(localized: "ABOUT"), systemImage: "info.circle")
                     }
                 }
             }
             .listStyle(SidebarListStyle())
-            .navigationTitle("Settings")
+            .navigationTitle(String(localized: "SETTINGS"))
             .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 300)
         } detail: {
             ZStack {
@@ -57,10 +57,10 @@ struct SettingsView: View {
                             case "Power": powerSettings
                             case "General": generalSettings
                             case "About": AboutView()
-                            default: Text("Select a category")
+                            default: Text(String(localized: "SELECT_CATEGORY"))
                             }
                         } else {
-                            Text("Select a category")
+                            Text(String(localized: "SELECT_CATEGORY"))
                                 .font(.title)
                                 .foregroundColor(.secondary)
                         }
@@ -77,11 +77,11 @@ struct SettingsView: View {
     
     var audioSettings: some View {
         VStack(alignment: .leading, spacing: 25) {
-            headerView(title: "Audio Input", subtitle: "Configure microphone for Music Mode", icon: "waveform")
+            headerView(title: String(localized: "AUDIO"), subtitle: String(localized: "AUDIO_SUBTITLE"), icon: "waveform")
             
             GroupBox {
                 VStack(alignment: .leading, spacing: 15) {
-                    Picker("Microphone:", selection: $appState.selectedMicrophoneUID) {
+                    Picker(String(localized: "MICROPHONE"), selection: $appState.selectedMicrophoneUID) {
                         ForEach(appState.availableMicrophones, id: \.uid) { mic in
                             Text(mic.name).tag(mic.uid)
                         }
@@ -89,7 +89,7 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     
                     Button(action: { appState.refreshMicrophones() }) {
-                        Label("Refresh Devices", systemImage: "arrow.clockwise")
+                        Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.bordered)
                 }
@@ -100,13 +100,13 @@ struct SettingsView: View {
     
     var connectionSettings: some View {
         VStack(alignment: .leading, spacing: 25) {
-            headerView(title: "Connection", subtitle: "Serial port and communication settings", icon: "cable.connector")
+            headerView(title: String(localized: "CONNECTION"), subtitle: String(localized: "CONNECTION_SUBTITLE"), icon: "cable.connector")
             
             GroupBox {
                 VStack(alignment: .leading, spacing: 15) {
-                    Picker("Serial Port:", selection: $appState.selectedPort) {
+                    Picker(String(localized: "SERIAL_PORT"), selection: $appState.selectedPort) {
                         if appState.availablePorts.isEmpty {
-                            Text("No ports found").tag("")
+                            Text(String(localized: "NO_PORTS_FOUND")).tag("")
                         } else {
                             ForEach(appState.availablePorts, id: \.self) { port in
                                 Text(port).tag(port)
@@ -115,7 +115,7 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                     
-                    Picker("Baud Rate:", selection: $appState.baudRate) {
+                    Picker(String(localized: "BAUD_RATE"), selection: $appState.baudRate) {
                         ForEach(appState.availableBaudRates, id: \.self) { rate in
                             Text(rate).tag(rate)
                         }
@@ -123,7 +123,7 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     
                     Button(action: { appState.refreshPorts() }) {
-                        Label("Refresh Ports", systemImage: "arrow.clockwise")
+                        Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(.bordered)
                 }
@@ -134,31 +134,31 @@ struct SettingsView: View {
     
     var ledSettings: some View {
         VStack(alignment: .leading, spacing: 25) {
-            headerView(title: "LED Layout", subtitle: "Configure your LED strip zones", icon: "lightbulb.led")
+            headerView(title: String(localized: "LED_LAYOUT"), subtitle: String(localized: "LED_LAYOUT_SUBTITLE"), icon: "lightbulb.led")
             
-            GroupBox("Zone Configuration") {
+            GroupBox(String(localized: "ZONE_CONFIG")) {
                 VStack(spacing: 12) {
                     HStack {
-                        settingsRow(label: "Total LEDs:", text: $appState.ledCount)
-                        Button("Auto Detect") {
+                        settingsRow(label: String(localized: "TOTAL_LEDS"), text: $appState.ledCount)
+                        Button(String(localized: "AUTO_DETECT")) {
                             appState.autoDetectDevice()
                         }
                         .buttonStyle(.borderedProminent)
                     }
                     Divider().padding(.vertical, 5)
-                    settingsRow(label: "Top Zone:", text: $appState.topZone)
-                    settingsRow(label: "Bottom Zone:", text: $appState.bottomZone)
-                    settingsRow(label: "Left Zone:", text: $appState.leftZone)
-                    settingsRow(label: "Right Zone:", text: $appState.rightZone)
+                    settingsRow(label: String(localized: "TOP_ZONE"), text: $appState.topZone)
+                    settingsRow(label: String(localized: "BOTTOM_ZONE"), text: $appState.bottomZone)
+                    settingsRow(label: String(localized: "LEFT_ZONE"), text: $appState.leftZone)
+                    settingsRow(label: String(localized: "RIGHT_ZONE"), text: $appState.rightZone)
                 }
                 .padding(10)
             }
             
-            GroupBox("Screen Sync Orientation") {
+            GroupBox(String(localized: "SCREEN_SYNC_ORIENTATION")) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Picker("Direction:", selection: $appState.screenOrientation) {
-                        Text("Standard (CW)").tag(ScreenOrientation.standard)
-                        Text("Reverse (CCW)").tag(ScreenOrientation.reverse)
+                    Picker(String(localized: "DIRECTION"), selection: $appState.screenOrientation) {
+                        Text(String(localized: "STANDARD_CW")).tag(ScreenOrientation.standard)
+                        Text(String(localized: "REVERSE_CCW")).tag(ScreenOrientation.reverse)
                     }
                     .pickerStyle(.segmented)
                     .onChange(of: appState.screenOrientation) { _, _ in
@@ -172,29 +172,29 @@ struct SettingsView: View {
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text(appState.screenOrientation == .standard ? 
-                             "Standard: Bottom-Left → Top → Right → Bottom" : 
-                             "Reverse: Bottom-Right → Top → Left → Bottom")
+                             String(localized: "ORIENTATION_DESC_STANDARD") : 
+                             String(localized: "ORIENTATION_DESC_REVERSE"))
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        Text("The test will run a 'snake' light effect twice. Ensure the light starts from the bottom corner and moves along the strip in the correct direction.")
+                        Text(String(localized: "ORIENTATION_TEST_NOTE"))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                             .italic()
                     }
                     
                     Button(action: { appState.startOrientationTest() }) {
-                        Label("Run Orientation Test", systemImage: "play.circle")
+                        Label(String(localized: "RUN_ORIENTATION_TEST"), systemImage: "play.circle")
                     }
                     .buttonStyle(.bordered)
                 }
                 .padding(10)
             }
             
-            GroupBox("Capture Settings") {
+            GroupBox(String(localized: "CAPTURE_SETTINGS")) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("Target FPS")
+                        Text(String(localized: "TARGET_FPS"))
                         Spacer()
                         Text("\(Int(appState.targetFrameRate))")
                             .monospacedDigit()
@@ -209,11 +209,11 @@ struct SettingsView: View {
                 .padding(10)
             }
 
-            GroupBox("Perspective Origin") {
+            GroupBox(String(localized: "PERSPECTIVE_ORIGIN")) {
                 VStack(alignment: .leading, spacing: 15) {
-                    Picker("Origin Mode:", selection: $appState.perspectiveOriginMode) {
+                    Picker(String(localized: "ORIGIN_MODE"), selection: $appState.perspectiveOriginMode) {
                         ForEach(PerspectiveOriginMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
+                            Text(mode.localizedName).tag(mode)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -223,7 +223,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Text("Auto centers the origin when all sides have LEDs or snaps to the golden-ratio point closest to the missing side.")
+                    Text(String(localized: "ORIGIN_DESC"))
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -235,7 +235,7 @@ struct SettingsView: View {
                     if appState.perspectiveOriginMode == .manual {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("Manual Position")
+                                Text(String(localized: "MANUAL_POSITION"))
                                 Spacer()
                                 Text("\(Int(appState.manualOriginPosition * 100))%")
                                     .monospacedDigit()
@@ -258,14 +258,14 @@ struct SettingsView: View {
     
     var powerSettings: some View {
         VStack(alignment: .leading, spacing: 25) {
-            headerView(title: "Power Safety", subtitle: "Protect your hardware and power supply", icon: "bolt.shield")
+            headerView(title: String(localized: "POWER_SAFETY"), subtitle: String(localized: "POWER_SAFETY_SUBTITLE"), icon: "bolt.shield")
             
             GroupBox {
                 VStack(alignment: .leading, spacing: 20) {
-                    Picker("Safety Mode:", selection: $appState.powerMode) {
-                        Text("Smart Protection").tag(PowerMode.abl)
-                        Text("Safe Mode").tag(PowerMode.globalCap)
-                        Text("Auto-Recovery").tag(PowerMode.smartFallback)
+                    Picker(String(localized: "SAFETY_MODE"), selection: $appState.powerMode) {
+                        Text(String(localized: "SMART_PROTECTION")).tag(PowerMode.abl)
+                        Text(String(localized: "SAFE_MODE")).tag(PowerMode.globalCap)
+                        Text(String(localized: "AUTO_RECOVERY")).tag(PowerMode.smartFallback)
                     }
                     .pickerStyle(.radioGroup)
                     
@@ -274,7 +274,7 @@ struct SettingsView: View {
                     if appState.powerMode == .abl {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("Protection Level")
+                                Text(String(localized: "PROTECTION_LEVEL"))
                                 Spacer()
                                 Text("\(Int(appState.powerLimit * 100))%")
                                     .bold()
@@ -284,7 +284,7 @@ struct SettingsView: View {
                     } else if appState.powerMode == .globalCap {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("Max Brightness Limit")
+                                Text(String(localized: "MAX_BRIGHTNESS_LIMIT"))
                                 Spacer()
                                 Text("\(Int(appState.powerLimit * 100))%")
                                     .bold()
@@ -301,7 +301,7 @@ struct SettingsView: View {
     var calibrationSettings: some View {
         VStack(alignment: .leading, spacing: 25) {
             HStack {
-                headerView(title: "Calibration", subtitle: "Fine-tune color accuracy and gamma", icon: "slider.horizontal.3")
+                headerView(title: String(localized: "CALIBRATION"), subtitle: String(localized: "CALIBRATION_SUBTITLE"), icon: "slider.horizontal.3")
                 Spacer()
                 Button(action: { isCalibrationLocked.toggle() }) {
                     Image(systemName: isCalibrationLocked ? "lock.fill" : "lock.open.fill")
@@ -313,16 +313,16 @@ struct SettingsView: View {
             
             GroupBox {
                 VStack(alignment: .leading, spacing: 15) {
-                    calibrationRow(label: "Red Gain", value: $appState.calibrationR, color: .red)
-                    calibrationRow(label: "Green Gain", value: $appState.calibrationG, color: .green)
-                    calibrationRow(label: "Blue Gain", value: $appState.calibrationB, color: .blue)
+                    calibrationRow(label: String(localized: "RED_GAIN"), value: $appState.calibrationR, color: .red)
+                    calibrationRow(label: String(localized: "GREEN_GAIN"), value: $appState.calibrationG, color: .green)
+                    calibrationRow(label: String(localized: "BLUE_GAIN"), value: $appState.calibrationB, color: .blue)
                     
                     Divider().padding(.vertical, 5)
                     
-                    calibrationRow(label: "Gamma", value: $appState.gamma, range: 0.1...3.0)
-                    calibrationRow(label: "Saturation", value: $appState.saturation, range: 0.0...3.0)
+                    calibrationRow(label: String(localized: "GAMMA"), value: $appState.gamma, range: 0.1...3.0)
+                    calibrationRow(label: String(localized: "SATURATION"), value: $appState.saturation, range: 0.0...3.0)
                     
-                    Button("Reset to Defaults") {
+                    Button(String(localized: "RESET_DEFAULTS")) {
                         appState.calibrationR = 1.0
                         appState.calibrationG = 1.0
                         appState.calibrationB = 1.0
@@ -340,11 +340,11 @@ struct SettingsView: View {
     
     var generalSettings: some View {
         VStack(alignment: .leading, spacing: 25) {
-            headerView(title: "General", subtitle: "Application behavior and startup", icon: "gear")
+            headerView(title: String(localized: "GENERAL"), subtitle: String(localized: "GENERAL_SUBTITLE"), icon: "gear")
             
             GroupBox {
                 VStack(alignment: .leading, spacing: 20) {
-                    Toggle("Launch at Login", isOn: $appState.launchAtLogin)
+                    Toggle(String(localized: "LAUNCH_AT_LOGIN"), isOn: $appState.launchAtLogin)
                         .toggleStyle(.switch)
                     
                     Divider()
@@ -352,7 +352,7 @@ struct SettingsView: View {
                     Button(role: .destructive) {
                         NSApplication.shared.terminate(nil)
                     } label: {
-                        Label("Quit LumiSync", systemImage: "power")
+                        Label(String(localized: "QUIT_LUMISYNC"), systemImage: "power")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -451,9 +451,9 @@ struct OriginPreview: View {
                     .shadow(radius: 2)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Origin")
+                    Text(String(localized: "ORIGIN"))
                         .font(.caption).bold()
-                    Text("Position: \(Int(currentOrigin * 100))%")
+                    Text(String(format: String(localized: "POSITION_PERCENT"), Int(currentOrigin * 100)))
                         .font(.system(size: 9))
                         .foregroundColor(.secondary)
                 }

@@ -27,7 +27,7 @@ struct ControlPanelView: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Settings")
+                    .help(String(localized: "SETTINGS"))
                     
                     Button(action: {
                         NSApplication.shared.terminate(nil)
@@ -37,7 +37,7 @@ struct ControlPanelView: View {
                             .foregroundColor(.red.opacity(0.7))
                     }
                     .buttonStyle(.plain)
-                    .help("Quit")
+                    .help(String(localized: "QUIT"))
                 }
             }
             .padding(.horizontal, 16)
@@ -61,7 +61,7 @@ struct ControlPanelView: View {
                         Image(systemName: appState.currentMode == .sync ? "sparkles" : "sun.max.fill")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
-                        Text("Brightness")
+                        Text(String(localized: "BRIGHTNESS"))
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.secondary)
                         Spacer()
@@ -91,7 +91,7 @@ struct ControlPanelView: View {
                             HStack {
                                 Picker("", selection: $appState.selectedEffect) {
                                     ForEach(EffectType.allCases) { effect in
-                                        Text(effect.rawValue).tag(effect)
+                                        Text(effect.localizedName).tag(effect)
                                     }
                                 }
                                 .pickerStyle(.menu)
@@ -112,18 +112,17 @@ struct ControlPanelView: View {
                                 }
                             }
                             
-                            // Speed Control for Effects
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack {
-                                    Image(systemName: "gauge.with.needle")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.secondary)
-                                    Text("Effect Speed")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(.secondary)
-                                    Spacer()
-                                }
-                                
+                        // Speed Control for Effects
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "gauge.with.needle")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                Text(String(localized: "EFFECT_SPEED"))
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
                                 Slider(value: Binding(
                                     get: { appState.effectSpeeds[appState.selectedEffect] ?? 1.0 },
                                     set: { 
@@ -140,7 +139,7 @@ struct ControlPanelView: View {
                     } else if appState.currentMode == .manual {
                         VStack(spacing: 12) {
                             HStack {
-                                Text("Color")
+                                Text(String(localized: "COLOR"))
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundColor(.secondary)
                                 Spacer()
@@ -152,9 +151,9 @@ struct ControlPanelView: View {
                             }
                             
                             VStack(spacing: 4) {
-                                rgbSlider(label: "R", value: $appState.manualR, color: .red)
-                                rgbSlider(label: "G", value: $appState.manualG, color: .green)
-                                rgbSlider(label: "B", value: $appState.manualB, color: .blue)
+                                rgbSlider(label: String(localized: "COLOR_R"), value: $appState.manualR, color: .red)
+                                rgbSlider(label: String(localized: "COLOR_G"), value: $appState.manualG, color: .green)
+                                rgbSlider(label: String(localized: "COLOR_B"), value: $appState.manualB, color: .blue)
                             }
                         }
                         .padding(.horizontal, 16)
@@ -173,7 +172,7 @@ struct ControlPanelView: View {
                     HStack(spacing: 8) {
                         Image(systemName: appState.isRunning ? "stop.fill" : "play.fill")
                             .font(.system(size: 14, weight: .bold))
-                        Text(appState.isRunning ? "STOP SYNC" : "START SYNC")
+                        Text(appState.isRunning ? String(localized: "STOP_SYNC") : String(localized: "START_SYNC"))
                             .font(.system(size: 12, weight: .heavy, design: .rounded))
                     }
                     .frame(maxWidth: .infinity)
@@ -260,7 +259,7 @@ struct ModeIconButton: View {
             VStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: currentMode == mode ? .bold : .medium))
-                Text(mode.rawValue.components(separatedBy: " ").first ?? "")
+                Text(mode.localizedName.components(separatedBy: " ").first ?? "")
                     .font(.system(size: 9, weight: .bold, design: .rounded))
             }
             .frame(width: 62, height: 54)

@@ -1,0 +1,166 @@
+/* 
+  Localizable.strings
+  LumiSync
+*/
+
+"START_SYNC" = "START SYNC";
+"STOP_SYNC" = "STOP SYNC";
+"BRIGHTNESS" = "Brightness";
+"EFFECT_SPEED" = "Effect Speed";
+"COLOR" = "Color";
+"SETTINGS" = "Settings";
+"QUIT" = "Quit";
+
+/* Sidebar Sections */
+"HARDWARE" = "Hardware";
+"PROCESSING" = "Processing";
+"APP" = "App";
+
+/* Sidebar Items */
+"CONNECTION" = "Connection";
+"CONNECTION_SUBTITLE" = "Serial port and communication settings";
+"LED_LAYOUT" = "LED Layout";
+"LED_LAYOUT_SUBTITLE" = "Configure your LED strip zones";
+"AUDIO" = "Audio";
+"AUDIO_SUBTITLE" = "Configure microphone for Music Mode";
+"MICROPHONE" = "Microphone:";
+"CALIBRATION" = "Calibration";
+"CALIBRATION_SUBTITLE" = "Fine-tune color accuracy and gamma";
+"POWER" = "Power";
+"POWER_SAFETY" = "Power Safety";
+"POWER_SAFETY_SUBTITLE" = "Protect your hardware and power supply";
+"GENERAL" = "General";
+"GENERAL_SUBTITLE" = "Application behavior and startup";
+"ABOUT" = "About";
+
+/* Connection Settings */
+"SERIAL_PORT" = "Serial Port:";
+"BAUD_RATE" = "Baud Rate:";
+"REFRESH_PORTS" = "Refresh Ports";
+"NO_PORTS_FOUND" = "No ports found";
+
+/* LED Layout */
+"ZONE_CONFIG" = "Zone Configuration";
+"TOTAL_LEDS" = "Total LEDs:";
+"AUTO_DETECT" = "Auto Detect";
+"AUTO" = "Auto";
+"TOP_ZONE" = "Top Zone:";
+"BOTTOM_ZONE" = "Bottom Zone:";
+"LEFT_ZONE" = "Left Zone:";
+"RIGHT_ZONE" = "Right Zone:";
+"SCREEN_SYNC_ORIENTATION" = "Screen Sync Orientation";
+"DIRECTION" = "Direction:";
+"STANDARD_CW" = "Standard (CW)";
+"REVERSE_CCW" = "Reverse (CCW)";
+"ORIENTATION_DESC_STANDARD" = "Standard: Bottom-Left → Top → Right → Bottom";
+"ORIENTATION_DESC_REVERSE" = "Reverse: Bottom-Right → Top → Left → Bottom";
+"ORIENTATION_TEST_NOTE" = "The test will run a 'snake' light effect twice. Ensure the light starts from the bottom corner and moves along the strip in the correct direction.";
+"RUN_ORIENTATION_TEST" = "Run Orientation Test";
+"CAPTURE_SETTINGS" = "Capture Settings";
+"TARGET_FPS" = "Target FPS";
+
+/* Perspective Origin */
+"PERSPECTIVE_ORIGIN" = "Perspective Origin";
+"ORIGIN_MODE" = "Origin Mode:";
+"MANUAL_POSITION" = "Manual Position";
+"ORIGIN_DESC" = "Auto centers the origin when all sides have LEDs or snaps to the golden-ratio point closest to the missing side.";
+
+/* Power Safety */
+"POWER_SAFETY" = "Power Safety";
+"SAFETY_MODE" = "Safety Mode:";
+"SMART_PROTECTION" = "Smart Protection";
+"SAFE_MODE" = "Safe Mode";
+"AUTO_RECOVERY" = "Auto-Recovery";
+"PROTECTION_LEVEL" = "Protection Level";
+"MAX_BRIGHTNESS_LIMIT" = "Max Brightness Limit";
+
+/* Calibration */
+"RED_GAIN" = "Red Gain";
+"GREEN_GAIN" = "Green Gain";
+"BLUE_GAIN" = "Blue Gain";
+"GAMMA" = "Gamma";
+"SATURATION" = "Saturation";
+"RESET_DEFAULTS" = "Reset to Defaults";
+
+/* General */
+"LAUNCH_AT_LOGIN" = "Launch at Login";
+"QUIT_LUMISYNC" = "Quit LumiSync";
+
+/* Common */
+"COLOR_R" = "R";
+"COLOR_G" = "G";
+"COLOR_B" = "B";
+"SELECT_CATEGORY" = "Select a category";
+"ORIGIN" = "Origin";
+"POSITION_PERCENT" = "Position: %d%%";
+"UNKNOWN_MODEL" = "Unknown model: %@";
+"UNKNOWN" = "Unknown";
+
+/* Status Messages */
+"CONNECTED" = "Connected: %@";
+"CONNECTION_FAILED" = "Connection Failed";
+"CONNECT_FIRST" = "Connect first to detect";
+"DETECTED" = "Detected: %@";
+"DETECTION_FAILED" = "Detection failed";
+"TESTING_ORIENTATION" = "Testing Orientation...";
+"TEST_COMPLETE" = "Test Complete";
+"NO_DISPLAY_FOUND" = "No Display Found";
+"PERMISSION_DENIED" = "Screen Recording Permission Denied";
+"POWER_LIMITED_SMART" = "Brightness reduced by Smart Protection";
+"POWER_LIMITED_SAFE" = "Capped by Safe Mode";
+
+/* AppState Status */
+"READY" = "Ready";
+"CONNECTING" = "Connecting...";
+"STOPPED" = "Stopped";
+"RUNNING_MODE" = "Running: %@";
+"SYSTEM_SLEEPING" = "System sleeping — lights paused";
+"SYSTEM_WAKING" = "System woke up. Restarting lights...";
+"DISPLAYS_SLEEPING" = "Displays sleeping — lights paused";
+"DISPLAYS_WAKING" = "Display active again. Restarting lights...";
+"SESSION_LOCKED" = "Session locked — lights paused";
+"SESSION_UNLOCKED" = "Session unlocked. Restarting lights...";
+"CONNECTION_LOST" = "Connection Lost";
+"SMART_FALLBACK_TRIGGERED" = "Power Limit Reached - Reducing Brightness";
+"AUTO_RESTARTING" = "Auto-restarting with brightness %d%%";
+
+/* Modes & Enums */
+"SCREEN_SYNC" = "Screen Sync";
+"MUSIC_MODE" = "Music Mode";
+"EFFECTS" = "Effects";
+"MANUAL" = "Manual";
+
+"AUTO_BRIGHTNESS_LIMITER" = "Auto Brightness Limiter";
+"GLOBAL_BRIGHTNESS_CAP" = "Global Brightness Cap";
+"SMART_FALLBACK" = "Smart Fallback";
+
+"STANDARD_CW_FULL" = "Standard (CW from Bottom-Left)";
+"REVERSE_CCW_FULL" = "Reverse (CCW from Bottom-Right)";
+
+/* Effects */
+"EFFECT_RAINBOW" = "Rainbow";
+"EFFECT_BREATHING" = "Breathing";
+"EFFECT_MARQUEE" = "Marquee";
+"EFFECT_KNIGHT_RIDER" = "Knight Rider";
+"EFFECT_POLICE" = "Police Lights";
+"EFFECT_CANDLE" = "Candle Flicker";
+"EFFECT_PLASMA" = "Plasma";
+"EFFECT_STROBE" = "Strobe";
+"EFFECT_ATOMIC" = "Atomic Swirl";
+"EFFECT_FIRE" = "Fire";
+"EFFECT_MATRIX" = "Matrix";
+"EFFECT_MOOD_BLOBS" = "Mood Blobs";
+"EFFECT_PACMAN" = "Pacman";
+"EFFECT_SNAKE" = "Snake";
+"EFFECT_SPARKS" = "Sparks";
+"EFFECT_TRACES" = "Traces";
+"EFFECT_TRAILS" = "Trails";
+"EFFECT_WAVES" = "Waves";
+"EFFECT_COLLISION" = "Collision";
+"EFFECT_DOUBLE_SWIRL" = "Double Swirl";
+
+/* About View */
+"VERSION" = "Version %@";
+"LICENSE_AGREEMENT" = "License Agreement";
+"COPYRIGHT" = "© 2025 Shanghai Sunai Technology Co., Ltd.";
+"LICENSE_INFO" = "Released under the MIT License";

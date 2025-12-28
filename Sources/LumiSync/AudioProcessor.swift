@@ -60,7 +60,7 @@ class AudioProcessor: NSObject {
             
             if inputChannels > 0 {
                 // Get Name
-                var name: String = "Unknown"
+                var name: String = String(localized: "UNKNOWN")
                 var nameSize = UInt32(MemoryLayout<CFString>.size)
                 var nameAddress = AudioObjectPropertyAddress(
                     mSelector: kAudioObjectPropertyName,

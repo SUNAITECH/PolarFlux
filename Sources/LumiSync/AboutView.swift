@@ -19,22 +19,22 @@ struct AboutView: View {
                 Text("LumiSync")
                     .font(.system(size: 32, weight: .bold))
                 
-                Text("Version \(version)")
+                Text(String(format: String(localized: "VERSION"), version))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
             
             VStack(spacing: 12) {
-                Text("© 2025 Shanghai Sunai Technology Co., Ltd.")
+                Text(String(localized: "COPYRIGHT"))
                     .font(.caption)
                 
-                Text("Released under the MIT License")
+                Text(String(localized: "LICENSE_INFO"))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             .padding(.top, 10)
             
-            GroupBox("License Agreement") {
+            GroupBox(String(localized: "LICENSE_AGREEMENT")) {
                 ScrollView {
                     Text("""
                     MIT License
