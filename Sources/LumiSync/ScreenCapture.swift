@@ -271,76 +271,39 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             let normalizedOriginY = normalizedOriginY(for: config)
             let originY = Double(yOffset) + normalizedOriginY * Double(capHeight)
             
-            // 3. Generate Perimeter Boundary Points for LEDs
+            // 3. Generate Perimeter Boundary Points for LEDs (Always CW: BL -> TL -> TR -> BR -> BL)
             var boundaryPoints: [CGPoint] = []
-            if orientation == .standard {
-                // Left: BL -> TL
-                if config.left > 0 {
-                    for i in 0...config.left {
-                        let y = Double(yOffset + capHeight) - Double(i) * (Double(capHeight) / Double(config.left))
-                        boundaryPoints.append(CGPoint(x: Double(xOffset), y: y))
-                    }
-                } else {
-                    boundaryPoints.append(CGPoint(x: Double(xOffset), y: Double(yOffset + capHeight)))
-                }
-                // Top: TL -> TR
-                if config.top > 0 {
-                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
-                    for i in 0...config.top {
-                        let x = Double(xOffset) + Double(i) * (Double(capWidth) / Double(config.top))
-                        boundaryPoints.append(CGPoint(x: x, y: Double(yOffset)))
-                    }
-                }
-                // Right: TR -> BR
-                if config.right > 0 {
-                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
-                    for i in 0...config.right {
-                        let y = Double(yOffset) + Double(i) * (Double(capHeight) / Double(config.right))
-                        boundaryPoints.append(CGPoint(x: Double(xOffset + capWidth), y: y))
-                    }
-                }
-                // Bottom: BR -> BL
-                if config.bottom > 0 {
-                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
-                    for i in 0...config.bottom {
-                        let x = Double(xOffset + capWidth) - Double(i) * (Double(capWidth) / Double(config.bottom))
-                        boundaryPoints.append(CGPoint(x: x, y: Double(yOffset + capHeight)))
-                    }
+            // Left: BL -> TL
+            if config.left > 0 {
+                for i in 0...config.left {
+                    let y = Double(yOffset + capHeight) - Double(i) * (Double(capHeight) / Double(config.left))
+                    boundaryPoints.append(CGPoint(x: Double(xOffset), y: y))
                 }
             } else {
-                // Reverse: BR -> TR -> TL -> BL -> BR
-                // Right: BR -> TR
-                if config.right > 0 {
-                    for i in 0...config.right {
-                        let y = Double(yOffset + capHeight) - Double(i) * (Double(capHeight) / Double(config.right))
-                        boundaryPoints.append(CGPoint(x: Double(xOffset + capWidth), y: y))
-                    }
-                } else {
-                    boundaryPoints.append(CGPoint(x: Double(xOffset + capWidth), y: Double(yOffset + capHeight)))
+                boundaryPoints.append(CGPoint(x: Double(xOffset), y: Double(yOffset + capHeight)))
+            }
+            // Top: TL -> TR
+            if config.top > 0 {
+                if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
+                for i in 0...config.top {
+                    let x = Double(xOffset) + Double(i) * (Double(capWidth) / Double(config.top))
+                    boundaryPoints.append(CGPoint(x: x, y: Double(yOffset)))
                 }
-                // Top: TR -> TL
-                if config.top > 0 {
-                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
-                    for i in 0...config.top {
-                        let x = Double(xOffset + capWidth) - Double(i) * (Double(capWidth) / Double(config.top))
-                        boundaryPoints.append(CGPoint(x: x, y: Double(yOffset)))
-                    }
+            }
+            // Right: TR -> BR
+            if config.right > 0 {
+                if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
+                for i in 0...config.right {
+                    let y = Double(yOffset) + Double(i) * (Double(capHeight) / Double(config.right))
+                    boundaryPoints.append(CGPoint(x: Double(xOffset + capWidth), y: y))
                 }
-                // Left: TL -> BL
-                if config.left > 0 {
-                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
-                    for i in 0...config.left {
-                        let y = Double(yOffset) + Double(i) * (Double(capHeight) / Double(config.left))
-                        boundaryPoints.append(CGPoint(x: Double(xOffset), y: y))
-                    }
-                }
-                // Bottom: BL -> BR
-                if config.bottom > 0 {
-                    if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
-                    for i in 0...config.bottom {
-                        let x = Double(xOffset) + Double(i) * (Double(capWidth) / Double(config.bottom))
-                        boundaryPoints.append(CGPoint(x: x, y: Double(yOffset + capHeight)))
-                    }
+            }
+            // Bottom: BR -> BL
+            if config.bottom > 0 {
+                if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
+                for i in 0...config.bottom {
+                    let x = Double(xOffset + capWidth) - Double(i) * (Double(capWidth) / Double(config.bottom))
+                    boundaryPoints.append(CGPoint(x: x, y: Double(yOffset + capHeight)))
                 }
             }
             
@@ -590,9 +553,24 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             
             // 8. Physics & Spatial Constraint
             var smoothedColors = physicsEngine.process(targetColors: capturedColors, dt: dt, sceneIntensity: currentSceneIntensity)
+            
+            // 9. Orientation Transformation (Standard is CW, Reverse is CCW)
+            if orientation == .reverse {
+                // Standard: [Left, Top, Right, Bottom]
+                // Reverse: [Right_rev, Top_rev, Left_rev, Bottom_rev]
+                // This is equivalent to reversing the entire array and shifting the Bottom segment to the end.
+                smoothedColors.reverse()
+                let bottomCount = config.bottom
+                if bottomCount > 0 && bottomCount < smoothedColors.count {
+                    let bottomSegment = Array(smoothedColors.prefix(bottomCount))
+                    smoothedColors.removeFirst(bottomCount)
+                    smoothedColors.append(contentsOf: bottomSegment)
+                }
+            }
+            
             self.lastOutputColors = smoothedColors
             
-            // 9. Spatial Consistency Constraint
+            // 10. Spatial Consistency Constraint
             let count = smoothedColors.count
             if count > 2 {
                 for i in 0..<count {

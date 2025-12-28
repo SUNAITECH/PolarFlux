@@ -42,7 +42,6 @@ struct ControlPanelView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
             
             Divider()
             
@@ -86,79 +85,84 @@ struct ControlPanelView: View {
                 .padding(.horizontal, 16)
                 
                 // Mode Specific Quick Controls
-                if appState.currentMode == .effect {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Picker("", selection: $appState.selectedEffect) {
-                                ForEach(EffectType.allCases) { effect in
-                                    Text(effect.rawValue).tag(effect)
+                VStack(spacing: 0) {
+                    if appState.currentMode == .effect {
+                        VStack(spacing: 12) {
+                            HStack {
+                                Picker("", selection: $appState.selectedEffect) {
+                                    ForEach(EffectType.allCases) { effect in
+                                        Text(effect.rawValue).tag(effect)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                                .onChange(of: appState.selectedEffect) { newEffect, oldEffect in
+                                    if appState.isRunning { appState.restartEffect() }
+                                }
+                                
+                                if appState.selectedEffect == .breathing || appState.selectedEffect == .marquee {
+                                    ColorPicker("", selection: Binding(
+                                        get: { appState.effectColors[appState.selectedEffect] ?? .red },
+                                        set: { 
+                                            appState.effectColors[appState.selectedEffect] = $0
+                                            if appState.isRunning { appState.restartEffect() }
+                                        }
+                                    ))
+                                    .labelsHidden()
                                 }
                             }
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                            .onChange(of: appState.selectedEffect) { newEffect, oldEffect in
-                                if appState.isRunning { appState.restartEffect() }
-                            }
                             
-                            if appState.selectedEffect == .breathing || appState.selectedEffect == .marquee {
-                                ColorPicker("", selection: Binding(
-                                    get: { appState.effectColors[appState.selectedEffect] ?? .red },
+                            // Speed Control for Effects
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Image(systemName: "gauge.with.needle")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                    Text("Effect Speed")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                }
+                                
+                                Slider(value: Binding(
+                                    get: { appState.effectSpeeds[appState.selectedEffect] ?? 1.0 },
                                     set: { 
-                                        appState.effectColors[appState.selectedEffect] = $0
+                                        appState.effectSpeeds[appState.selectedEffect] = $0
                                         if appState.isRunning { appState.restartEffect() }
                                     }
-                                ))
-                                .labelsHidden()
+                                ), in: 0.1...3.0)
+                                .accentColor(.orange)
                             }
                         }
-                        
-                        // Speed Control for Effects
-                        VStack(alignment: .leading, spacing: 6) {
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 20)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    } else if appState.currentMode == .manual {
+                        VStack(spacing: 12) {
                             HStack {
-                                Image(systemName: "gauge.with.needle")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                                Text("Effect Speed")
+                                Text("Color")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundColor(.secondary)
                                 Spacer()
+                                ColorPicker("", selection: Binding(
+                                    get: { appState.manualColor },
+                                    set: { appState.setManualColor(color: $0) }
+                                ))
+                                .labelsHidden()
                             }
                             
-                            Slider(value: Binding(
-                                get: { appState.effectSpeeds[appState.selectedEffect] ?? 1.0 },
-                                set: { 
-                                    appState.effectSpeeds[appState.selectedEffect] = $0
-                                    if appState.isRunning { appState.restartEffect() }
-                                }
-                            ), in: 0.1...3.0)
-                            .accentColor(.orange)
+                            VStack(spacing: 4) {
+                                rgbSlider(label: "R", value: $appState.manualR, color: .red)
+                                rgbSlider(label: "G", value: $appState.manualG, color: .green)
+                                rgbSlider(label: "B", value: $appState.manualB, color: .blue)
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 20)
+                        .transition(.opacity)
                     }
-                    .padding(.horizontal, 16)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                } else if appState.currentMode == .manual {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Text("Color")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            ColorPicker("", selection: Binding(
-                                get: { appState.manualColor },
-                                set: { appState.setManualColor(color: $0) }
-                            ))
-                            .labelsHidden()
-                        }
-                        
-                        VStack(spacing: 4) {
-                            rgbSlider(label: "R", value: $appState.manualR, color: .red)
-                            rgbSlider(label: "G", value: $appState.manualG, color: .green)
-                            rgbSlider(label: "B", value: $appState.manualB, color: .blue)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .transition(.opacity)
                 }
+                .clipped()
                 
                 // Main Action Button
                 Button(action: {
@@ -205,7 +209,7 @@ struct ControlPanelView: View {
             }
             .padding(.bottom, 20)
         }
-        .background(VisualEffectView(material: .popover, blendingMode: .withinWindow))
+        .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: appState.currentMode)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: appState.isRunning)
         .onChange(of: appState.currentMode) { newMode, _ in

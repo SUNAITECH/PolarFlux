@@ -8,26 +8,34 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
-                NavigationLink(value: "Connection") {
-                    Label("Connection", systemImage: "cable.connector")
+                Section("Hardware") {
+                    NavigationLink(value: "Connection") {
+                        Label("Connection", systemImage: "cable.connector")
+                    }
+                    NavigationLink(value: "LED Layout") {
+                        Label("LED Layout", systemImage: "lightbulb.led")
+                    }
                 }
-                NavigationLink(value: "LED Layout") {
-                    Label("LED Layout", systemImage: "lightbulb.led")
+                
+                Section("Processing") {
+                    NavigationLink(value: "Audio") {
+                        Label("Audio", systemImage: "waveform")
+                    }
+                    NavigationLink(value: "Calibration") {
+                        Label("Calibration", systemImage: "slider.horizontal.3")
+                    }
+                    NavigationLink(value: "Power") {
+                        Label("Power", systemImage: "bolt.shield")
+                    }
                 }
-                NavigationLink(value: "Audio") {
-                    Label("Audio", systemImage: "waveform")
-                }
-                NavigationLink(value: "Calibration") {
-                    Label("Calibration", systemImage: "slider.horizontal.3")
-                }
-                NavigationLink(value: "Power") {
-                    Label("Power", systemImage: "bolt.shield")
-                }
-                NavigationLink(value: "General") {
-                    Label("General", systemImage: "gear")
-                }
-                NavigationLink(value: "About") {
-                    Label("About", systemImage: "info.circle")
+                
+                Section("App") {
+                    NavigationLink(value: "General") {
+                        Label("General", systemImage: "gear")
+                    }
+                    NavigationLink(value: "About") {
+                        Label("About", systemImage: "info.circle")
+                    }
                 }
             }
             .listStyle(SidebarListStyle())
@@ -153,6 +161,14 @@ struct SettingsView: View {
                         Text("Reverse (CCW)").tag(ScreenOrientation.reverse)
                     }
                     .pickerStyle(.segmented)
+                    .onChange(of: appState.screenOrientation) { _, _ in
+                        if appState.isTestingOrientation {
+                            appState.isTestingOrientation = false
+                        }
+                        if appState.isRunning && appState.currentMode == .sync {
+                            appState.restartSync()
+                        }
+                    }
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text(appState.screenOrientation == .standard ? 

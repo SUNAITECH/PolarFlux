@@ -1171,12 +1171,15 @@ class AppState: ObservableObject {
     }
     
     // MARK: - Test Mode
+    @Published var isTestingOrientation: Bool = false
+    
     func startOrientationTest() {
         // Save current state
         let previousState = isRunning
         
         // Stop any running loop
         stop()
+        isTestingOrientation = true
         
         statusMessage = "Connecting for Test..."
         
@@ -1196,6 +1199,11 @@ class AppState: ObservableObject {
                         .autoconnect()
                         .sink { [weak self] _ in
                             guard let self = self else { return }
+                            
+                            if !self.isTestingOrientation {
+                                self.stop()
+                                return
+                            }
                             
                             var data = [UInt8](repeating: 0, count: totalLeds * 3)
                             
@@ -1224,6 +1232,7 @@ class AppState: ObservableObject {
                                 position = 0
                                 cycles += 1
                                 if cycles >= 2 {
+                                    self.isTestingOrientation = false
                                     self.stop()
                                     self.statusMessage = "Test Complete"
                                     
@@ -1236,6 +1245,10 @@ class AppState: ObservableObject {
                                 }
                             }
                         }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self.isTestingOrientation = false
                 }
             }
         }
