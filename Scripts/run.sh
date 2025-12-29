@@ -5,6 +5,7 @@
 # Bundle ID: com.sunaish.polarflux
 
 set -e
+set -o pipefail
 
 # --- Configuration ---
 APP_NAME="PolarFlux"
@@ -62,6 +63,12 @@ check_deps() {
     log "Verifying environment..."
     # Check for Swift
     if ! command -v swift >/dev/null; then error "Swift is not installed."; fi
+    # Check for xcrun
+    if ! command -v xcrun >/dev/null; then error "xcrun is not installed (Xcode Command Line Tools required)."; fi
+    # Check for lipo
+    if ! command -v lipo >/dev/null; then error "lipo is not installed."; fi
+    # Check for hdiutil
+    if ! command -v hdiutil >/dev/null; then error "hdiutil is not installed."; fi
     # Check for Python (for icons)
     if ! command -v python3 >/dev/null; then warn "Python3 not found, icon generation might fail."; fi
 }
@@ -99,6 +106,7 @@ build() {
 
     # 3. Compile for both architectures
     SDK_PATH=$(xcrun --show-sdk-path)
+    if [[ -z "$SDK_PATH" ]]; then error "Could not find macOS SDK path."; fi
     
     log "Compiling for Apple Silicon..."
     xcrun -sdk macosx swiftc "${SOURCES[@]}" \
@@ -141,6 +149,14 @@ build() {
     log "Packaging localizations..."
     find Resources -name "*.lproj" -type d -exec cp -R {} "$RESOURCES_DIR/" \;
 
+    # Remove resource forks and Finder info to avoid codesign errors
+    if command -v xattr >/dev/null; then
+        log "Cleaning resource forks and Finder info from .app bundle..."
+        find "$APP_BUNDLE" -print0 | xargs -0 xattr -cr || true
+    fi
+    if command -v dot_clean >/dev/null; then
+        dot_clean -m "$APP_BUNDLE" || true
+    fi
     # 6. Code Signing
     log "Applying Ad-hoc signature..."
     codesign --force --deep --sign - "$APP_BUNDLE"
@@ -157,45 +173,66 @@ dmg() {
     TEMP_DMG="$BUILD_DIR/temp.dmg"
     MOUNT_POINT="$BUILD_DIR/mnt"
     
+    # Cleanup function for trap
+    cleanup_dmg() {
+        if mount | grep -q "$MOUNT_POINT"; then
+            log "Cleaning up mount point..."
+            hdiutil detach "$MOUNT_POINT" -force || true
+        fi
+        rm -f "$TEMP_DMG"
+        rm -rf "$MOUNT_POINT"
+    }
+    trap cleanup_dmg EXIT
+    
     rm -f "$DMG_PATH" "$TEMP_DMG"
     mkdir -p "$MOUNT_POINT"
     
-    # 1. Create a temporary writable DMG
-    hdiutil create -size 200m -fs HFS+ -volname "$APP_NAME" "$TEMP_DMG"
+    # 1. Calculate required size (app size + 20MB buffer)
+    APP_SIZE=$(du -sm "$APP_BUNDLE" | cut -f1)
+    DMG_SIZE=$((APP_SIZE + 20))
+    log "Creating ${DMG_SIZE}MB temporary disk..."
+    hdiutil create -size "${DMG_SIZE}m" -fs HFS+ -volname "$APP_NAME" "$TEMP_DMG" -quiet
     
     # 2. Mount it
     log "Mounting temporary disk..."
-    hdiutil attach "$TEMP_DMG" -noautoopen -mountpoint "$MOUNT_POINT"
+    hdiutil attach "$TEMP_DMG" -noautoopen -mountpoint "$MOUNT_POINT" -quiet
     
     # 3. Copy App and create Applications link
+    log "Copying application bundle..."
     cp -R "$APP_BUNDLE" "$MOUNT_POINT/"
     ln -s /Applications "$MOUNT_POINT/Applications"
     
     # 4. Style the DMG using AppleScript
-    if [[ "$CI" != "true" ]]; then
+    # Only run if not in CI and if we have a window server
+    if [[ "$CI" != "true" && "$GITHUB_ACTIONS" != "true" ]]; then
         log "Applying modern styling..."
-        osascript <<EOF || warn "DMG styling failed (expected in CI environment)"
-        tell application "Finder"
-            tell disk "$APP_NAME"
-                open
-                set current view of container window to icon view
-                set toolbar visible of container window to false
-                set statusbar visible of container window to false
-                set the bounds of container window to {400, 100, 1000, 500}
-                set viewOptions to the icon view options of container window
-                set icon size of viewOptions to 128
-                set arrangement of viewOptions to not arranged
-                set position of item "$APP_NAME.app" of container window to {180, 180}
-                set position of item "Applications" of container window to {420, 180}
-                close
-                open
-                update without registering applications
-                delay 2
+        # Check if Finder is responsive
+        if pgrep -x "Finder" > /dev/null; then
+            osascript <<EOF || warn "DMG styling failed (non-critical)"
+            tell application "Finder"
+                tell disk "$APP_NAME"
+                    open
+                    set current view of container window to icon view
+                    set toolbar visible of container window to false
+                    set statusbar visible of container window to false
+                    set the bounds of container window to {400, 100, 1000, 500}
+                    set viewOptions to the icon view options of container window
+                    set icon size of viewOptions to 128
+                    set arrangement of viewOptions to not arranged
+                    set position of item "$APP_NAME.app" of container window to {180, 180}
+                    set position of item "Applications" of container window to {420, 180}
+                    close
+                    open
+                    update without registering applications
+                    delay 2
+                end tell
             end tell
-        end tell
 EOF
+        else
+            warn "Finder not running, skipping styling."
+        fi
     else
-        warn "Skipping DMG styling in CI environment."
+        log "CI environment detected, skipping DMG styling."
     fi
 
     # 5. Finalize
@@ -204,16 +241,19 @@ EOF
     chmod -Rf go-w "$MOUNT_POINT" || true
     
     # Attempt to detach multiple times if busy
+    log "Detaching disk..."
     for i in {1..5}; do
-        if hdiutil detach "$MOUNT_POINT" -force; then
+        if hdiutil detach "$MOUNT_POINT" -force -quiet; then
             break
         fi
+        log "Disk busy, retrying detach ($i/5)..."
         sleep 2
     done
-    hdiutil convert "$TEMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH"
     
-    rm -f "$TEMP_DMG"
-    rm -rf "$MOUNT_POINT"
+    log "Converting to compressed read-only DMG..."
+    hdiutil convert "$TEMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH" -quiet
+    
+    # trap will handle cleanup_dmg
     success "Modern package created: $DMG_NAME"
 }
 

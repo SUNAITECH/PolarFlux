@@ -54,6 +54,7 @@ struct ControlPanelView: View {
                     ModeIconButton(mode: .manual, currentMode: $appState.currentMode, icon: "hand.tap")
                 }
                 .padding(.top, 12)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appState.currentMode)
                 
                 // Brightness Control
                 VStack(alignment: .leading, spacing: 6) {
@@ -83,6 +84,7 @@ struct ControlPanelView: View {
                     }
                 }
                 .padding(.horizontal, 16)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appState.currentMode)
                 
                 // Mode Specific Quick Controls
                 VStack(spacing: 0) {
@@ -101,14 +103,17 @@ struct ControlPanelView: View {
                                 }
                                 
                                 if appState.selectedEffect == .breathing || appState.selectedEffect == .marquee {
-                                    ColorPicker("", selection: Binding(
+                                    ColorPicker(selection: Binding(
                                         get: { appState.effectColors[appState.selectedEffect] ?? .red },
                                         set: { 
                                             appState.effectColors[appState.selectedEffect] = $0
                                             if appState.isRunning { appState.restartEffect() }
                                         }
-                                    ))
-                                    .labelsHidden()
+                                    )) {
+                                        Text(String(localized: "COLOR"))
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
                             
@@ -138,16 +143,13 @@ struct ControlPanelView: View {
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     } else if appState.currentMode == .manual {
                         VStack(spacing: 12) {
-                            HStack {
+                            ColorPicker(selection: Binding(
+                                get: { appState.manualColor },
+                                set: { appState.setManualColor(color: $0) }
+                            )) {
                                 Text(String(localized: "COLOR"))
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundColor(.secondary)
-                                Spacer()
-                                ColorPicker("", selection: Binding(
-                                    get: { appState.manualColor },
-                                    set: { appState.setManualColor(color: $0) }
-                                ))
-                                .labelsHidden()
                             }
                             
                             VStack(spacing: 4) {
@@ -161,6 +163,7 @@ struct ControlPanelView: View {
                         .transition(.opacity)
                     }
                 }
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: appState.currentMode)
                 .clipped()
                 
                 // Main Action Button
@@ -192,6 +195,7 @@ struct ControlPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: appState.isRunning)
                 
                 if appState.isPowerLimited {
                     HStack(spacing: 6) {
@@ -209,8 +213,10 @@ struct ControlPanelView: View {
             .padding(.bottom, 20)
         }
         .background(VisualEffectView(material: .sidebar, blendingMode: .behindWindow))
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: appState.currentMode)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: appState.isRunning)
+        .onAppear {
+            // Ensure app is active to handle color picker and other panels correctly
+            NSApp.activate(ignoringOtherApps: true)
+        }
         .onChange(of: appState.currentMode) { newMode, _ in
             if appState.isRunning {
                 appState.start() // Now handles mode switching internally in AppState
