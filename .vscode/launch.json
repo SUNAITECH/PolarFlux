@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:PolarFlux}",
+            "name": "Debug PolarFlux",
+            "target": "PolarFlux",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug PolarFlux"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:PolarFlux}",
+            "name": "Release PolarFlux",
+            "target": "PolarFlux",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release PolarFlux"
+        }
+    ]
+}

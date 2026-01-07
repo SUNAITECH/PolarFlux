@@ -6,6 +6,8 @@
 
 set -e
 set -o pipefail
+# Reset locale for predictable behavior
+export LANG=en_US.UTF-8
 
 # --- Configuration ---
 APP_NAME="PolarFlux"
@@ -38,16 +40,16 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # --- Helpers ---
-log() { echo -e "${BLUE}==>${NC} ${BOLD}$1${NC}"; }
-success() { echo -e "${GREEN}✔${NC} ${BOLD}$1${NC}"; }
-warn() { echo -e "${YELLOW}⚠${NC} ${BOLD}$1${NC}"; }
-error() { echo -e "${RED}✘${NC} ${BOLD}$1${NC}"; exit 1; }
+log() { echo "${BLUE}==>${NC} ${BOLD}$1${NC}"; }
+success() { echo "${GREEN}✔${NC} ${BOLD}$1${NC}"; }
+warn() { echo "${YELLOW}⚠${NC} ${BOLD}$1${NC}"; }
+error() { echo "${RED}✘${NC} ${BOLD}$1${NC}"; exit 1; }
 
 # Ensure we are in the project root
 cd "$PROJECT_ROOT" || error "Could not access project root at $PROJECT_ROOT"
 
 show_help() {
-    echo -e "${BOLD}PolarFlux Build Tool v2.0${NC}"
+    echo "${BOLD}PolarFlux Build Tool v2.1${NC}"
     echo "Usage: $0 [command]"
     echo ""
     echo "Commands:"
@@ -61,15 +63,9 @@ show_help() {
 
 check_deps() {
     log "Verifying environment..."
-    # Check for Swift
-    if ! command -v swift >/dev/null; then error "Swift is not installed."; fi
-    # Check for xcrun
-    if ! command -v xcrun >/dev/null; then error "xcrun is not installed (Xcode Command Line Tools required)."; fi
-    # Check for lipo
-    if ! command -v lipo >/dev/null; then error "lipo is not installed."; fi
-    # Check for hdiutil
-    if ! command -v hdiutil >/dev/null; then error "hdiutil is not installed."; fi
-    # Check for Python (for icons)
+    for tool in swift xcrun lipo hdiutil; do
+        if ! command -v $tool >/dev/null; then error "$tool is not installed."; fi
+    done
     if ! command -v python3 >/dev/null; then warn "Python3 not found, icon generation might fail."; fi
 }
 
@@ -77,7 +73,7 @@ clean() {
     log "Performing deep clean..."
     rm -rf "$BUILD_DIR"
     rm -rf "$APP_BUNDLE"
-    find . -name ".DS_Store" -depth -exec rm {} \;
+    find . -name ".DS_Store" -depth -delete
     success "Workspace is clean."
 }
 
@@ -85,7 +81,6 @@ generate_icon() {
     log "Generating high-resolution icons..."
     if [ ! -f "Scripts/generate_icon.py" ]; then error "Icon script missing!"; fi
     python3 Scripts/generate_icon.py
-    # The python script now handles iconutil and cleanup
     success "Icons updated at Resources/PolarFlux.icns"
 }
 
@@ -93,18 +88,14 @@ build() {
     check_deps
     log "Starting Universal Build (arm64 + x86_64)..."
 
-    # 1. Prepare Structure
     rm -rf "$APP_BUNDLE"
-    mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
-    mkdir -p "$BUILD_DIR"
+    mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$BUILD_DIR"
 
-    # 2. Find Sources
     # Use zsh globbing for safer file handling
     local -a SOURCES
     SOURCES=(Sources/PolarFlux/**/*.swift)
     if [[ ${#SOURCES} -eq 0 ]]; then error "No source files found!"; fi
 
-    # 3. Compile for both architectures
     SDK_PATH=$(xcrun --show-sdk-path)
     if [[ -z "$SDK_PATH" ]]; then error "Could not find macOS SDK path."; fi
     
@@ -124,15 +115,12 @@ build() {
         -O -whole-module-optimization \
         -parse-as-library
 
-    # 4. Create Universal Binary
     log "Stitching Universal Binary (Lipo)..."
     lipo -create "$BUILD_DIR/PolarFlux_arm64" "$BUILD_DIR/PolarFlux_x86_64" -output "$MACOS_DIR/$APP_NAME"
 
-    # 5. Bundle Resources
     log "Packaging resources..."
     if [ -f "Resources/Info.plist" ]; then
         cp Resources/Info.plist "$CONTENTS_DIR/"
-        # Inject version into Info.plist
         plutil -replace CFBundleShortVersionString -string "$VERSION_STR" "$CONTENTS_DIR/Info.plist"
         plutil -replace CFBundleVersion -string "$(date +%Y%m%d.%H%M)" "$CONTENTS_DIR/Info.plist"
     else
@@ -145,19 +133,14 @@ build() {
         warn "Icon missing, app will have default icon."
     fi
 
-    # Copy Localization Files (.lproj)
-    log "Packaging localizations..."
     find Resources -name "*.lproj" -type d -exec cp -R {} "$RESOURCES_DIR/" \;
 
-    # Remove resource forks and Finder info to avoid codesign errors
-    if command -v xattr >/dev/null; then
-        log "Cleaning resource forks and Finder info from .app bundle..."
-        find "$APP_BUNDLE" -print0 | xargs -0 xattr -cr || true
-    fi
+    log "Cleaning resource forks and Finder info..."
+    xattr -cr "$APP_BUNDLE" || true
     if command -v dot_clean >/dev/null; then
         dot_clean -m "$APP_BUNDLE" || true
     fi
-    # 6. Code Signing
+    
     log "Applying Ad-hoc signature..."
     codesign --force --deep --sign - "$APP_BUNDLE"
 
@@ -172,12 +155,12 @@ dmg() {
     DMG_PATH="$PROJECT_ROOT/$DMG_NAME"
     TEMP_DMG="$BUILD_DIR/temp.dmg"
     MOUNT_POINT="$BUILD_DIR/mnt"
+    VOL_NAME="${APP_NAME}"
     
-    # Cleanup function for trap
     cleanup_dmg() {
         if mount | grep -q "$MOUNT_POINT"; then
             log "Cleaning up mount point..."
-            hdiutil detach "$MOUNT_POINT" -force || true
+            hdiutil detach "$MOUNT_POINT" -force >/dev/null 2>&1 || true
         fi
         rm -f "$TEMP_DMG"
         rm -rf "$MOUNT_POINT"
@@ -187,73 +170,94 @@ dmg() {
     rm -f "$DMG_PATH" "$TEMP_DMG"
     mkdir -p "$MOUNT_POINT"
     
-    # 1. Calculate required size (app size + 20MB buffer)
     APP_SIZE=$(du -sm "$APP_BUNDLE" | cut -f1)
-    DMG_SIZE=$((APP_SIZE + 20))
+    DMG_SIZE=$((APP_SIZE + 30))
     log "Creating ${DMG_SIZE}MB temporary disk..."
-    hdiutil create -size "${DMG_SIZE}m" -fs HFS+ -volname "$APP_NAME" "$TEMP_DMG" -quiet
+    hdiutil create -size "${DMG_SIZE}m" -fs HFS+ -volname "$VOL_NAME" "$TEMP_DMG" -quiet
     
-    # 2. Mount it
     log "Mounting temporary disk..."
-    hdiutil attach "$TEMP_DMG" -noautoopen -mountpoint "$MOUNT_POINT" -quiet
+    # 'attach' returns the device node
+    # Use || true to prevent grep exit code from killing the script if pipefail is on
+    # However, we really want to capture duplicate output.
+    # Let's verify hdiutil output first. 
+    # "hdiutil attach ... -quiet" might output nothing if quiet is too aggressive, but usually outputs /dev/disk...
+    # We remove -quiet to see output, capture it, then parse.
     
-    # 3. Copy App and create Applications link
+    ATTACH_OUTPUT=$(hdiutil attach "$TEMP_DMG" -noautoopen -mountpoint "$MOUNT_POINT")
+    DEV_NODE=$(echo "$ATTACH_OUTPUT" | grep -o '/dev/disk[0-9]*' | head -n 1)
+    
+    if [[ -z "$DEV_NODE" ]]; then
+        error "Failed to mount DMG or determine device node."
+    fi
+
     log "Copying application bundle..."
     cp -R "$APP_BUNDLE" "$MOUNT_POINT/"
     ln -s /Applications "$MOUNT_POINT/Applications"
     
-    # 4. Style the DMG using AppleScript
-    # Only run if not in CI and if we have a window server
-    if [[ "$CI" != "true" && "$GITHUB_ACTIONS" != "true" ]]; then
-        log "Applying modern styling..."
-        # Check if Finder is responsive
-        if pgrep -x "Finder" > /dev/null; then
-            osascript <<EOF || warn "DMG styling failed (non-critical)"
+    # Ensure filesystem is synced before Finder styling
+    sync
+    sleep 1
+
+    # Advanced Styling
+    if [[ "$CI" != "true" && "$GITHUB_ACTIONS" != "true" ]] && pgrep -x "Finder" > /dev/null; then
+        log "Applying modern styling (AppleScript)..."
+        
+        # We use the mount point path directly to find the disk in Finder.
+        # This is more robust than searching by name.
+        if osascript >/dev/null 2>&1 <<EOF
             tell application "Finder"
-                tell disk "$APP_NAME"
-                    open
-                    set current view of container window to icon view
-                    set toolbar visible of container window to false
-                    set statusbar visible of container window to false
-                    set the bounds of container window to {400, 100, 1000, 500}
-                    set viewOptions to the icon view options of container window
-                    set icon size of viewOptions to 128
-                    set arrangement of viewOptions to not arranged
-                    set position of item "$APP_NAME.app" of container window to {180, 180}
-                    set position of item "Applications" of container window to {420, 180}
-                    close
-                    open
-                    update without registering applications
-                    delay 2
-                end tell
+                try
+                    set disk_alias to (POSIX file "$MOUNT_POINT") as alias
+                    set disk_name to name of disk_alias
+                    
+                    tell disk disk_name
+                        open
+                        set current view of container window to icon view
+                        set toolbar visible of container window to false
+                        set statusbar visible of container window to false
+                        set the bounds of container window to {400, 100, 1000, 500}
+                        set viewOptions to the icon view options of container window
+                        set icon size of viewOptions to 128
+                        set arrangement of viewOptions to not arranged
+                        set position of item "$APP_NAME.app" of container window to {180, 180}
+                        set position of item "Applications" of container window to {420, 180}
+                        
+                        update without registering applications
+                        delay 2
+                        close
+                    end tell
+                on error errStr
+                    error errStr
+                end try
             end tell
 EOF
+        then
+            success "Styling applied successfully."
         else
-            warn "Finder not running, skipping styling."
+            warn "Finder styling failed, proceeding with default layout."
         fi
     else
-        log "CI environment detected, skipping DMG styling."
+        log "Styling skipped (CI or Finder missing)."
     fi
 
-    # 5. Finalize
     log "Finalizing DMG..."
     sync
     chmod -Rf go-w "$MOUNT_POINT" || true
     
-    # Attempt to detach multiple times if busy
+    # Robust detach with explicit device node if available, otherwise mount point
     log "Detaching disk..."
-    for i in {1..5}; do
-        if hdiutil detach "$MOUNT_POINT" -force -quiet; then
+    local DETACH_TARGET="${DEV_NODE:-$MOUNT_POINT}"
+    for i in {1..10}; do
+        if hdiutil detach "$DETACH_TARGET" -force -quiet; then
             break
         fi
-        log "Disk busy, retrying detach ($i/5)..."
-        sleep 2
+        log "Disk busy, retrying detach ($i/10)..."
+        sleep 1
     done
     
-    log "Converting to compressed read-only DMG..."
+    log "Compressing DMG..."
     hdiutil convert "$TEMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH" -quiet
     
-    # trap will handle cleanup_dmg
     success "Modern package created: $DMG_NAME"
 }
 
@@ -263,7 +267,6 @@ run() {
     open "$APP_BUNDLE"
 }
 
-# --- Main ---
 case "${1:-build}" in
     build) build ;;
     run)   run ;;

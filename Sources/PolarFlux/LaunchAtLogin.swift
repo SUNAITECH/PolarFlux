@@ -1,51 +1,63 @@
 import Foundation
 import ServiceManagement
+import os
 
 class LaunchAtLogin {
+    private static let logger = os.Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.sunaish.polarflux", category: "LaunchAtLogin")
+    
+    // Identifier used for the old manual plist approach
+    private static let legacyLabel = "com.sunaish.polarflux.launcher"
+    
     static func setEnabled(_ enabled: Bool) {
-        // For non-sandboxed apps, we can use the old LSSharedFileList API or just write a LaunchAgent plist.
-        // Since we are building a standalone app, writing a plist is robust.
+        // Always try to clean up the legacy plist to avoid dual-launch or conflicts.
+        // This ensures that if the user previously used the broken/old implementation, it gets cleaned up.
+        removeLegacyPlist()
         
-        let label = "com.sunaish.polarflux.launcher"
-        let plistPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+        // Use SMAppService for macOS 13+ (Ventura and later)
+        // This leverages the modern Login Items API which is safer and "approved" by the system.
+        let service = SMAppService.mainApp
         
         if enabled {
-            guard let appPath = Bundle.main.executablePath else { return }
-            
-            let plistContent = """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            <plist version="1.0">
-            <dict>
-                <key>Label</key>
-                <string>\(label)</string>
-                <key>ProgramArguments</key>
-                <array>
-                    <string>\(appPath)</string>
-                </array>
-                <key>RunAtLoad</key>
-                <true/>
-                <key>KeepAlive</key>
-                <false/>
-            </dict>
-            </plist>
-            """
+            // Only register if not already enabled to avoid unnecessary errors
+            if service.status == .enabled {
+                logger.info("Launch at login is already enabled.")
+                return
+            }
             
             do {
-                try plistContent.write(to: plistPath, atomically: true, encoding: .utf8)
+                try service.register()
+                logger.info("Successfully registered SMAppService for launch at login.")
             } catch {
-                // Failed to write launch agent
+                logger.error("Failed to enable launch at login: \(error.localizedDescription)")
             }
         } else {
-            try? FileManager.default.removeItem(at: plistPath)
+            do {
+                try service.unregister()
+                logger.info("Successfully unregistered SMAppService for launch at login.")
+            } catch {
+                logger.error("Failed to disable launch at login: \(error.localizedDescription)")
+            }
         }
     }
     
     static var isEnabled: Bool {
-        let label = "com.sunaish.polarflux.launcher"
+        // SMAppService provides the source of truth for the login item status.
+        return SMAppService.mainApp.status == .enabled
+    }
+    
+    // MARK: - Legacy Cleanup
+    
+    private static func removeLegacyPlist() {
         let plistPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/LaunchAgents/\(label).plist")
-        return FileManager.default.fileExists(atPath: plistPath.path)
+            .appendingPathComponent("Library/LaunchAgents/\(legacyLabel).plist")
+        
+        if FileManager.default.fileExists(atPath: plistPath.path) {
+            do {
+                try FileManager.default.removeItem(at: plistPath)
+                logger.info("Removed legacy LaunchAgent plist to migrate to SMAppService.")
+            } catch {
+                logger.error("Failed to remove legacy LaunchAgent plist: \(error.localizedDescription)")
+            }
+        }
     }
 }

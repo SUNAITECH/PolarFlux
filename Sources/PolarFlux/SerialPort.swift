@@ -7,10 +7,6 @@ class SerialPort {
     
     var onDisconnect: (() -> Void)?
     
-    var isConnected: Bool {
-        return fileDescriptor >= 0
-    }
-    
     func listPorts() -> [String] {
         do {
             let files = try FileManager.default.contentsOfDirectory(atPath: "/dev")
@@ -21,7 +17,10 @@ class SerialPort {
     }
     
     func connect(path: String, baudRate: Int) -> Bool {
-        close()
+        // Ensure any previous connection is closed properly on the queue
+        queue.sync {
+            self.closeInternal()
+        }
         
         // Open the serial port
         // O_RDWR - Read and write
@@ -95,25 +94,43 @@ class SerialPort {
             return false
         }
         
-        self.fileDescriptor = fd
+        // Update state in a thread-safe way
+        queue.sync {
+            self.fileDescriptor = fd
+            self.isConnectedState = true
+        }
         Logger.shared.log("Connected to \(path) with baud rate \(baudRate)")
         return true
     }
     
     func disconnect() {
-        close()
+        queue.sync {
+            self.closeInternal()
+        }
     }
     
-    private func close() {
+    // Must be called on queue
+    private func closeInternal() {
         if fileDescriptor >= 0 {
             Logger.shared.log("Closing serial port")
             Darwin.close(fileDescriptor)
             fileDescriptor = -1
+            isConnectedState = false
         }
     }
     
+    // Thread-safe check for connection status
+    // We use a separate backing store since checking fileDescriptor directly
+    // might be racy if we don't lock, but valid fileDescriptor is atomic enough for simple checks.
+    // However, to be pedantic:
+    private var isConnectedState: Bool = false
+    var isConnected: Bool {
+        return queue.sync { isConnectedState }
+    }
+    
     func send(data: [UInt8], completion: (() -> Void)? = nil) {
-        guard fileDescriptor >= 0 else {
+        // Use thread-safe property check
+        guard isConnected else {
             completion?()
             return
         }
@@ -130,7 +147,7 @@ class SerialPort {
                     Logger.shared.log("Write error: \(err)")
                     // Handle disconnection (ENXIO=6, EBADF=9, EIO=5)
                     if err == 6 || err == 9 || err == 5 {
-                        self.close()
+                        self.closeInternal()
                         DispatchQueue.main.async {
                             self.onDisconnect?()
                         }
@@ -146,7 +163,7 @@ class SerialPort {
                         let err = errno
                         Logger.shared.log("tcdrain error: \(err)")
                         if err == 6 || err == 9 || err == 5 {
-                            self.close()
+                            self.closeInternal()
                             DispatchQueue.main.async {
                                 self.onDisconnect?()
                             }
