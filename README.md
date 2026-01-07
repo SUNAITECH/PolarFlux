@@ -202,6 +202,13 @@ To generate a styled DMG distribution:
 ./Scripts/run.sh dmg
 ```
 
+### Release
+To trigger an automated release to GitHub (CI/CD):
+```bash
+./Scripts/release.sh
+```
+This script will guide you through versioning, tag creation, and push. GitHub Actions will then automatically build and publish the DMG.
+
 ---
 
 ## Q&A (Frequently Asked Questions)
