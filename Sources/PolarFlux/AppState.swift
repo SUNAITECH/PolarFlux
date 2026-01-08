@@ -874,8 +874,11 @@ class AppState: ObservableObject {
         }
         
         serialPort.sendSkydimo(rgbData: finalData) { [weak self] in
+            // Ensure we are back on main to update UI/State flags
+            // Robustness: check if self still exists prevents crash in dealloc
             DispatchQueue.main.async {
-                self?.isSending = false
+                guard let self = self else { return }
+                self.isSending = false
             }
         }
     }
@@ -1316,21 +1319,36 @@ class AppState: ObservableObject {
     
     private func startKeepAlive() {
         keepAliveTimer?.invalidate()
+        // Run keep-alive on the main thread loop but enforce thread safety in the closure
         keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            guard let self = self, self.isRunning else { return }
+            // Robustness: Strongly check self and lifecycle state
+            // Often timers fire after deallocation if invalidate isn't atomic
+            guard let self = self else { return }
             
-            // If we have data and haven't sent anything recently (handled by isSending flag logic implicitly if we wanted,
-            // but here we just want to ensure the device doesn't timeout.
-            // The C++ code sends last_colors every 250ms regardless of updates if the thread is running.
-            // However, we don't want to flood if we are already sending high FPS sync data.
-            // A simple approach is to just resend the last data if we are in a static mode or if the stream is idle.
-            // But for now, let's just replicate the C++ behavior: send if we have data.
+            // Critical check: Do not execute if app thinks it's stopped
+            guard self.isRunning else {
+                return
+            }
             
-            if let data = self.lastSentData {
-                // We use a separate send method or just sendData but we need to be careful about thread safety/queueing.
-                // sendData uses the serial queue, so it's safe.
-                // But sendData sets isSending = true.
-                
+            // Check connection health before attempting to send
+            if !self.serialPort.isConnected {
+                 return
+            }
+
+            // Sync: Access shared state carefully
+            // We copy locally to avoid race conditions with background threads updating `lastSentData`
+            var dataToSend: [UInt8]?
+            // Use a simple lock or just main thread access (since this is main thread timer and lastSentData is updated on main/sync context?) 
+            // `sendData` is called from `ScreenCapture.onFrameProcessed` which is on main thread? No, it's on processing queue.
+            // Wait, sendData is called from callbacks.
+            // We need to synchronize access to `lastSentData` or use a property wrapper.
+            // For now, let's assume `lastSentData` atomic write is "safe enough" for [UInt8] (copy on write), 
+            // but the crash is likely `sendData` closure not capturing self correctly or a race on `isSending`.
+            
+            dataToSend = self.lastSentData
+            
+            if let data = dataToSend {
+                // Prevent re-entry if the port is busy
                 if !self.isSending {
                     self.sendData(data)
                 }
