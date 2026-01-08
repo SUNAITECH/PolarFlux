@@ -223,8 +223,47 @@ class AppState: ObservableObject {
     }
 
     private func handleWake() {
-        scheduleResumeIfNeeded(after: .afterSleep,
-                               resumeText: String(localized: "SYSTEM_WAKING"))
+        // Robustness: Force a delay to ensure USB subsystem and Displays are fully awake.
+        // We also explicitly re-verify the serial connection status.
+        Logger.shared.log("System woke up. Scheduling robust resume sequence.")
+        
+        // 1. Cancel any pending operations
+        autoResumeScheduled = false
+        
+        // 2. Schedule tiered resume
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+            guard let self = self else { return }
+            
+            // Check hardware health
+            if !self.serialPort.isConnected || !self.serialPort.checkConnection() {
+                Logger.shared.log("Wake: Serial port invalid. Attempting auto-reconnect.")
+                // Trigger port refresh and reconnect logic if applicable
+                // For now, we rely on the user or the existing 'start' logic to pick up the port,
+                // but we should ensure internal state is clean.
+                self.serialPort.disconnect() 
+                
+                // If we were running, let's try to restore the port connection if name persists
+                if !self.selectedPort.isEmpty {
+                     // small delay for port re-enumeration
+                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                         if self.serialPort.connect(path: self.selectedPort, baudRate: Int(self.baudRate) ?? 115200) {
+                             Logger.shared.log("Wake: Auto-reconnected to \(self.selectedPort)")
+                         } else {
+                             Logger.shared.log("Wake: Failed to reconnect serial port.")
+                         }
+                     }
+                }
+            }
+            
+            // Resume Capture Logic
+            if self.wasRunning {
+                // Ensure we clear the pending trigger so scheduleResumeIfNeeded doesn't conflict
+                self.pendingResumeTrigger = .none
+                
+                Logger.shared.log("Wake: Resuming lighting...")
+                self.start()
+            }
+        }
     }
 
     private func handleScreensDidSleep() {

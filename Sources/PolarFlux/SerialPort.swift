@@ -197,6 +197,27 @@ class SerialPort {
         send(data: packet, completion: completion)
     }
     
+    // Robustness: Add an explicit check method to verify connectivity
+    // This is useful for periodic health checks or post-wake validation
+    func checkConnection() -> Bool {
+        return queue.sync {
+            guard fileDescriptor >= 0 else { return false }
+            
+            // Try to get terminal attributes - this is a lightweight check if the FD is still valid
+            var options = termios()
+            if tcgetattr(fileDescriptor, &options) == -1 {
+                let err = errno
+                Logger.shared.log("Connection check failed (errno: \(err)). Assuming disconnected.")
+                closeInternal()
+                DispatchQueue.main.async {
+                    self.onDisconnect?()
+                }
+                return false
+            }
+            return true
+        }
+    }
+    
     func getDeviceInfo() -> String? {
         guard fileDescriptor >= 0 else { return nil }
         

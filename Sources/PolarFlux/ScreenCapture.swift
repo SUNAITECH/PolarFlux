@@ -155,7 +155,19 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     
     // MARK: - SCStreamDelegate
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        // Stream stopped
+        // Robustness: Capture stream crash handling
+        // Often occurs on Display sleep/wake or resolution change
+        print("SCStream stopped with error: \(error.localizedDescription)")
+        
+        // Notify observer (AppState) if we have a callback mechanism?
+        // Ideally we should try to restart, but SCStream is async and we are in a delegate.
+        // The safest way is to nullify the stream and rely on AppState to restart on 'ScreensDidWake'
+        // or a retry mechanism.
+        // Since AppState listens to ScreensDidWake/SystemWake, it will call stop() then start()
+        // effectively resetting this.
+        // We ensure we don't crash by cleaning up here.
+        self.stream = nil
+        self.lastFrameTime = 0
     }
     
     // MARK: - SCStreamOutput

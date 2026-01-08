@@ -154,21 +154,30 @@ dmg() {
     DMG_NAME="${APP_NAME}_v${VERSION_STR}.dmg"
     DMG_PATH="$PROJECT_ROOT/$DMG_NAME"
     TEMP_DMG="$BUILD_DIR/temp.dmg"
-    MOUNT_POINT="$BUILD_DIR/mnt"
+    # Allow system to handle mount point to ensure Finder works correctly
     VOL_NAME="${APP_NAME}"
     
+    # Global variables to be set during execution
+    local DEV_NODE=""
+    local MOUNT_POINT=""
+    
     cleanup_dmg() {
-        if mount | grep -q "$MOUNT_POINT"; then
-            log "Cleaning up mount point..."
-            hdiutil detach "$MOUNT_POINT" -force >/dev/null 2>&1 || true
+        if [[ -n "$DEV_NODE" ]]; then
+            if hdiutil info | grep -q "$DEV_NODE"; then
+                log "Cleaning up device..."
+                hdiutil detach "$DEV_NODE" -force >/dev/null 2>&1 || true
+            fi
+        elif [[ -n "$MOUNT_POINT" ]]; then
+            if mount | grep -q "$MOUNT_POINT"; then
+                 log "Cleaning up mount point..."
+                 hdiutil detach "$MOUNT_POINT" -force >/dev/null 2>&1 || true
+            fi
         fi
         rm -f "$TEMP_DMG"
-        rm -rf "$MOUNT_POINT"
     }
     trap cleanup_dmg EXIT
     
     rm -f "$DMG_PATH" "$TEMP_DMG"
-    mkdir -p "$MOUNT_POINT"
     
     APP_SIZE=$(du -sm "$APP_BUNDLE" | cut -f1)
     DMG_SIZE=$((APP_SIZE + 30))
@@ -176,19 +185,23 @@ dmg() {
     hdiutil create -size "${DMG_SIZE}m" -fs HFS+ -volname "$VOL_NAME" "$TEMP_DMG" -quiet
     
     log "Mounting temporary disk..."
-    # 'attach' returns the device node
-    # Use || true to prevent grep exit code from killing the script if pipefail is on
-    # However, we really want to capture duplicate output.
-    # Let's verify hdiutil output first. 
-    # "hdiutil attach ... -quiet" might output nothing if quiet is too aggressive, but usually outputs /dev/disk...
-    # We remove -quiet to see output, capture it, then parse.
+    # Attach without custom mountpoint to let macOS mount it to /Volumes (Better for Finder scripting)
+    ATTACH_OUTPUT=$(hdiutil attach "$TEMP_DMG" -noautoopen)
     
-    ATTACH_OUTPUT=$(hdiutil attach "$TEMP_DMG" -noautoopen -mountpoint "$MOUNT_POINT")
+    # Parse Output
+    # Expected format: /dev/diskXsY   Apple_HFS   /Volumes/VolumeName
     DEV_NODE=$(echo "$ATTACH_OUTPUT" | grep -o '/dev/disk[0-9]*' | head -n 1)
+    MOUNT_POINT=$(echo "$ATTACH_OUTPUT" | grep "/Volumes/" | awk '{$1=""; $2=""; print $0}' | xargs)
     
-    if [[ -z "$DEV_NODE" ]]; then
-        error "Failed to mount DMG or determine device node."
+    if [[ -z "$DEV_NODE" || -z "$MOUNT_POINT" ]]; then
+        # Fallback parsing strategy
+        MOUNT_POINT="/Volumes/$VOL_NAME"
+        if [[ -z "$DEV_NODE" ]]; then
+           error "Failed to determine device node from hdiutil output."
+        fi
     fi
+    
+    log "Mounted at: $MOUNT_POINT"
 
     log "Copying application bundle..."
     cp -R "$APP_BUNDLE" "$MOUNT_POINT/"
@@ -196,36 +209,49 @@ dmg() {
     
     # Ensure filesystem is synced before Finder styling
     sync
-    sleep 1
+    sleep 2
 
     # Advanced Styling
     if [[ "$CI" != "true" && "$GITHUB_ACTIONS" != "true" ]] && pgrep -x "Finder" > /dev/null; then
         log "Applying modern styling (AppleScript)..."
         
-        # We use the mount point path directly to find the disk in Finder.
-        # This is more robust than searching by name.
         if osascript >/dev/null 2>&1 <<EOF
             tell application "Finder"
                 try
-                    set disk_alias to (POSIX file "$MOUNT_POINT") as alias
-                    set disk_name to name of disk_alias
+                    -- Use the Volume Name directly as it is now in /Volumes
+                    set target_disk to disk "$VOL_NAME"
                     
-                    tell disk disk_name
+                    tell target_disk
                         open
                         set current view of container window to icon view
                         set toolbar visible of container window to false
                         set statusbar visible of container window to false
                         set the bounds of container window to {400, 100, 1000, 500}
                         set viewOptions to the icon view options of container window
-                        set icon size of viewOptions to 128
+                        set icon size of viewOptions to 144
+                        set text size of viewOptions to 12
                         set arrangement of viewOptions to not arranged
+                        set background picture of viewOptions to none
+                        
                         set position of item "$APP_NAME.app" of container window to {180, 180}
                         set position of item "Applications" of container window to {420, 180}
                         
+                        -- Force update and save
                         update without registering applications
                         delay 2
                         close
                     end tell
+                    
+                    -- Second pass to ensure icons stick (AppleScript quirk)
+                    delay 1
+                    tell target_disk
+                        open
+                        set arrangement of viewOptions to not arranged
+                        update without registering applications
+                        delay 1
+                        close
+                    end tell
+
                 on error errStr
                     error errStr
                 end try
@@ -242,13 +268,13 @@ EOF
 
     log "Finalizing DMG..."
     sync
+    # Fix permissions
     chmod -Rf go-w "$MOUNT_POINT" || true
     
-    # Robust detach with explicit device node if available, otherwise mount point
     log "Detaching disk..."
-    local DETACH_TARGET="${DEV_NODE:-$MOUNT_POINT}"
     for i in {1..10}; do
-        if hdiutil detach "$DETACH_TARGET" -force -quiet; then
+        # Ejecting via diskutil is sometimes cleaner for Finder than hdiutil detach
+        if hdiutil detach "$DEV_NODE" -force -quiet; then
             break
         fi
         log "Disk busy, retrying detach ($i/10)..."
