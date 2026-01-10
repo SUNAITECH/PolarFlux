@@ -82,6 +82,16 @@ class AppState: ObservableObject {
     }
     @Published var performanceMetrics = PerformanceMetrics()
     @Published var healthChecks: [HealthCheckItem] = []
+    @Published var lastResetTime: Date?
+    let appStartTime = Date()
+    @Published var appLanguage: String = "System" {
+        didSet {
+            UserDefaults.standard.set(appLanguage, forKey: "appLanguage")
+            updateLocale()
+        }
+    }
+    @Published var currentLocale: Locale = .current
+    
     private var healthTimer: Timer?
     
     // Telemetry Baselines
@@ -197,6 +207,34 @@ class AppState: ObservableObject {
     private var pendingResumeTrigger: ResumeTrigger = .none
     private var autoResumeScheduled = false
 
+    let availableLanguages = [
+        "System", "en", "zh-Hans", "zh-Hant", "de", "fr", "es", "ru", "ja", "ko"
+    ]
+    
+    func languageName(for code: String) -> String {
+        switch code {
+        case "System": return String(localized: "SYSTEM_LANGUAGE")
+        case "en": return "English"
+        case "zh-Hans": return "简体中文"
+        case "zh-Hant": return "繁體中文"
+        case "de": return "Deutsch"
+        case "fr": return "Français"
+        case "es": return "Español"
+        case "ru": return "Русский"
+        case "ja": return "日本語"
+        case "ko": return "한국어"
+        default: return code
+        }
+    }
+    
+    private func updateLocale() {
+        if appLanguage == "System" {
+            currentLocale = .current
+        } else {
+            currentLocale = Locale(identifier: appLanguage)
+        }
+    }
+    
     private var isSending = false
     private var isCapturing = false
     private var cachedDisplay: SCDisplay?
@@ -1048,6 +1086,10 @@ class AppState: ObservableObject {
     func loadSettings() {
         if let p = UserDefaults.standard.string(forKey: "selectedPort") { selectedPort = p }
         if let b = UserDefaults.standard.string(forKey: "baudRate") { baudRate = b }
+        if let lang = UserDefaults.standard.string(forKey: "appLanguage") { 
+            appLanguage = lang 
+            updateLocale()
+        }
         if let l = UserDefaults.standard.string(forKey: "ledCount") { ledCount = l }
         if let lz = UserDefaults.standard.string(forKey: "leftZone") { leftZone = lz }
         if let tz = UserDefaults.standard.string(forKey: "topZone") { topZone = tz }
@@ -1424,6 +1466,15 @@ class AppState: ObservableObject {
     }
 
     // MARK: - Health & Performance
+    func resetStatistics() {
+        serialPort.resetCounters()
+        lastBytes = 0
+        lastPackets = 0
+        lastResetTime = Date()
+        updateMetrics()
+        Logger.shared.log("Performance statistics reset.")
+    }
+
     private func startHealthMonitor() {
         healthTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }

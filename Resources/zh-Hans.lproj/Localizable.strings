@@ -47,6 +47,9 @@
 "PERFORMANCE_STATS" = "性能统计";
 "RAM_USAGE" = "内存占用";
 "FPS" = "帧率";
+"DATA_SINCE" = "数据自";
+"DATA_SINCE_SUFFIX" = " 以来";
+"RESET_STATS" = "重置统计";
 
 /* Health Check */
 "HEALTH_CHECK" = "系统健康";
@@ -109,6 +112,8 @@
 /* General */
 "LAUNCH_AT_LOGIN" = "开机自启动";
 "QUIT_POLARFLUX" = "退出 PolarFlux";
+"LANGUAGE" = "语言";
+"SYSTEM_LANGUAGE" = "系统语言";
 
 /* Common */
 "COLOR_R" = "R";

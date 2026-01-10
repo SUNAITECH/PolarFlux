@@ -40,6 +40,9 @@
 "PERFORMANCE_STATS" = "Статистика производительности";
 "RAM_USAGE" = "Использование RAM";
 "FPS" = "FPS";
+"DATA_SINCE" = "Данные с";
+"DATA_SINCE_SUFFIX" = "";
+"RESET_STATS" = "Сбросить статистику";
 
 /* Health Check */
 "HEALTH_CHECK" = "Состояние системы";
@@ -102,6 +105,8 @@
 /* General */
 "LAUNCH_AT_LOGIN" = "Запуск при входе";
 "QUIT_POLARFLUX" = "Выйти из PolarFlux";
+"LANGUAGE" = "Язык";
+"SYSTEM_LANGUAGE" = "Системный язык";
 
 /* Common */
 "COLOR_R" = "R";

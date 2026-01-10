@@ -37,6 +37,9 @@
 "PERFORMANCE_STATS" = "パフォーマンス統計";
 "RAM_USAGE" = "RAM使用量";
 "FPS" = "FPS";
+"DATA_SINCE" = "データの期間：";
+"DATA_SINCE_SUFFIX" = "";
+"RESET_STATS" = "統計をリセット";
 
 /* Health Check */
 "HEALTH_CHECK" = "システム状態";
@@ -99,6 +102,8 @@
 /* General */
 "LAUNCH_AT_LOGIN" = "ログイン時に起動";
 "QUIT_POLARFLUX" = "PolarFluxを終了";
+"LANGUAGE" = "言語";
+"SYSTEM_LANGUAGE" = "システム言語";
 
 /* Common */
 "COLOR_R" = "R";

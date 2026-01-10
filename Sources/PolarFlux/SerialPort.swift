@@ -15,6 +15,14 @@ class SerialPort {
     private(set) var writeErrorCount: Int = 0
     private(set) var reconnectCount: Int = 0
     
+    func resetCounters() {
+        totalBytesSent = 0
+        totalPacketsSent = 0
+        writeErrorCount = 0
+        reconnectCount = 0
+        lastWriteLatency = 0
+    }
+    
     // Buffer Telemetry
     var outputQueueSize: Int {
         guard fileDescriptor >= 0 else { return 0 }

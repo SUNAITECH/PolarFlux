@@ -47,6 +47,9 @@
 "PERFORMANCE_STATS" = "Performance Stats";
 "RAM_USAGE" = "RAM Usage";
 "FPS" = "FPS";
+"DATA_SINCE" = "Data since";
+"DATA_SINCE_SUFFIX" = "";
+"RESET_STATS" = "Reset Stats";
 
 /* Health Check */
 "HEALTH_CHECK" = "System Health";
@@ -109,6 +112,8 @@
 /* General */
 "LAUNCH_AT_LOGIN" = "Launch at Login";
 "QUIT_POLARFLUX" = "Quit PolarFlux";
+"LANGUAGE" = "Language";
+"SYSTEM_LANGUAGE" = "System Language";
 
 /* Common */
 "COLOR_R" = "R";

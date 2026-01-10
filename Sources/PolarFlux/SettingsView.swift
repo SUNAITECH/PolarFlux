@@ -356,6 +356,23 @@ struct SettingsView: View {
                             .monospacedDigit()
                             .foregroundColor(.secondary)
                     }
+                    
+                    Divider().padding(.vertical, 4)
+                    
+                    HStack {
+                        let sinceDate = appState.lastResetTime ?? appState.appStartTime
+                        Text("\(String(localized: "DATA_SINCE")) \(sinceDate.formatted(.dateTime.month(.abbreviated).day().hour().minute().second()))\(String(localized: "DATA_SINCE_SUFFIX", defaultValue: ""))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        Button(action: { appState.resetStatistics() }) {
+                            Label(String(localized: "RESET_STATS"), systemImage: "arrow.counterclockwise")
+                                .font(.footnote)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 }
                 .padding()
             }
@@ -436,6 +453,20 @@ struct SettingsView: View {
             
             GroupBox {
                 VStack(alignment: .leading, spacing: 20) {
+                    HStack {
+                        Text(String(localized: "LANGUAGE"))
+                        Spacer()
+                        Picker("", selection: $appState.appLanguage) {
+                            ForEach(appState.availableLanguages, id: \.self) { lang in
+                                Text(appState.languageName(for: lang)).tag(lang)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 150)
+                    }
+                    
+                    Divider()
+                    
                     Toggle(String(localized: "LAUNCH_AT_LOGIN"), isOn: $appState.launchAtLogin)
                         .toggleStyle(.switch)
                     
