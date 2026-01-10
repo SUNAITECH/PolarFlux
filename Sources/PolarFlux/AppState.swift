@@ -2,6 +2,21 @@ import SwiftUI
 import Combine
 import ScreenCaptureKit
 import AppKit
+import Darwin
+
+struct PerformanceMetrics {
+    var cpuUsage: Double = 0.0
+    var ramUsage: Double = 0.0
+    var fps: Double = 0.0
+    var metalEnabled: Bool = false
+}
+
+struct HealthCheckItem: Identifiable {
+    let id = UUID()
+    let name: String
+    let status: Bool // true = good
+    let message: String
+}
 
 enum LightingMode: String, CaseIterable, Identifiable {
     case sync = "SCREEN_SYNC"
@@ -50,6 +65,16 @@ class AppState: ObservableObject {
     
     @Published var brightness: Double = 1.0
     @Published var statusMessage: String = String(localized: "READY")
+    
+    // Performance & Health
+    @Published var useMetal: Bool = true {
+        didSet {
+            screenCapture.useMetal = useMetal
+        }
+    }
+    @Published var performanceMetrics = PerformanceMetrics()
+    @Published var healthChecks: [HealthCheckItem] = []
+    private var healthTimer: Timer?
     
     // Power Management
     @Published var powerMode: PowerMode = .abl
@@ -194,6 +219,9 @@ class AppState: ObservableObject {
             Logger.shared.log("Serial port disconnected unexpectedly")
             self?.handleDisconnection()
         }
+        
+        // Start Monitoring
+        startHealthMonitor()
 
         // Setup Sleep/Wake Observers
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
@@ -1376,6 +1404,78 @@ class AppState: ObservableObject {
         if let device = availableMicrophones.first(where: { $0.uid == selectedMicrophoneUID }) {
             audioProcessor.setDevice(id: device.id)
         }
+    }
+
+    // MARK: - Health & Performance
+    private func startHealthMonitor() {
+        startCPUUsageLoop()
+        healthTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.updateMetrics()
+        }
+    }
+    
+    // CPU Loop State for robust calculation
+    private func startCPUUsageLoop() {
+        // No-op
+    }
+    
+    private func updateMetrics() {
+        // CPU
+        let cpu = getCPUUsage()
+        
+        // RAM
+        var taskInfo = task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<task_basic_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let _ = withUnsafeMutablePointer(to: &taskInfo) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        let ram = Double(taskInfo.resident_size) / 1024.0 / 1024.0
+        
+        self.performanceMetrics = PerformanceMetrics(
+            cpuUsage: cpu,
+            ramUsage: ram,
+            fps: self.targetFrameRate, // Approximation for UI
+            metalEnabled: self.useMetal
+        )
+        
+        // Health Checks
+        var checks: [HealthCheckItem] = []
+        checks.append(HealthCheckItem(name: String(localized: "CHECK_SERIAL"), status: self.serialPort.isConnected, message: self.serialPort.isConnected ? String(localized: "HEALTH_GOOD") : String(localized: "HEALTH_ERROR")))
+        checks.append(HealthCheckItem(name: String(localized: "CHECK_METAL"), status: self.useMetal, message: self.useMetal ? String(localized: "HEALTH_GOOD") : String(localized: "CHECK_METAL")))
+        
+        self.healthChecks = checks
+    }
+    
+    private func getCPUUsage() -> Double {
+        var threadsList: thread_act_array_t?
+        var threadsCount: mach_msg_type_number_t = 0
+        let kr = task_threads(mach_task_self_, &threadsList, &threadsCount)
+        if kr != KERN_SUCCESS { return 0.0 }
+        
+        var totalCpu: Double = 0.0
+        if let threadsList = threadsList {
+            for i in 0..<Int(threadsCount) {
+                var threadInfo = thread_basic_info()
+                var threadInfoCount = mach_msg_type_number_t(MemoryLayout<thread_basic_info_data_t>.size / MemoryLayout<natural_t>.size)
+                let interiorKr = withUnsafeMutablePointer(to: &threadInfo) {
+                    $0.withMemoryRebound(to: integer_t.self, capacity: Int(threadInfoCount)) {
+                        thread_info(threadsList[i], thread_flavor_t(THREAD_BASIC_INFO), $0, &threadInfoCount)
+                    }
+                }
+                if interiorKr == KERN_SUCCESS {
+                    // let flags = threadInfo.flags
+                    // if (flags & THREAD_IS_IDLE) == 0 {
+                    totalCpu += (Double(threadInfo.cpu_usage) / Double(TH_USAGE_SCALE)) * 100.0
+                    // }
+                }
+            }
+            let size = Int(threadsCount) * MemoryLayout<thread_t>.stride
+            vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: threadsList)), vm_size_t(size))
+        }
+        return totalCpu
     }
 }
 

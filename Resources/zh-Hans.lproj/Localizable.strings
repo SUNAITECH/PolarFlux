@@ -33,6 +33,23 @@
 "GENERAL_SUBTITLE" = "应用程序行为和启动设置";
 "ABOUT" = "关于";
 
+/* Processing Settings */
+"METAL_ACCELERATION" = "Metal 硬件加速";
+"METAL_DESC" = "使用 GPU 进行图像处理以降低 CPU 占用。";
+"PERFORMANCE_STATS" = "性能统计";
+"CPU_USAGE" = "CPU 占用";
+"RAM_USAGE" = "内存占用";
+"FPS" = "帧率";
+
+/* Health Check */
+"HEALTH_CHECK" = "系统健康";
+"HEALTH_GOOD" = "正常";
+"HEALTH_WARNING" = "警告";
+"HEALTH_ERROR" = "错误";
+"CHECK_PERMISSIONS" = "屏幕录制权限";
+"CHECK_SERIAL" = "串口连接";
+"CHECK_METAL" = "Metal 支持";
+
 /* Connection Settings */
 "SERIAL_PORT" = "串口:";
 "BAUD_RATE" = "波特率:";

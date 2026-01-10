@@ -26,6 +26,23 @@
 "GENERAL" = "常規";
 "ABOUT" = "關於";
 
+/* Processing Settings */
+"METAL_ACCELERATION" = "Metal 硬體加速";
+"METAL_DESC" = "使用 GPU 進行圖像處理以降低 CPU 佔用。";
+"PERFORMANCE_STATS" = "效能統計";
+"CPU_USAGE" = "CPU 佔用";
+"RAM_USAGE" = "記憶體佔用";
+"FPS" = "幀率";
+
+/* Health Check */
+"HEALTH_CHECK" = "系統狀態";
+"HEALTH_GOOD" = "正常";
+"HEALTH_WARNING" = "警告";
+"HEALTH_ERROR" = "錯誤";
+"CHECK_PERMISSIONS" = "螢幕錄製權限";
+"CHECK_SERIAL" = "序列埠連接";
+"CHECK_METAL" = "Metal 支援";
+
 /* Connection Settings */
 "SERIAL_PORT" = "串口:";
 "BAUD_RATE" = "波特率:";

@@ -26,6 +26,23 @@
 "GENERAL" = "일반";
 "ABOUT" = "정보";
 
+/* Processing Settings */
+"METAL_ACCELERATION" = "Metal 가속";
+"METAL_DESC" = "GPU를 사용하여 이미지 처리를 수행하고 CPU 사용량을 줄입니다。";
+"PERFORMANCE_STATS" = "성능 통계";
+"CPU_USAGE" = "CPU 사용량";
+"RAM_USAGE" = "RAM 사용량";
+"FPS" = "FPS";
+
+/* Health Check */
+"HEALTH_CHECK" = "시스템 상태";
+"HEALTH_GOOD" = "정상";
+"HEALTH_WARNING" = "경고";
+"HEALTH_ERROR" = "오류";
+"CHECK_PERMISSIONS" = "화면 기록 권한";
+"CHECK_SERIAL" = "시리얼 연결";
+"CHECK_METAL" = "Metal 지원";
+
 /* Connection Settings */
 "SERIAL_PORT" = "시리얼 포트:";
 "BAUD_RATE" = "보드 레이트:";

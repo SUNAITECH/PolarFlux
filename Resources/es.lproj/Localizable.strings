@@ -26,6 +26,23 @@
 "GENERAL" = "General";
 "ABOUT" = "Acerca de";
 
+/* Processing Settings */
+"METAL_ACCELERATION" = "Aceleración Metal";
+"METAL_DESC" = "Usar GPU para procesar imágenes y reducir uso de CPU.";
+"PERFORMANCE_STATS" = "Estadísticas de Rendimiento";
+"CPU_USAGE" = "Uso de CPU";
+"RAM_USAGE" = "Uso de RAM";
+"FPS" = "FPS";
+
+/* Health Check */
+"HEALTH_CHECK" = "Estado del Sistema";
+"HEALTH_GOOD" = "Operativo";
+"HEALTH_WARNING" = "Advertencia";
+"HEALTH_ERROR" = "Error";
+"CHECK_PERMISSIONS" = "Permiso de Grabación de Pantalla";
+"CHECK_SERIAL" = "Conexión Serial";
+"CHECK_METAL" = "Soporte Metal";
+
 /* Connection Settings */
 "SERIAL_PORT" = "Puerto serie:";
 "BAUD_RATE" = "Baudios:";

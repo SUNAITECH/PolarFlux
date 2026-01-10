@@ -27,6 +27,9 @@ struct SettingsView: View {
                     NavigationLink(value: "Power") {
                         Label(String(localized: "POWER"), systemImage: "bolt.shield")
                     }
+                    NavigationLink(value: "Performance") {
+                        Label(String(localized: "PERFORMANCE_STATS"), systemImage: "gauge")
+                    }
                 }
                 
                 Section(String(localized: "APP")) {
@@ -55,6 +58,7 @@ struct SettingsView: View {
                             case "Audio": audioSettings
                             case "Calibration": calibrationSettings
                             case "Power": powerSettings
+                            case "Performance": performanceSettings
                             case "General": generalSettings
                             case "About": AboutView()
                             default: Text(String(localized: "SELECT_CATEGORY"))
@@ -298,6 +302,52 @@ struct SettingsView: View {
         }
     }
     
+    var performanceSettings: some View {
+        VStack(alignment: .leading, spacing: 25) {
+            headerView(title: String(localized: "PERFORMANCE_STATS"), subtitle: String(localized: "METAL_DESC"), icon: "gauge")
+            
+            GroupBox(String(localized: "METAL_ACCELERATION")) {
+                Toggle(String(localized: "METAL_ACCELERATION"), isOn: $appState.useMetal)
+                    .toggleStyle(SwitchToggleStyle(tint: .blue))
+                    .padding()
+            }
+            
+            GroupBox(String(localized: "PERFORMANCE_STATS")) {
+                VStack(spacing: 12) {
+                    HStack {
+                        Text(String(localized: "CPU_USAGE"))
+                        Spacer()
+                        Text(String(format: "%.1f%%", appState.performanceMetrics.cpuUsage))
+                            .monospacedDigit()
+                    }
+                    HStack {
+                        Text(String(localized: "RAM_USAGE"))
+                        Spacer()
+                        Text(String(format: "%.1f MB", appState.performanceMetrics.ramUsage))
+                            .monospacedDigit()
+                    }
+                }
+                .padding()
+            }
+            
+            GroupBox(String(localized: "HEALTH_CHECK")) {
+                VStack(spacing: 8) {
+                    ForEach(appState.healthChecks) { check in
+                        HStack {
+                            Text(check.name)
+                            Spacer()
+                            Text(check.message)
+                                .foregroundColor(check.status ? .green : .red)
+                            Image(systemName: check.status ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                .foregroundColor(check.status ? .green : .red)
+                        }
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+
     var calibrationSettings: some View {
         VStack(alignment: .leading, spacing: 25) {
             HStack {

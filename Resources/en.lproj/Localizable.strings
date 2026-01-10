@@ -33,6 +33,23 @@
 "GENERAL_SUBTITLE" = "Application behavior and startup";
 "ABOUT" = "About";
 
+/* Processing Settings */
+"METAL_ACCELERATION" = "Metal Acceleration";
+"METAL_DESC" = "Use GPU for image processing to reduce CPU usage.";
+"PERFORMANCE_STATS" = "Performance Stats";
+"CPU_USAGE" = "CPU Usage";
+"RAM_USAGE" = "RAM Usage";
+"FPS" = "FPS";
+
+/* Health Check */
+"HEALTH_CHECK" = "System Health";
+"HEALTH_GOOD" = "Operational";
+"HEALTH_WARNING" = "Warning";
+"HEALTH_ERROR" = "Error";
+"CHECK_PERMISSIONS" = "Screen Recording Permission";
+"CHECK_SERIAL" = "Serial Connection";
+"CHECK_METAL" = "Metal Support";
+
 /* Connection Settings */
 "SERIAL_PORT" = "Serial Port:";
 "BAUD_RATE" = "Baud Rate:";

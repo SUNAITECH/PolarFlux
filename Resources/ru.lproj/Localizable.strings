@@ -26,6 +26,23 @@
 "GENERAL" = "Общие";
 "ABOUT" = "О программе";
 
+/* Processing Settings */
+"METAL_ACCELERATION" = "Ускорение Metal";
+"METAL_DESC" = "Использовать GPU для обработки изображений и снижения нагрузки на CPU.";
+"PERFORMANCE_STATS" = "Статистика производительности";
+"CPU_USAGE" = "Загрузка ЦП";
+"RAM_USAGE" = "Использование RAM";
+"FPS" = "FPS";
+
+/* Health Check */
+"HEALTH_CHECK" = "Состояние системы";
+"HEALTH_GOOD" = "Исправно";
+"HEALTH_WARNING" = "Предупреждение";
+"HEALTH_ERROR" = "Ошибка";
+"CHECK_PERMISSIONS" = "Разрешение на запись экрана";
+"CHECK_SERIAL" = "Последовательное соединение";
+"CHECK_METAL" = "Поддержка Metal";
+
 /* Connection Settings */
 "SERIAL_PORT" = "Последовательный порт:";
 "BAUD_RATE" = "Скорость (Бод):";

@@ -16,8 +16,8 @@ let package = Package(
             dependencies: [],
             path: "Sources/PolarFlux",
             resources: [
-                .copy("../../Resources/Info.plist"),
-                .copy("../../Resources/PolarFlux.icns")
+                .process("../../Resources"),
+                .process("Metal/Shaders.metal")
             ]
         )
     ]
