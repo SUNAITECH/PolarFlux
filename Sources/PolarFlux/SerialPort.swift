@@ -12,6 +12,19 @@ class SerialPort {
     private(set) var totalBytesSent: UInt64 = 0
     private(set) var totalPacketsSent: UInt64 = 0
     private(set) var lastWriteLatency: Double = 0
+    private(set) var writeErrorCount: Int = 0
+    private(set) var reconnectCount: Int = 0
+    
+    // Buffer Telemetry
+    var outputQueueSize: Int {
+        guard fileDescriptor >= 0 else { return 0 }
+        var bytes: Int32 = 0
+        // TIOCOUTQ returns the number of bytes in the output queue
+        if ioctl(fileDescriptor, TIOCOUTQ, &bytes) != -1 {
+            return Int(bytes)
+        }
+        return 0
+    }
     
     func listPorts() -> [String] {
         do {
@@ -27,6 +40,8 @@ class SerialPort {
         queue.sync {
             self.closeInternal()
         }
+        
+        self.reconnectCount += 1
         
         // Open the serial port
         // O_RDWR - Read and write
@@ -152,6 +167,7 @@ class SerialPort {
                 if bytesWritten < 0 {
                     let err = errno
                     Logger.shared.log("Write error: \(err)")
+                    self.writeErrorCount += 1
                     // Handle disconnection (ENXIO=6, EBADF=9, EIO=5)
                     if err == 6 || err == 9 || err == 5 {
                         self.closeInternal()

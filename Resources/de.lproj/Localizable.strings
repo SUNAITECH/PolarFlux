@@ -27,8 +27,6 @@
 "ABOUT" = "Über";
 
 /* Processing Settings */
-"METAL_ACCELERATION" = "Metal-Beschleunigung";
-"METAL_DESC" = "GPU für Bildverarbeitung nutzen, um CPU-Last zu senken.";
 "SERIAL_TELEMETRY" = "Serielle Telemetrie";
 "SERIAL_TELEMETRY_DESC" = "Echtzeit-Kommunikationsmetriken für die LED-Hardwareverbindung.";
 "DATA_RATE" = "Datenrate";
@@ -37,7 +35,6 @@
 "TOTAL_PACKETS" = "Gesamtpakete";
 "SYSTEM_RESOURCE" = "Systemressourcen";
 "PERFORMANCE_STATS" = "Leistungsstatistiken";
-"CPU_USAGE" = "CPU-Auslastung";
 "RAM_USAGE" = "RAM-Nutzung";
 "FPS" = "FPS";
 

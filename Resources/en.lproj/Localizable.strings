@@ -34,17 +34,17 @@
 "ABOUT" = "About";
 
 /* Processing Settings */
-"METAL_ACCELERATION" = "Metal Acceleration";
-"METAL_DESC" = "Use GPU for image processing to reduce CPU usage.";
 "SERIAL_TELEMETRY" = "Serial Telemetry";
 "SERIAL_TELEMETRY_DESC" = "Real-time communication metrics for the light strip hardware link.";
 "DATA_RATE" = "Data Rate";
 "PACKETS_PER_SEC" = "Packets/Sec";
 "WRITE_LATENCY" = "Write Latency";
+"BUFFER_SIZE" = "Transmit Buffer";
+"WRITE_ERRORS" = "Write Errors";
+"RECONNECT_COUNT" = "Reconnects";
 "TOTAL_PACKETS" = "Total Packets";
 "SYSTEM_RESOURCE" = "System Resources";
 "PERFORMANCE_STATS" = "Performance Stats";
-"CPU_USAGE" = "CPU Usage";
 "RAM_USAGE" = "RAM Usage";
 "FPS" = "FPS";
 

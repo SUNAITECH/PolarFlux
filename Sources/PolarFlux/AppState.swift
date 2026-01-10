@@ -5,7 +5,6 @@ import AppKit
 import Darwin
 
 struct PerformanceMetrics {
-    var cpuUsage: Double = 0.0
     var ramUsage: Double = 0.0
     var fps: Double = 0.0
     var metalEnabled: Bool = false
@@ -15,6 +14,9 @@ struct PerformanceMetrics {
     var dataRate: Double = 0.0 // KB/s
     var serialLatency: Double = 0.0 // ms
     var pps: Double = 0.0 // Packets Per Second
+    var writeErrors: Int = 0
+    var reconnects: Int = 0
+    var bufferSize: Int = 0
 }
 
 struct HealthCheckItem: Identifiable {
@@ -1423,16 +1425,10 @@ class AppState: ObservableObject {
 
     // MARK: - Health & Performance
     private func startHealthMonitor() {
-        startCPUUsageLoop()
         healthTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             self.updateMetrics()
         }
-    }
-    
-    // CPU Loop State for robust calculation
-    private func startCPUUsageLoop() {
-        // No-op
     }
     
     private func updateMetrics() {
@@ -1440,15 +1436,12 @@ class AppState: ObservableObject {
         let deltaTime = now - lastMetricTime
         lastMetricTime = now
         
-        // CPU
-        let cpu = getCPUUsage()
-        
-        // RAM
-        var taskInfo = task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<task_basic_info_data_t>.size / MemoryLayout<natural_t>.size)
+        // RAM (Resident Size using Mach TASK_BASIC_INFO_64)
+        var taskInfo = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info_data_t>.size / MemoryLayout<natural_t>.size)
         let _ = withUnsafeMutablePointer(to: &taskInfo) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self_, task_flavor_t(TASK_BASIC_INFO), $0, &count)
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
             }
         }
         let ram = Double(taskInfo.resident_size) / 1024.0 / 1024.0
@@ -1467,14 +1460,16 @@ class AppState: ObservableObject {
         let ppsCalculation = (deltaTime > 0) ? (Double(deltaPackets) / deltaTime) : 0.0
         
         self.performanceMetrics = PerformanceMetrics(
-            cpuUsage: cpu,
             ramUsage: ram,
             fps: self.targetFrameRate, // Approximation for UI
             metalEnabled: self.useMetal,
             totalPackets: currentPackets,
             dataRate: dataRateCalculation,
             serialLatency: serialPort.lastWriteLatency * 1000.0, // to ms
-            pps: ppsCalculation
+            pps: ppsCalculation,
+            writeErrors: serialPort.writeErrorCount,
+            reconnects: serialPort.reconnectCount,
+            bufferSize: serialPort.outputQueueSize
         )
         
         // Health Checks
@@ -1485,33 +1480,8 @@ class AppState: ObservableObject {
         self.healthChecks = checks
     }
     
-    private func getCPUUsage() -> Double {
-        var threadsList: thread_act_array_t?
-        var threadsCount: mach_msg_type_number_t = 0
-        let kr = task_threads(mach_task_self_, &threadsList, &threadsCount)
-        if kr != KERN_SUCCESS { return 0.0 }
-        
-        let usageScale = Double(1000)
-        
-        var totalCpu: Double = 0.0
-        if let threadsList = threadsList {
-            for i in 0..<Int(threadsCount) {
-                var threadInfo = thread_basic_info()
-                var threadInfoCount = mach_msg_type_number_t(MemoryLayout<thread_basic_info_data_t>.size / MemoryLayout<natural_t>.size)
-                let interiorKr = withUnsafeMutablePointer(to: &threadInfo) {
-                    $0.withMemoryRebound(to: integer_t.self, capacity: Int(threadInfoCount)) {
-                        thread_info(threadsList[i], thread_flavor_t(THREAD_BASIC_INFO), $0, &threadInfoCount)
-                    }
-                }
-                if interiorKr == KERN_SUCCESS {
-                    totalCpu += (Double(threadInfo.cpu_usage) / usageScale) * 100.0
-                }
-            }
-            let size = Int(threadsCount) * MemoryLayout<thread_t>.stride
-            vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: threadsList)), vm_size_t(size))
-        }
-        return totalCpu
-    }
+    // Process CPU time logic removed due to platform-specific accounting discrepancies
+    
 }
 
 extension AppState: @unchecked Sendable {}

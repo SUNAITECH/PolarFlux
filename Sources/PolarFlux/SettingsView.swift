@@ -329,6 +329,27 @@ struct SettingsView: View {
                             .foregroundColor(appState.performanceMetrics.serialLatency > 5.0 ? .orange : .secondary)
                     }
                     HStack {
+                        Text(String(localized: "BUFFER_SIZE"))
+                        Spacer()
+                        Text(String(format: "%d B", appState.performanceMetrics.bufferSize))
+                            .monospacedDigit()
+                            .foregroundColor(appState.performanceMetrics.bufferSize > 256 ? .orange : .secondary)
+                    }
+                    HStack {
+                        Text(String(localized: "WRITE_ERRORS"))
+                        Spacer()
+                        Text("\(appState.performanceMetrics.writeErrors)")
+                            .monospacedDigit()
+                            .foregroundColor(appState.performanceMetrics.writeErrors > 0 ? .red : .secondary)
+                    }
+                    HStack {
+                        Text(String(localized: "RECONNECT_COUNT"))
+                        Spacer()
+                        Text("\(appState.performanceMetrics.reconnects)")
+                            .monospacedDigit()
+                            .foregroundColor(.secondary)
+                    }
+                    HStack {
                         Text(String(localized: "TOTAL_PACKETS"))
                         Spacer()
                         Text("\(appState.performanceMetrics.totalPackets)")
@@ -341,12 +362,6 @@ struct SettingsView: View {
             
             GroupBox(String(localized: "SYSTEM_RESOURCE")) {
                 VStack(spacing: 12) {
-                    HStack {
-                        Text(String(localized: "CPU_USAGE"))
-                        Spacer()
-                        Text(String(format: "%.1f%%", appState.performanceMetrics.cpuUsage))
-                            .monospacedDigit()
-                    }
                     HStack {
                         Text(String(localized: "RAM_USAGE"))
                         Spacer()
