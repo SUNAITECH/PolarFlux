@@ -19,6 +19,10 @@ struct AboutView: View {
                 Text(String(format: String(localized: "VERSION"), version))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                
+                Link("GitHub: SUNAITECH/PolarFlux", destination: URL(string: "https://github.com/SUNAITECH/PolarFlux")!)
+                    .font(.caption)
+                    .foregroundColor(.accentColor)
             }
             
             VStack(spacing: 12) {

@@ -1,11 +1,17 @@
 import Foundation
 import Darwin
+import QuartzCore
 
 class SerialPort {
     private var fileDescriptor: Int32 = -1
     private let queue = DispatchQueue(label: "com.sunaish.polarflux.serial")
     
     var onDisconnect: (() -> Void)?
+    
+    // Performance Tracking
+    private(set) var totalBytesSent: UInt64 = 0
+    private(set) var totalPacketsSent: UInt64 = 0
+    private(set) var lastWriteLatency: Double = 0
     
     func listPorts() -> [String] {
         do {
@@ -136,6 +142,7 @@ class SerialPort {
         }
         
         queue.async {
+            let startTime = CACurrentMediaTime()
             data.withUnsafeBufferPointer { buffer in
                 guard let baseAddress = buffer.baseAddress else { return }
                 
@@ -152,8 +159,12 @@ class SerialPort {
                             self.onDisconnect?()
                         }
                     }
-                } else if bytesWritten < buffer.count {
-                    Logger.shared.log("Partial write: \(bytesWritten)/\(buffer.count)")
+                } else {
+                    self.totalBytesSent += UInt64(bytesWritten)
+                    self.totalPacketsSent += 1
+                    if bytesWritten < buffer.count {
+                        Logger.shared.log("Partial write: \(bytesWritten)/\(buffer.count)")
+                    }
                 }
                 
                 // Wait for data to be transmitted (matches C++ tcdrain)
@@ -175,6 +186,7 @@ class SerialPort {
                     usleep(4000) 
                 }
             }
+            self.lastWriteLatency = CACurrentMediaTime() - startTime
             completion?()
         }
     }

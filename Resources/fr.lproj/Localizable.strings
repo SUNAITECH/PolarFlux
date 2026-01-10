@@ -29,6 +29,13 @@
 /* Processing Settings */
 "METAL_ACCELERATION" = "Accélération Metal";
 "METAL_DESC" = "Utiliser le GPU pour traiter l'image et réduire l'usage CPU.";
+"SERIAL_TELEMETRY" = "Télémétrie Série";
+"SERIAL_TELEMETRY_DESC" = "Mesures de communication en temps réel pour la liaison matérielle LED.";
+"DATA_RATE" = "Débit de Données";
+"PACKETS_PER_SEC" = "Paquet/Sec";
+"WRITE_LATENCY" = "Latence d'Écriture";
+"TOTAL_PACKETS" = "Total des Paquets";
+"SYSTEM_RESOURCE" = "Ressources Système";
 "PERFORMANCE_STATS" = "Statistiques de Performance";
 "CPU_USAGE" = "Usage CPU";
 "RAM_USAGE" = "Usage RAM";

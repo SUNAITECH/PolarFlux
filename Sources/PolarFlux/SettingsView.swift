@@ -304,15 +304,42 @@ struct SettingsView: View {
     
     var performanceSettings: some View {
         VStack(alignment: .leading, spacing: 25) {
-            headerView(title: String(localized: "PERFORMANCE_STATS"), subtitle: String(localized: "METAL_DESC"), icon: "gauge")
+            headerView(title: String(localized: "PERFORMANCE_STATS"), subtitle: String(localized: "SERIAL_TELEMETRY_DESC"), icon: "gauge")
             
-            GroupBox(String(localized: "METAL_ACCELERATION")) {
-                Toggle(String(localized: "METAL_ACCELERATION"), isOn: $appState.useMetal)
-                    .toggleStyle(SwitchToggleStyle(tint: .blue))
-                    .padding()
+            GroupBox(String(localized: "SERIAL_TELEMETRY")) {
+                VStack(spacing: 12) {
+                    HStack {
+                        Text(String(localized: "DATA_RATE"))
+                        Spacer()
+                        Text(String(format: "%.2f KB/s", appState.performanceMetrics.dataRate))
+                            .monospacedDigit()
+                            .bold()
+                    }
+                    HStack {
+                        Text(String(localized: "PACKETS_PER_SEC"))
+                        Spacer()
+                        Text(String(format: "%.1f PPS", appState.performanceMetrics.pps))
+                            .monospacedDigit()
+                    }
+                    HStack {
+                        Text(String(localized: "WRITE_LATENCY"))
+                        Spacer()
+                        Text(String(format: "%.3f ms", appState.performanceMetrics.serialLatency))
+                            .monospacedDigit()
+                            .foregroundColor(appState.performanceMetrics.serialLatency > 5.0 ? .orange : .secondary)
+                    }
+                    HStack {
+                        Text(String(localized: "TOTAL_PACKETS"))
+                        Spacer()
+                        Text("\(appState.performanceMetrics.totalPackets)")
+                            .monospacedDigit()
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding()
             }
             
-            GroupBox(String(localized: "PERFORMANCE_STATS")) {
+            GroupBox(String(localized: "SYSTEM_RESOURCE")) {
                 VStack(spacing: 12) {
                     HStack {
                         Text(String(localized: "CPU_USAGE"))

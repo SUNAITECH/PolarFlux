@@ -9,6 +9,12 @@ struct PerformanceMetrics {
     var ramUsage: Double = 0.0
     var fps: Double = 0.0
     var metalEnabled: Bool = false
+    
+    // Serial Telemetry
+    var totalPackets: UInt64 = 0
+    var dataRate: Double = 0.0 // KB/s
+    var serialLatency: Double = 0.0 // ms
+    var pps: Double = 0.0 // Packets Per Second
 }
 
 struct HealthCheckItem: Identifiable {
@@ -75,6 +81,11 @@ class AppState: ObservableObject {
     @Published var performanceMetrics = PerformanceMetrics()
     @Published var healthChecks: [HealthCheckItem] = []
     private var healthTimer: Timer?
+    
+    // Telemetry Baselines
+    private var lastBytes: UInt64 = 0
+    private var lastPackets: UInt64 = 0
+    private var lastMetricTime: Double = CACurrentMediaTime()
     
     // Power Management
     @Published var powerMode: PowerMode = .abl
@@ -200,6 +211,10 @@ class AppState: ObservableObject {
     private var lastConnectionAttempt: Date = .distantPast
     
     init() {
+        let metalSupported = MetalProcessor.isSupported
+        self.useMetal = metalSupported
+        self.screenCapture.useMetal = metalSupported
+        
         refreshPorts()
         refreshMicrophones()
         loadSettings()
@@ -1010,8 +1025,8 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(colors, forKey: "effectColors")
         
         UserDefaults.standard.set(screenOrientation.rawValue, forKey: "screenOrientation")
-    UserDefaults.standard.set(perspectiveOriginMode.rawValue, forKey: "perspectiveOriginMode")
-    UserDefaults.standard.set(manualOriginPosition, forKey: "manualOriginPosition")
+        UserDefaults.standard.set(perspectiveOriginMode.rawValue, forKey: "perspectiveOriginMode")
+        UserDefaults.standard.set(manualOriginPosition, forKey: "manualOriginPosition")
         
         // Save Manual Color
         UserDefaults.standard.set(manualR, forKey: "manualR")
@@ -1421,6 +1436,10 @@ class AppState: ObservableObject {
     }
     
     private func updateMetrics() {
+        let now = CACurrentMediaTime()
+        let deltaTime = now - lastMetricTime
+        lastMetricTime = now
+        
         // CPU
         let cpu = getCPUUsage()
         
@@ -1434,17 +1453,34 @@ class AppState: ObservableObject {
         }
         let ram = Double(taskInfo.resident_size) / 1024.0 / 1024.0
         
+        // Serial Telemetry
+        let currentBytes = serialPort.totalBytesSent
+        let currentPackets = serialPort.totalPacketsSent
+        
+        let deltaBytes = (currentBytes >= lastBytes) ? (currentBytes - lastBytes) : 0
+        let deltaPackets = (currentPackets >= lastPackets) ? (currentPackets - lastPackets) : 0
+        
+        lastBytes = currentBytes
+        lastPackets = currentPackets
+        
+        let dataRateCalculation = (deltaTime > 0) ? (Double(deltaBytes) / 1024.0 / deltaTime) : 0.0
+        let ppsCalculation = (deltaTime > 0) ? (Double(deltaPackets) / deltaTime) : 0.0
+        
         self.performanceMetrics = PerformanceMetrics(
             cpuUsage: cpu,
             ramUsage: ram,
             fps: self.targetFrameRate, // Approximation for UI
-            metalEnabled: self.useMetal
+            metalEnabled: self.useMetal,
+            totalPackets: currentPackets,
+            dataRate: dataRateCalculation,
+            serialLatency: serialPort.lastWriteLatency * 1000.0, // to ms
+            pps: ppsCalculation
         )
         
         // Health Checks
         var checks: [HealthCheckItem] = []
         checks.append(HealthCheckItem(name: String(localized: "CHECK_SERIAL"), status: self.serialPort.isConnected, message: self.serialPort.isConnected ? String(localized: "HEALTH_GOOD") : String(localized: "HEALTH_ERROR")))
-        checks.append(HealthCheckItem(name: String(localized: "CHECK_METAL"), status: self.useMetal, message: self.useMetal ? String(localized: "HEALTH_GOOD") : String(localized: "CHECK_METAL")))
+        checks.append(HealthCheckItem(name: String(localized: "CHECK_METAL"), status: self.useMetal, message: self.useMetal ? String(localized: "HEALTH_GOOD") : String(localized: "HEALTH_ERROR")))
         
         self.healthChecks = checks
     }
@@ -1454,6 +1490,8 @@ class AppState: ObservableObject {
         var threadsCount: mach_msg_type_number_t = 0
         let kr = task_threads(mach_task_self_, &threadsList, &threadsCount)
         if kr != KERN_SUCCESS { return 0.0 }
+        
+        let usageScale = Double(1000)
         
         var totalCpu: Double = 0.0
         if let threadsList = threadsList {
@@ -1466,10 +1504,7 @@ class AppState: ObservableObject {
                     }
                 }
                 if interiorKr == KERN_SUCCESS {
-                    // let flags = threadInfo.flags
-                    // if (flags & THREAD_IS_IDLE) == 0 {
-                    totalCpu += (Double(threadInfo.cpu_usage) / Double(TH_USAGE_SCALE)) * 100.0
-                    // }
+                    totalCpu += (Double(threadInfo.cpu_usage) / usageScale) * 100.0
                 }
             }
             let size = Int(threadsCount) * MemoryLayout<thread_t>.stride

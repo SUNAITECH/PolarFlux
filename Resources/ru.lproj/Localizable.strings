@@ -29,6 +29,13 @@
 /* Processing Settings */
 "METAL_ACCELERATION" = "Ускорение Metal";
 "METAL_DESC" = "Использовать GPU для обработки изображений и снижения нагрузки на CPU.";
+"SERIAL_TELEMETRY" = "Метрики последовательного порта";
+"SERIAL_TELEMETRY_DESC" = "Метрики связи в реальном времени для аппаратного канала светодиодной ленты.";
+"DATA_RATE" = "Скорость передачи";
+"PACKETS_PER_SEC" = "Пак/сек";
+"WRITE_LATENCY" = "Задержка записи";
+"TOTAL_PACKETS" = "Всего пакетов";
+"SYSTEM_RESOURCE" = "Системные ресурсы";
 "PERFORMANCE_STATS" = "Статистика производительности";
 "CPU_USAGE" = "Загрузка ЦП";
 "RAM_USAGE" = "Использование RAM";

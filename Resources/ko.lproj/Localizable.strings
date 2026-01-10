@@ -29,6 +29,13 @@
 /* Processing Settings */
 "METAL_ACCELERATION" = "Metal 가속";
 "METAL_DESC" = "GPU를 사용하여 이미지 처리를 수행하고 CPU 사용량을 줄입니다。";
+"SERIAL_TELEMETRY" = "시리얼 원격 측정";
+"SERIAL_TELEMETRY_DESC" = "LED 하드웨어 링크의 실시간 통신 지표입니다.";
+"DATA_RATE" = "데이터 전송률";
+"PACKETS_PER_SEC" = "패킷/초";
+"WRITE_LATENCY" = "쓰기 지연 시간";
+"TOTAL_PACKETS" = "총 패킷 수";
+"SYSTEM_RESOURCE" = "시스템 리소스";
 "PERFORMANCE_STATS" = "성능 통계";
 "CPU_USAGE" = "CPU 사용량";
 "RAM_USAGE" = "RAM 사용량";

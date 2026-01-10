@@ -36,6 +36,13 @@
 /* Processing Settings */
 "METAL_ACCELERATION" = "Metal 硬件加速";
 "METAL_DESC" = "使用 GPU 进行图像处理以降低 CPU 占用。";
+"SERIAL_TELEMETRY" = "串口遥测";
+"SERIAL_TELEMETRY_DESC" = "灯带硬件链路的实时通信指标。";
+"DATA_RATE" = "数据速率";
+"PACKETS_PER_SEC" = "每秒包数";
+"WRITE_LATENCY" = "写入延迟";
+"TOTAL_PACKETS" = "累计数据包";
+"SYSTEM_RESOURCE" = "系统资源";
 "PERFORMANCE_STATS" = "性能统计";
 "CPU_USAGE" = "CPU 占用";
 "RAM_USAGE" = "内存占用";

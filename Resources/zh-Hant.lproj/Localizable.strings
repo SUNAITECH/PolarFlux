@@ -29,6 +29,13 @@
 /* Processing Settings */
 "METAL_ACCELERATION" = "Metal 硬體加速";
 "METAL_DESC" = "使用 GPU 進行圖像處理以降低 CPU 佔用。";
+"SERIAL_TELEMETRY" = "序列埠遙測";
+"SERIAL_TELEMETRY_DESC" = "燈帶硬體鏈路的即時通訊指標。";
+"DATA_RATE" = "數據速率";
+"PACKETS_PER_SEC" = "每秒包數";
+"WRITE_LATENCY" = "寫入延遲";
+"TOTAL_PACKETS" = "累計數據包";
+"SYSTEM_RESOURCE" = "系統資源";
 "PERFORMANCE_STATS" = "效能統計";
 "CPU_USAGE" = "CPU 佔用";
 "RAM_USAGE" = "記憶體佔用";

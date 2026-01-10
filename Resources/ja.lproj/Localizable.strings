@@ -29,6 +29,13 @@
 /* Processing Settings */
 "METAL_ACCELERATION" = "Metalアクセラレーション";
 "METAL_DESC" = "GPUを使用して画像処理を行い、CPU使用率を低減します。";
+"SERIAL_TELEMETRY" = "シリアルテレメトリ";
+"SERIAL_TELEMETRY_DESC" = "LEDハードウェアリンクのリアルタイム通信メトリクス。";
+"DATA_RATE" = "データレート";
+"PACKETS_PER_SEC" = "パケット/秒";
+"WRITE_LATENCY" = "書き込み遅延";
+"TOTAL_PACKETS" = "累計パケット数";
+"SYSTEM_RESOURCE" = "システムリソース";
 "PERFORMANCE_STATS" = "パフォーマンス統計";
 "CPU_USAGE" = "CPU使用率";
 "RAM_USAGE" = "RAM使用量";

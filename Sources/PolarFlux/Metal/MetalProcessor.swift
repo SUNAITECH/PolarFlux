@@ -3,6 +3,10 @@ import Metal
 import CoreVideo
 
 class MetalProcessor {
+    static var isSupported: Bool {
+        return MTLCreateSystemDefaultDevice() != nil
+    }
+    
     let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLComputePipelineState?
