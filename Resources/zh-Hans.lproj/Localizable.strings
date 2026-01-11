@@ -83,7 +83,7 @@
 "REVERSE_CCW" = "反向 (逆时针)";
 "ORIENTATION_DESC_STANDARD" = "标准: 左下 → 顶部 → 右侧 → 底部";
 "ORIENTATION_DESC_REVERSE" = "反向: 右下 → 顶部 → 左侧 → 底部";
-"ORIENTATION_TEST_NOTE" = "测试将运行两次“蛇形”跑马灯。请确保灯光从底部角落开始，并沿灯带按正确方向移动。";
+"ORIENTATION_TEST_NOTE" = "测试将运行两次“贪吃蛇”跑马灯。请确保灯光从底部角落开始，并沿灯带按正确方向移动。";
 "RUN_ORIENTATION_TEST" = "运行方向测试";
 "CAPTURE_SETTINGS" = "采集设置";
 "TARGET_FPS" = "目标帧率";

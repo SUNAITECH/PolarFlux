@@ -8,20 +8,20 @@
 "BRIGHTNESS" = "亮度";
 "EFFECT_SPEED" = "特效速度";
 "COLOR" = "顏色";
-"SETTINGS" = "設置";
-"QUIT" = "退出";
+"SETTINGS" = "設定";
+"QUIT" = "結束";
 
 /* Sidebar Sections */
 "HARDWARE" = "硬體";
 "PROCESSING" = "處理";
-"APP" = "應用";
+"APP" = "應用程式";
 
 /* Sidebar Items */
-"CONNECTION" = "連接";
+"CONNECTION" = "連線";
 "CONNECTION_SUBTITLE" = "序列埠與通訊設定";
 "LED_LAYOUT" = "LED 佈局";
 "LED_LAYOUT_SUBTITLE" = "設定 LED 燈條區域";
-"AUDIO" = "音訊設置";
+"AUDIO" = "音訊設定";
 "AUDIO_SUBTITLE" = "設定音樂模式專用麥克風";
 "MICROPHONE" = "麥克風:";
 "CALIBRATION" = "色彩校準";
@@ -29,29 +29,29 @@
 "POWER" = "電源";
 "POWER_SAFETY" = "電源安全";
 "POWER_SAFETY_SUBTITLE" = "保護您的硬體與電源供應";
-"GENERAL" = "常規";
+"GENERAL" = "一般";
 "GENERAL_SUBTITLE" = "應用程式行為與啟動設定";
 "SYNC_SETTINGS" = "同步設定";
-"SYNC_SETTINGS_SUBTITLE" = "配置螢幕捕獲、方向和透視校正";
+"SYNC_SETTINGS_SUBTITLE" = "設定螢幕擷取、方向和透視校正";
 "ABOUT" = "關於";
 
 /* Processing Settings */
 "SERIAL_TELEMETRY" = "序列埠遙測";
 "SERIAL_TELEMETRY_DESC" = "燈帶硬體鏈路的即時通訊指標。";
-"DATA_RATE" = "數據速率";
-"PACKETS_PER_SEC" = "每秒包數";
+"DATA_RATE" = "資料速率";
+"PACKETS_PER_SEC" = "每秒封包數";
 "WRITE_LATENCY" = "寫入延遲";
-"BUFFER_SIZE" = "發送緩衝區";
+"BUFFER_SIZE" = "傳送緩衝區";
 "WRITE_ERRORS" = "寫入錯誤";
-"RECONNECT_COUNT" = "重連次數";
-"TOTAL_PACKETS" = "累計數據包";
+"RECONNECT_COUNT" = "重新連線次數";
+"TOTAL_PACKETS" = "累計封包";
 "SYSTEM_RESOURCE" = "系統資源";
 "PERFORMANCE_STATS" = "效能統計";
-"RAM_USAGE" = "記憶體佔用";
+"RAM_USAGE" = "記憶體使用量";
 "FPS" = "幀率";
-"DATA_SINCE" = "數據自";
+"DATA_SINCE" = "資料統計自";
 "DATA_SINCE_SUFFIX" = " 以來";
-"RESET_STATS" = "重置統計";
+"RESET_STATS" = "重設統計";
 
 /* Health Check */
 "HEALTH_CHECK" = "系統狀態";
@@ -59,19 +59,19 @@
 "HEALTH_WARNING" = "警告";
 "HEALTH_ERROR" = "錯誤";
 "CHECK_PERMISSIONS" = "螢幕錄製權限";
-"CHECK_SERIAL" = "序列埠連接";
+"CHECK_SERIAL" = "序列埠連線";
 "CHECK_METAL" = "Metal 支援";
 
 /* Connection Settings */
-"SERIAL_PORT" = "串口:";
-"BAUD_RATE" = "波特率:";
-"REFRESH_PORTS" = "刷新端口";
-"NO_PORTS_FOUND" = "未找到端口";
+"SERIAL_PORT" = "序列埠:";
+"BAUD_RATE" = "鮑率:";
+"REFRESH_PORTS" = "重新整理連接埠";
+"NO_PORTS_FOUND" = "找不到連接埠";
 
 /* LED Layout */
 "ZONE_CONFIG" = "區域配置";
 "TOTAL_LEDS" = "LED 總數:";
-"AUTO_DETECT" = "自動檢測";
+"AUTO_DETECT" = "自動偵測";
 "AUTO" = "自動";
 "TOP_ZONE" = "頂部區域:";
 "BOTTOM_ZONE" = "底部區域:";
@@ -83,22 +83,22 @@
 "REVERSE_CCW" = "反向 (逆時針)";
 "ORIENTATION_DESC_STANDARD" = "標準: 左下 → 頂部 → 右側 → 底部";
 "ORIENTATION_DESC_REVERSE" = "反向: 右下 → 頂部 → 左側 → 底部";
-"ORIENTATION_TEST_NOTE" = "測試將運行兩次“蛇形”跑馬燈。請確保燈光從底部角落開始，並沿燈帶按正確方向移動。";
-"RUN_ORIENTATION_TEST" = "運行方向測試";
-"CAPTURE_SETTINGS" = "採集設置";
+"ORIENTATION_TEST_NOTE" = "測試將執行兩次「貪食蛇」跑馬燈。請確保燈光從底部角落開始，並沿燈帶按正確方向移動。";
+"RUN_ORIENTATION_TEST" = "執行方向測試";
+"CAPTURE_SETTINGS" = "擷取設定";
 "TARGET_FPS" = "目標幀率";
 
 /* Perspective Origin */
 "PERSPECTIVE_ORIGIN" = "透視原點";
 "ORIGIN_MODE" = "原點模式:";
 "MANUAL_POSITION" = "手動位置";
-"ORIGIN_DESC" = "當所有側邊都有 LED 時自動居中原點，或者吸附到最靠近缺失側的黃金分割點。";
+"ORIGIN_DESC" = "當所有邊都有 LED 時自動居中原點，或者吸附到最靠近缺失邊的黃金分割點。";
 
 /* Power Safety */
 "SAFETY_MODE" = "安全模式:";
-"SMART_PROTECTION" = "智能保護";
+"SMART_PROTECTION" = "智慧保護";
 "SAFE_MODE" = "安全模式";
-"AUTO_RECOVERY" = "自動恢復";
+"AUTO_RECOVERY" = "自動復原";
 "PROTECTION_LEVEL" = "保護等級";
 "MAX_BRIGHTNESS_LIMIT" = "最大亮度限制";
 
@@ -108,11 +108,11 @@
 "BLUE_GAIN" = "藍色增益";
 "GAMMA" = "伽馬";
 "SATURATION" = "飽和度";
-"RESET_DEFAULTS" = "重置為默認值";
+"RESET_DEFAULTS" = "重設為預設值";
 
 /* General */
-"LAUNCH_AT_LOGIN" = "開機自啟動";
-"QUIT_POLARFLUX" = "退出 PolarFlux";
+"LAUNCH_AT_LOGIN" = "登入時開啟";
+"QUIT_POLARFLUX" = "結束 PolarFlux";
 "LANGUAGE" = "語言";
 "SYSTEM_LANGUAGE" = "系統語言";
 
@@ -127,33 +127,33 @@
 "UNKNOWN" = "未知";
 
 /* Status Messages */
-"CONNECTED" = "已連接: %@";
-"CONNECTION_FAILED" = "連接失敗";
-"CONNECT_FIRST" = "請先連接以進行檢測";
-"DETECTED" = "檢測到: %@";
-"DETECTION_FAILED" = "檢測失敗";
+"CONNECTED" = "已連線: %@";
+"CONNECTION_FAILED" = "連線失敗";
+"CONNECT_FIRST" = "請先連線以進行偵測";
+"DETECTED" = "偵測到: %@";
+"DETECTION_FAILED" = "偵測失敗";
 "TESTING_ORIENTATION" = "正在測試方向...";
 "TEST_COMPLETE" = "測試完成";
-"NO_DISPLAY_FOUND" = "未找到顯示器";
+"NO_DISPLAY_FOUND" = "找不到顯示器";
 "PERMISSION_DENIED" = "螢幕錄製權限被拒絕";
-"POWER_LIMITED_SMART" = "智能保護已降低亮度";
+"POWER_LIMITED_SMART" = "智慧保護已降低亮度";
 "POWER_LIMITED_SAFE" = "安全模式限制";
 
 /* AppState Status */
 "READY" = "就緒";
 "CONNECTING" = "正在連接...";
 "STOPPED" = "已停止";
-"RUNNING_MODE" = "運行中: %@";
-"SYSTEM_SLEEPING" = "系統休眠 — 燈效已暫停";
-"SYSTEM_WAKING" = "系統喚醒。正在重啟燈效...";
-"DISPLAYS_SLEEPING" = "顯示器休眠 — 燈效已暫停";
-"DISPLAYS_WAKING" = "顯示器已激活。正在重啟燈效...";
-"SESSION_LOCKED" = "會話鎖定 — 燈效已暫停";
-"SESSION_UNLOCKED" = "會話解鎖。正在重啟燈效...";
-"CONNECTION_LOST" = "連接丟失";
+"RUNNING_MODE" = "執行中: %@";
+"SYSTEM_SLEEPING" = "系統睡眠 — 燈效已暫停";
+"SYSTEM_WAKING" = "系統喚醒。正在重新啟動燈效...";
+"DISPLAYS_SLEEPING" = "顯示器睡眠 — 燈效已暫停";
+"DISPLAYS_WAKING" = "顯示器已喚醒。正在重新啟動燈效...";
+"SESSION_LOCKED" = "工作階段鎖定 — 燈效已暫停";
+"SESSION_UNLOCKED" = "工作階段解鎖。正在重新啟動燈效...";
+"CONNECTION_LOST" = "失去連線";
 "SMART_FALLBACK_TRIGGERED" = "達到功率限制 - 正在降低亮度";
-"AUTO_RESTARTING" = "正在以 %d%% 亮度自動重啟";
-"RESTART_REQUIRED" = "重啟應用以生效";
+"AUTO_RESTARTING" = "正在以 %d%% 亮度自動重新啟動";
+"RESTART_REQUIRED" = "請重新啟動程式以生效";
 
 /* Modes & Enums */
 "SCREEN_SYNC" = "螢幕同步";
@@ -162,8 +162,8 @@
 "MANUAL" = "手動模式";
 
 "AUTO_BRIGHTNESS_LIMITER" = "自動亮度限制 (ABL)";
-"GLOBAL_BRIGHTNESS_CAP" = "全局亮度上限";
-"SMART_FALLBACK" = "智能故障恢復";
+"GLOBAL_BRIGHTNESS_CAP" = "全域亮度上限";
+"SMART_FALLBACK" = "智慧故障復原";
 
 "STANDARD_CW_FULL" = "標準 (從左下角順時針)";
 "REVERSE_CCW_FULL" = "反向 (從右下角逆時針)";
@@ -175,7 +175,7 @@
 "EFFECT_KNIGHT_RIDER" = "霹靂遊俠";
 "EFFECT_POLICE" = "警燈";
 "EFFECT_CANDLE" = "燭光";
-"EFFECT_PLASMA" = "等離子";
+"EFFECT_PLASMA" = "電漿";
 "EFFECT_STROBE" = "頻閃";
 "EFFECT_ATOMIC" = "原子旋轉";
 "EFFECT_FIRE" = "火焰";
@@ -192,6 +192,6 @@
 
 /* About View */
 "VERSION" = "版本 %@";
-"LICENSE_AGREEMENT" = "許可協議";
+"LICENSE_AGREEMENT" = "授權協議";
 "COPYRIGHT" = "© 2025 上海蘇奈科技有限公司";
-"LICENSE_INFO" = "基於 MIT 許可證發佈";
+"LICENSE_INFO" = "基於 MIT 授權條款發佈";
