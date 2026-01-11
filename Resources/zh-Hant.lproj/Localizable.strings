@@ -18,12 +18,19 @@
 
 /* Sidebar Items */
 "CONNECTION" = "連接";
+"CONNECTION_SUBTITLE" = "序列埠與通訊設定";
 "LED_LAYOUT" = "LED 佈局";
+"LED_LAYOUT_SUBTITLE" = "設定 LED 燈條區域";
 "AUDIO" = "音訊設置";
+"AUDIO_SUBTITLE" = "設定音樂模式專用麥克風";
 "MICROPHONE" = "麥克風:";
 "CALIBRATION" = "色彩校準";
+"CALIBRATION_SUBTITLE" = "校準色彩準確性與 Gamma";
 "POWER" = "電源";
+"POWER_SAFETY" = "電源安全";
+"POWER_SAFETY_SUBTITLE" = "保護您的硬體與電源供應";
 "GENERAL" = "常規";
+"GENERAL_SUBTITLE" = "應用程式行為與啟動設定";
 "ABOUT" = "關於";
 
 /* Processing Settings */
@@ -86,7 +93,6 @@
 "ORIGIN_DESC" = "當所有側邊都有 LED 時自動居中原點，或者吸附到最靠近缺失側的黃金分割點。";
 
 /* Power Safety */
-"POWER_SAFETY" = "電源安全";
 "SAFETY_MODE" = "安全模式:";
 "SMART_PROTECTION" = "智能保護";
 "SAFE_MODE" = "安全模式";

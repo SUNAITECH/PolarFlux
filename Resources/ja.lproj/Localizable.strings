@@ -18,12 +18,19 @@
 
 /* Sidebar Items */
 "CONNECTION" = "接続";
+"CONNECTION_SUBTITLE" = "シリアルポートと通信設定";
 "LED_LAYOUT" = "LED レイアウト";
+"LED_LAYOUT_SUBTITLE" = "LEDストリップのゾーン設定";
 "AUDIO" = "オーディオ";
+"AUDIO_SUBTITLE" = "ミュージックモード用マイク設定";
 "MICROPHONE" = "マイク:";
 "CALIBRATION" = "キャリブレーション";
+"CALIBRATION_SUBTITLE" = "色の正確さとガンマの微調整";
 "POWER" = "電源";
+"POWER_SAFETY" = "電源の安全性";
+"POWER_SAFETY_SUBTITLE" = "ハードウェアと電源の保護";
 "GENERAL" = "一般";
+"GENERAL_SUBTITLE" = "アプリの動作と起動設定";
 "ABOUT" = "情報";
 
 /* Processing Settings */
@@ -32,6 +39,9 @@
 "DATA_RATE" = "データレート";
 "PACKETS_PER_SEC" = "パケット/秒";
 "WRITE_LATENCY" = "書き込み遅延";
+"BUFFER_SIZE" = "送信バッファ";
+"WRITE_ERRORS" = "書き込みエラー";
+"RECONNECT_COUNT" = "再接続回数";
 "TOTAL_PACKETS" = "累計パケット数";
 "SYSTEM_RESOURCE" = "システムリソース";
 "PERFORMANCE_STATS" = "パフォーマンス統計";
@@ -83,7 +93,6 @@
 "ORIGIN_DESC" = "すべての側面に LED がある場合は原点を自動的に中央に配置し、そうでない場合は欠落している側に最も近い黄金比ポイントにスナップします。";
 
 /* Power Safety */
-"POWER_SAFETY" = "電源の安全性";
 "SAFETY_MODE" = "安全モード:";
 "SMART_PROTECTION" = "スマート保護";
 "SAFE_MODE" = "セーフモード";

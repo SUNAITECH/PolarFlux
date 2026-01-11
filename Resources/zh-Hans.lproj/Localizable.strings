@@ -93,7 +93,6 @@
 "ORIGIN_DESC" = "当所有侧边都有 LED 时自动居中原点，或者吸附到最靠近缺失侧的黄金分割点。";
 
 /* Power Safety */
-"POWER_SAFETY" = "电源安全";
 "SAFETY_MODE" = "安全模式:";
 "SMART_PROTECTION" = "智能保护";
 "SAFE_MODE" = "安全模式";

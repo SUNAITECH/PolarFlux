@@ -18,12 +18,19 @@
 
 /* Sidebar Items */
 "CONNECTION" = "Conexión";
+"CONNECTION_SUBTITLE" = "Puerto serie y comunicación";
 "LED_LAYOUT" = "Diseño LED";
+"LED_LAYOUT_SUBTITLE" = "Configuración de zonas de tira LED";
 "AUDIO" = "Audio";
+"AUDIO_SUBTITLE" = "Configurar micrófono para Modo Música";
 "MICROPHONE" = "Micrófono:";
 "CALIBRATION" = "Calibración";
+"CALIBRATION_SUBTITLE" = "Ajustar precisión de color y gamma";
 "POWER" = "Energía";
+"POWER_SAFETY" = "Seguridad de energía";
+"POWER_SAFETY_SUBTITLE" = "Proteger hardware y fuente de alimentación";
 "GENERAL" = "General";
+"GENERAL_SUBTITLE" = "Comportamiento y inicio de la aplicación";
 "ABOUT" = "Acerca de";
 
 /* Processing Settings */
@@ -32,6 +39,9 @@
 "DATA_RATE" = "Tasa de Datos";
 "PACKETS_PER_SEC" = "Paquetes/Seg";
 "WRITE_LATENCY" = "Latencia de Escritura";
+"BUFFER_SIZE" = "Búfer de transmisión";
+"WRITE_ERRORS" = "Errores de escritura";
+"RECONNECT_COUNT" = "Reconexiones";
 "TOTAL_PACKETS" = "Paquetes Totales";
 "SYSTEM_RESOURCE" = "Recursos del Sistema";
 "PERFORMANCE_STATS" = "Estadísticas de Rendimiento";
@@ -83,13 +93,12 @@
 "ORIGIN_DESC" = "Centra el origen automáticamente si todos los lados tienen LEDs, o se ajusta al punto de proporción áurea más cercano al lado que falta.";
 
 /* Power Safety */
-"POWER_SAFETY" = "Seguridad de energía";
 "SAFETY_MODE" = "Modo de seguridad:";
 "SMART_PROTECTION" = "Protección inteligente";
 "SAFE_MODE" = "Modo seguro";
 "AUTO_RECOVERY" = "Auto-recuperación";
 "PROTECTION_LEVEL" = "Nivel de protección";
-"MAX_BRIGHTNESS_LIMIT" = "Límite de brillo máx.";
+"MAX_BRIGHTNESS_LIMIT" = "Límite de brillo máximo";
 
 /* Calibration */
 "RED_GAIN" = "Ganancia Roja";

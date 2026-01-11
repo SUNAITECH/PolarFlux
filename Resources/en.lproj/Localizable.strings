@@ -93,7 +93,6 @@
 "ORIGIN_DESC" = "Auto centers the origin when all sides have LEDs or snaps to the golden-ratio point closest to the missing side.";
 
 /* Power Safety */
-"POWER_SAFETY" = "Power Safety";
 "SAFETY_MODE" = "Safety Mode:";
 "SMART_PROTECTION" = "Smart Protection";
 "SAFE_MODE" = "Safe Mode";

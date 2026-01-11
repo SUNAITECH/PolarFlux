@@ -18,12 +18,19 @@
 
 /* Sidebar Items */
 "CONNECTION" = "연결";
+"CONNECTION_SUBTITLE" = "시리얼 포트 및 통신 설정";
 "LED_LAYOUT" = "LED 레이아웃";
+"LED_LAYOUT_SUBTITLE" = "LED 스트립 구역 설정";
 "AUDIO" = "오디오";
+"AUDIO_SUBTITLE" = "음악 모드용 마이크 설정";
 "MICROPHONE" = "마이크:";
 "CALIBRATION" = "보정";
+"CALIBRATION_SUBTITLE" = "색상 정확도 및 감마 미세 조정";
 "POWER" = "전원";
+"POWER_SAFETY" = "전원 안전";
+"POWER_SAFETY_SUBTITLE" = "하드웨어 및 전원 공급 장치 보호";
 "GENERAL" = "일반";
+"GENERAL_SUBTITLE" = "애플리케이션 동작 및 시작 설정";
 "ABOUT" = "정보";
 
 /* Processing Settings */
@@ -32,6 +39,9 @@
 "DATA_RATE" = "데이터 전송률";
 "PACKETS_PER_SEC" = "패킷/초";
 "WRITE_LATENCY" = "쓰기 지연 시간";
+"BUFFER_SIZE" = "전송 버퍼";
+"WRITE_ERRORS" = "쓰기 오류";
+"RECONNECT_COUNT" = "재연결 횟수";
 "TOTAL_PACKETS" = "총 패킷 수";
 "SYSTEM_RESOURCE" = "시스템 리소스";
 "PERFORMANCE_STATS" = "성능 통계";
@@ -83,7 +93,6 @@
 "ORIGIN_DESC" = "모든 측면에 LED가 있는 경우 원점을 자동으로 중앙에 배치하거나, 누락된 측면에 가장 가까운 황금비 지점에 맞춥니다.";
 
 /* Power Safety */
-"POWER_SAFETY" = "전원 안전";
 "SAFETY_MODE" = "안전 모드:";
 "SMART_PROTECTION" = "스마트 보호";
 "SAFE_MODE" = "안전 모드";

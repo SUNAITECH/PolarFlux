@@ -18,12 +18,19 @@
 
 /* Sidebar Items */
 "CONNECTION" = "Verbindung";
+"CONNECTION_SUBTITLE" = "Serielle Schnittstelle und Kommunikation";
 "LED_LAYOUT" = "LED-Layout";
+"LED_LAYOUT_SUBTITLE" = "Konfiguration der LED-Zonen";
 "AUDIO" = "Audio";
+"AUDIO_SUBTITLE" = "Mikrofon für Musikmodus konfigurieren";
 "MICROPHONE" = "Mikrofon:";
 "CALIBRATION" = "Kalibrierung";
+"CALIBRATION_SUBTITLE" = "Farbgenauigkeit und Gamma anpassen";
 "POWER" = "Stromversorgung";
+"POWER_SAFETY" = "Stromsicherheit";
+"POWER_SAFETY_SUBTITLE" = "Hardware und Netzteil schützen";
 "GENERAL" = "Allgemein";
+"GENERAL_SUBTITLE" = "Verhalten und Start der App";
 "ABOUT" = "Über";
 
 /* Processing Settings */
@@ -32,6 +39,9 @@
 "DATA_RATE" = "Datenrate";
 "PACKETS_PER_SEC" = "Pakete/Sek";
 "WRITE_LATENCY" = "Schreiblatenz";
+"BUFFER_SIZE" = "Sendepuffer";
+"WRITE_ERRORS" = "Schreibfehler";
+"RECONNECT_COUNT" = "Verbindungsversuche";
 "TOTAL_PACKETS" = "Gesamtpakete";
 "SYSTEM_RESOURCE" = "Systemressourcen";
 "PERFORMANCE_STATS" = "Leistungsstatistiken";
@@ -83,7 +93,6 @@
 "ORIGIN_DESC" = "Zentriert den Ursprung automatisch, wenn alle Seiten LEDs haben, oder springt zum Punkt des Goldenen Schnitts, der der fehlenden Seite am nächsten liegt.";
 
 /* Power Safety */
-"POWER_SAFETY" = "Stromsicherheit";
 "SAFETY_MODE" = "Sicherheitsmodus:";
 "SMART_PROTECTION" = "Intelligenter Schutz";
 "SAFE_MODE" = "Sicherer Modus";

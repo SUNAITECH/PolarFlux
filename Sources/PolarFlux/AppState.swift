@@ -88,6 +88,8 @@ class AppState: ObservableObject {
         didSet {
             UserDefaults.standard.set(appLanguage, forKey: "appLanguage")
             updateLocale()
+            // Immediately update the most visible status strings
+            statusMessage = String(localized: "READY", locale: currentLocale)
         }
     }
     @Published var currentLocale: Locale = .current
@@ -213,7 +215,7 @@ class AppState: ObservableObject {
     
     func languageName(for code: String) -> String {
         switch code {
-        case "System": return String(localized: "SYSTEM_LANGUAGE")
+        case "System": return String(localized: "SYSTEM_LANGUAGE", locale: currentLocale)
         case "en": return "English"
         case "zh-Hans": return "简体中文"
         case "zh-Hant": return "繁體中文"
@@ -230,8 +232,11 @@ class AppState: ObservableObject {
     private func updateLocale() {
         if appLanguage == "System" {
             currentLocale = .current
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
         } else {
             currentLocale = Locale(identifier: appLanguage)
+            // Force the system to use the selected language on next launch
+            UserDefaults.standard.set([appLanguage], forKey: "AppleLanguages")
         }
     }
     

@@ -18,12 +18,19 @@
 
 /* Sidebar Items */
 "CONNECTION" = "Connexion";
+"CONNECTION_SUBTITLE" = "Paramètres du port série et communication";
 "LED_LAYOUT" = "Disposition LED";
+"LED_LAYOUT_SUBTITLE" = "Configurer les zones du ruban LED";
 "AUDIO" = "Audio";
+"AUDIO_SUBTITLE" = "Configurer le micro pour le Mode Musique";
 "MICROPHONE" = "Microphone :";
 "CALIBRATION" = "Étalonnage";
+"CALIBRATION_SUBTITLE" = "Ajuster la précision des couleurs et gamma";
 "POWER" = "Alimentation";
+"POWER_SAFETY" = "Sécurité d'alimentation";
+"POWER_SAFETY_SUBTITLE" = "Protéger le matériel et l'alimentation";
 "GENERAL" = "Général";
+"GENERAL_SUBTITLE" = "Comportement et démarrage de l'app";
 "ABOUT" = "À propos";
 
 /* Processing Settings */
@@ -32,6 +39,9 @@
 "DATA_RATE" = "Débit de Données";
 "PACKETS_PER_SEC" = "Paquet/Sec";
 "WRITE_LATENCY" = "Latence d'Écriture";
+"BUFFER_SIZE" = "Tampon de transmission";
+"WRITE_ERRORS" = "Erreurs d'écriture";
+"RECONNECT_COUNT" = "Reconnexions";
 "TOTAL_PACKETS" = "Total des Paquets";
 "SYSTEM_RESOURCE" = "Ressources Système";
 "PERFORMANCE_STATS" = "Statistiques de Performance";
@@ -61,7 +71,6 @@
 "TOTAL_LEDS" = "Total des LED :";
 "AUTO_DETECT" = "Détection automatique";
 "AUTO" = "Auto";
-"MANUAL" = "Manuel";
 "TOP_ZONE" = "Zone supérieure :";
 "BOTTOM_ZONE" = "Zone inférieure :";
 "LEFT_ZONE" = "Zone gauche :";
@@ -84,7 +93,6 @@
 "ORIGIN_DESC" = "Centre l'origine automatiquement si tous les côtés ont des LED, ou se fixe sur le point du nombre d'or le plus proche du côté manquant.";
 
 /* Power Safety */
-"POWER_SAFETY" = "Sécurité d'alimentation";
 "SAFETY_MODE" = "Mode de sécurité :";
 "SMART_PROTECTION" = "Protection intelligente";
 "SAFE_MODE" = "Mode sans échec";
