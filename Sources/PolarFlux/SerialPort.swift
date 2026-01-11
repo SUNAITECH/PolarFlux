@@ -19,7 +19,7 @@ class SerialPort {
         return isConnectedInternal && fileDescriptor >= 0
     }
     
-    private let targetDevicePacing: Double = 0.004 // 4ms assumed device processing capability
+    private let targetDevicePacing: Double = 0.004 // DEPRECATED: 4ms assumed device processing capability
     
     var onDisconnect: (() -> Void)?
     

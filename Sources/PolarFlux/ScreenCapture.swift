@@ -163,11 +163,11 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var currentLedCount: Int = 0
     private var currentOrientation: ScreenOrientation = .standard
     private var currentBrightness: Double = 1.0
-    private var currentTargetFrameRate: Double = 60.0
+    private var currentTargetFrameRate: Double = 60.0 // DEPRECATED
     private var currentCalibration: (r: Double, g: Double, b: Double) = (1.0, 1.0, 1.0)
     private var currentGamma: Double = 1.0
     private var currentSaturation: Double = 1.0
-    private var lastProcessTime: TimeInterval = 0
+    private var lastProcessTime: TimeInterval = 0 // DEPRECATED
     private var lastOutputColors: [(UInt8, UInt8, UInt8)] = []
     private var currentSceneIntensity: Double = 0.0
     

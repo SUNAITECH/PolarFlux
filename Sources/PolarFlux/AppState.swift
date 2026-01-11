@@ -87,7 +87,7 @@ class AppState: ObservableObject {
     @Published var performanceMetrics = PerformanceMetrics()
     @Published var healthChecks: [HealthCheckItem] = []
     @Published var lastResetTime: Date?
-    let appStartTime = Date()
+    let appStartTime = Date() // DEPRECATED
     @Published var appLanguage: String = "System" {
         didSet {
             UserDefaults.standard.set(appLanguage, forKey: "appLanguage")
@@ -122,7 +122,7 @@ class AppState: ObservableObject {
     // Sync Settings
     @Published var screenOrientation: ScreenOrientation = .standard
     @Published var targetFrameRate: Double = 60.0
-    @Published var searchDepth: Double = 0.8 // 80% inwards search
+    @Published var searchDepth: Double = 0.8 // DEPRECATED: 80% inwards search
     @Published var syncBrightness: Double = 1.0 // Separate brightness for Sync
     @Published var perspectiveOriginMode: PerspectiveOriginMode = .auto
     @Published var manualOriginPosition: Double = 0.5
@@ -249,7 +249,7 @@ class AppState: ObservableObject {
     }
     
     private var isSending = false
-    private var isCapturing = false
+    private var isCapturing = false // DEPRECATED
     private var cachedDisplay: SCDisplay?
     private var serialPort = SerialPort()
     private var screenCapture = ScreenCapture()
