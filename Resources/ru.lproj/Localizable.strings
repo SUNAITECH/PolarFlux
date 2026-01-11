@@ -65,6 +65,11 @@
 /* Connection Settings */
 "SERIAL_PORT" = "Последовательный порт:";
 "BAUD_RATE" = "Скорость (Бод):";
+"TEST_BAUD_RATE" = "Тест скорости";
+"BAUD_RATE_STABILITY" = "Тест соединения";
+"TEST_SUCCESS" = "Совместимо";
+"TEST_FAILED" = "Нет ответа";
+"TESTING" = "Тестирование...";
 "REFRESH_PORTS" = "Обновить порты";
 "NO_PORTS_FOUND" = "Порты не найдены";
 

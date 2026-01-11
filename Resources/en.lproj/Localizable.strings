@@ -65,6 +65,11 @@
 /* Connection Settings */
 "SERIAL_PORT" = "Serial Port:";
 "BAUD_RATE" = "Baud Rate:";
+"TEST_BAUD_RATE" = "Test Speed";
+"BAUD_RATE_STABILITY" = "Connection Test";
+"TEST_SUCCESS" = "Compatible";
+"TEST_FAILED" = "No Response";
+"TESTING" = "Testing...";
 "REFRESH_PORTS" = "Refresh Ports";
 "NO_PORTS_FOUND" = "No ports found";
 

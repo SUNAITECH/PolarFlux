@@ -11,7 +11,14 @@ class SerialPort {
     private var isSending: Bool = false
     private let lock = NSLock()
     
-    // Adaptive Timing
+    // Connection State
+    private var isConnectedInternal: Bool = false
+    var isConnected: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isConnectedInternal && fileDescriptor >= 0
+    }
+    
     private let targetDevicePacing: Double = 0.004 // 4ms assumed device processing capability
     
     var onDisconnect: (() -> Void)?
@@ -52,17 +59,14 @@ class SerialPort {
     }
     
     func connect(path: String, baudRate: Int) -> Bool {
-        // Ensure any previous connection is closed properly on the queue
-        queue.sync {
-            self.closeInternal()
-        }
+        // Close any existing connection first
+        self.closeInternal()
         
         self.reconnectCount += 1
         
         // Open the serial port
         // O_RDWR - Read and write
         // O_NOCTTY - No controlling terminal
-        // Removed O_NONBLOCK to use blocking mode (handled by background queue)
         let fd = open(path, O_RDWR | O_NOCTTY)
         if fd == -1 {
             Logger.shared.log("Error opening port \(path): \(errno)")
@@ -132,40 +136,36 @@ class SerialPort {
         }
         
         // Update state in a thread-safe way
-        queue.sync {
-            self.fileDescriptor = fd
-            self.isConnectedState = true
-        }
+        lock.lock()
+        self.fileDescriptor = fd
+        self.isConnectedInternal = true
+        lock.unlock()
+        
         Logger.shared.log("Connected to \(path) with baud rate \(baudRate)")
         return true
     }
     
     func disconnect() {
-        queue.sync {
-            self.closeInternal()
-        }
+        self.closeInternal()
     }
     
-    // Must be called on queue
+    // Must be called on queue or protected by lock
     private func closeInternal() {
+        lock.lock()
         if fileDescriptor >= 0 {
             Logger.shared.log("Closing serial port")
             Darwin.close(fileDescriptor)
             fileDescriptor = -1
-            isConnectedState = false
+            isConnectedInternal = false
+            pendingData = nil
         }
-    }
-    
-    // Thread-safe check for connection status
-    private var isConnectedState: Bool = false
-    var isConnected: Bool {
-        return queue.sync { isConnectedState }
+        lock.unlock()
     }
     
     func send(data: [UInt8], completion: (() -> Void)? = nil) {
         // Non-blocking Send Queue with "Overwrite Oldest" strategy
         lock.lock()
-        if !isConnectedState {
+        if !isConnectedInternal {
             lock.unlock()
             completion?()
             return
@@ -191,29 +191,40 @@ class SerialPort {
     }
     
     private func transmitLoop() {
-        while true {
-            lock.lock()
-            guard let data = pendingData else {
-                isSending = false
-                lock.unlock()
-                return // Queue empty, stop loop
-            }
-            // Consume the data, clear pending
-            pendingData = nil
+        // We use a loop that can yield to allow other tasks (like close) to run
+        lock.lock()
+        guard isConnectedInternal, let data = pendingData else {
+            isSending = false
             lock.unlock()
-            
-            performWrite(data: data)
+            return // Stop loop
+        }
+        // Consume the data
+        pendingData = nil
+        lock.unlock()
+        
+        performWrite(data: data)
+        
+        // Yield and re-queue
+        queue.async { [weak self] in
+            self?.transmitLoop()
         }
     }
     
     private func performWrite(data: [UInt8]) {
         let startTime = CACurrentMediaTime()
         
+        lock.lock()
+        let fd = self.fileDescriptor
+        let isConnected = self.isConnectedInternal
+        lock.unlock()
+        
+        guard isConnected && fd >= 0 else { return }
+        
         data.withUnsafeBufferPointer { buffer in
             guard let baseAddress = buffer.baseAddress else { return }
             
             // Blocking write
-            let bytesWritten = write(self.fileDescriptor, baseAddress, buffer.count)
+            let bytesWritten = write(fd, baseAddress, buffer.count)
             
             if bytesWritten < 0 {
                 let err = errno
@@ -312,5 +323,57 @@ class SerialPort {
         }
         
         return nil
+    }
+
+    /// Safely probes a baud rate without affecting current application state beyond the serial link.
+    /// This is intended for background testing of baud rates.
+    func probeBaudRate(path: String, baudRate: Int) -> Bool {
+        // We use a temporary local file descriptor to avoid interfering with the main one
+        let fd = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK)
+        if fd == -1 { return false }
+        defer { Darwin.close(fd) }
+
+        var options = termios()
+        if tcgetattr(fd, &options) == -1 { return false }
+
+        let speed: speed_t
+        switch baudRate {
+        case 9600: speed = speed_t(B9600)
+        case 19200: speed = speed_t(B19200)
+        case 38400: speed = speed_t(B38400)
+        case 57600: speed = speed_t(B57600)
+        case 115200: speed = speed_t(B115200)
+        case 230400: speed = speed_t(230400)
+        case 460800: speed = speed_t(460800)
+        case 500000: speed = speed_t(500000)
+        case 921600: speed = speed_t(921600)
+        default: return false
+        }
+
+        cfsetispeed(&options, speed)
+        cfsetospeed(&options, speed)
+        
+        options.c_cflag &= ~tcflag_t(PARENB | CSTOPB | CSIZE)
+        options.c_cflag |= tcflag_t(CS8 | CLOCAL | CREAD)
+        options.c_lflag &= ~tcflag_t(ICANON | ECHO | ECHOE | ISIG)
+        options.c_iflag &= ~tcflag_t(IXON | IXOFF | IXANY | IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL)
+        options.c_oflag &= ~tcflag_t(OPOST | ONLCR)
+        options.c_cc.16 = 0 // VMIN=0 with O_NONBLOCK for immediate read
+        options.c_cc.17 = 5 // 500ms VTIME
+
+        if tcsetattr(fd, TCSANOW, &options) == -1 { return false }
+
+        // Probe with Handshake
+        tcflush(fd, TCIFLUSH)
+        var cmd = [UInt8]("Moni-A".utf8)
+        write(fd, &cmd, cmd.count)
+        
+        // Wait up to 200ms for response
+        usleep(200000)
+        
+        var buffer = [UInt8](repeating: 0, count: 32)
+        let n = read(fd, &buffer, buffer.count)
+        
+        return n > 0 && String(bytes: buffer.prefix(n), encoding: .utf8)?.contains("PolarFlux") == true || n > 0
     }
 }

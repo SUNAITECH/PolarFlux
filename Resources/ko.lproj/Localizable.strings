@@ -65,6 +65,11 @@
 /* Connection Settings */
 "SERIAL_PORT" = "시리얼 포트:";
 "BAUD_RATE" = "보드 레이트:";
+"TEST_BAUD_RATE" = "속도 테스트";
+"BAUD_RATE_STABILITY" = "연결 테스트";
+"TEST_SUCCESS" = "호환됨";
+"TEST_FAILED" = "응답 없음";
+"TESTING" = "테스트 중...";
 "REFRESH_PORTS" = "포트 새로고침";
 "NO_PORTS_FOUND" = "포트를 찾을 수 없음";
 

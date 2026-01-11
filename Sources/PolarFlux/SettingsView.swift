@@ -136,10 +136,29 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                     
-                    Button(action: { appState.refreshPorts() }) {
-                        Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
+                    HStack(spacing: 12) {
+                        Button(action: { appState.refreshPorts() }) {
+                            Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        
+                        Button(action: { appState.testCurrentBaudRate() }) {
+                            if appState.isProbingBaud {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Label(String(localized: "TEST_BAUD_RATE"), systemImage: "bolt.horizontal.circle")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(appState.isProbingBaud || appState.selectedPort.isEmpty || appState.selectedPort == "None")
+                        
+                        if let success = appState.lastBaudTestResult {
+                            Label(success ? String(localized: "TEST_SUCCESS") : String(localized: "TEST_FAILED"), 
+                                  systemImage: success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                .font(.caption2)
+                                .foregroundColor(success ? .green : .red)
+                        }
                     }
-                    .buttonStyle(.bordered)
                 }
                 .padding(10)
             }
@@ -343,7 +362,7 @@ struct SettingsView: View {
                         Spacer()
                         Text(String(format: "%.3f ms", appState.performanceMetrics.serialLatency))
                             .monospacedDigit()
-                            .foregroundColor(appState.performanceMetrics.serialLatency > 5.0 ? .orange : .secondary)
+                            .foregroundColor(appState.performanceMetrics.serialLatency > 0.1 ? .orange : .secondary)
                     }
                     HStack {
                         Text(String(localized: "BUFFER_SIZE"))

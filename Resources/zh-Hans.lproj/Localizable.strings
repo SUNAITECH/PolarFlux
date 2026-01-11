@@ -65,6 +65,11 @@
 /* Connection Settings */
 "SERIAL_PORT" = "串口:";
 "BAUD_RATE" = "波特率:";
+"TEST_BAUD_RATE" = "测试速度";
+"BAUD_RATE_STABILITY" = "连接测试";
+"TEST_SUCCESS" = "兼容";
+"TEST_FAILED" = "无响应";
+"TESTING" = "正在测试...";
 "REFRESH_PORTS" = "刷新端口";
 "NO_PORTS_FOUND" = "未找到端口";
 

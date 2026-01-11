@@ -65,6 +65,11 @@
 /* Connection Settings */
 "SERIAL_PORT" = "シリアルポート:";
 "BAUD_RATE" = "ボーレート:";
+"TEST_BAUD_RATE" = "速度テスト";
+"BAUD_RATE_STABILITY" = "接続テスト";
+"TEST_SUCCESS" = "互換性あり";
+"TEST_FAILED" = "応答なし";
+"TESTING" = "テスト中...";
 "REFRESH_PORTS" = "ポートを更新";
 "NO_PORTS_FOUND" = "ポートが見つかりません";
 

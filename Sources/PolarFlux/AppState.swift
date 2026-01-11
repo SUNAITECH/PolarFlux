@@ -107,6 +107,10 @@ class AppState: ObservableObject {
     @Published var isPowerLimited: Bool = false
     @Published var limitReason: String = ""
     
+    // Baud Rate Testing
+    @Published var isProbingBaud: Bool = false
+    @Published var lastBaudTestResult: Bool? = nil
+    
     // Modes
     @Published var currentMode: LightingMode = .manual
     @Published var isRunning: Bool = false
@@ -433,6 +437,27 @@ class AppState: ObservableObject {
         availablePorts = serialPort.listPorts()
         if selectedPort.isEmpty, let first = availablePorts.first {
             selectedPort = first
+        }
+    }
+    
+    func testCurrentBaudRate() {
+        guard !selectedPort.isEmpty else { return }
+        let targetBaud = Int(baudRate) ?? 115200
+        let targetPath = selectedPort
+        
+        isProbingBaud = true
+        lastBaudTestResult = nil
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            // Probing uses O_NONBLOCK so it won't hang the thread indefinitely
+            let success = self.serialPort.probeBaudRate(path: targetPath, baudRate: targetBaud)
+            
+            DispatchQueue.main.async {
+                self.isProbingBaud = false
+                self.lastBaudTestResult = success
+            }
         }
     }
     
