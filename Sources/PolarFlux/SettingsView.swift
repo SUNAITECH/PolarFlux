@@ -129,34 +129,52 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                     
-                    Picker(String(localized: "BAUD_RATE"), selection: $appState.baudRate) {
-                        ForEach(appState.availableBaudRates, id: \.self) { rate in
-                            Text(rate).tag(rate)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    
-                    HStack(spacing: 12) {
-                        Button(action: { appState.refreshPorts() }) {
-                            Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
-                        }
-                        .buttonStyle(.bordered)
-                        
-                        Button(action: { appState.testCurrentBaudRate() }) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text(String(localized: "BAUD_RATE"))
+                            Spacer()
                             if appState.isProbingBaud {
                                 ProgressView().controlSize(.small)
                             } else {
-                                Label(String(localized: "TEST_BAUD_RATE"), systemImage: "bolt.horizontal.circle")
+                                Text(appState.baudRate)
+                                    .monospacedDigit()
+                                    .bold()
+                                    .foregroundColor(.secondary)
                             }
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(appState.isProbingBaud || appState.selectedPort.isEmpty || appState.selectedPort == "None")
                         
-                        if let success = appState.lastBaudTestResult {
-                            Label(success ? String(localized: "TEST_SUCCESS") : String(localized: "TEST_FAILED"), 
-                                  systemImage: success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                .font(.caption2)
-                                .foregroundColor(success ? .green : .red)
+                        Text(String(localized: "BAUD_RATE_AUTO_ONLY"))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 12) {
+                            Button(action: { appState.refreshPorts() }) {
+                                Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(appState.isProbingBaud)
+                            
+                            Button(action: { appState.autoDetectBaudRate() }) {
+                                if appState.isProbingBaud {
+                                    Text(String(localized: "DETECTING"))
+                                } else {
+                                    Label(String(localized: "AUTO_DETECT_BAUD"), systemImage: "bolt.horizontal.circle")
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(appState.isProbingBaud || appState.selectedPort.isEmpty || appState.selectedPort == "None")
+                            
+                            if let success = appState.lastBaudDetectionResult {
+                                if success {
+                                    Label(String(format: String(localized: "DETECTION_SUCCESS"), appState.baudRate), systemImage: "checkmark.circle.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.green)
+                                } else {
+                                    Label(String(localized: "DETECTION_FAILED"), systemImage: "exclamationmark.triangle.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.red)
+                                }
+                            }
                         }
                     }
                 }

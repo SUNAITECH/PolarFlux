@@ -72,6 +72,11 @@
 "TESTING" = "Probando...";
 "REFRESH_PORTS" = "Actualizar puertos";
 "NO_PORTS_FOUND" = "No se encontraron puertos";
+"AUTO_DETECT_BAUD" = "Detectar automáticamente baudios";
+"DETECTING" = "Detectando...";
+"DETECTION_SUCCESS" = "Detectado: %@";
+"DETECTION_FAILED" = "Fallo en la detección";
+"BAUD_RATE_AUTO_ONLY" = "La velocidad de baudios se detecta automáticamente por seguridad.";
 
 /* LED Layout */
 "ZONE_CONFIG" = "Configuración de zonas";

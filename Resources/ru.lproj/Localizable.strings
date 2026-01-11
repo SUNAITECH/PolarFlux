@@ -72,6 +72,11 @@
 "TESTING" = "Тестирование...";
 "REFRESH_PORTS" = "Обновить порты";
 "NO_PORTS_FOUND" = "Порты не найдены";
+"AUTO_DETECT_BAUD" = "Автоопределение скорости";
+"DETECTING" = "Определение...";
+"DETECTION_SUCCESS" = "Определено: %@";
+"DETECTION_FAILED" = "Ошибка определения";
+"BAUD_RATE_AUTO_ONLY" = "Скорость определяется автоматически для безопасности.";
 
 /* LED Layout */
 "ZONE_CONFIG" = "Конфигурация зон";

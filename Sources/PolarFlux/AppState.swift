@@ -60,7 +60,11 @@ enum ScreenOrientation: String, CaseIterable, Identifiable {
 }
 
 class AppState: ObservableObject {
-    @Published var selectedPort: String = ""
+    @Published var selectedPort: String = "" {
+        didSet {
+            lastBaudDetectionResult = nil
+        }
+    }
     @Published var availablePorts: [String] = []
     @Published var baudRate: String = "115200"
     let availableBaudRates = ["9600", "19200", "38400", "57600", "115200", "230400", "460800", "500000", "921600"]
@@ -107,9 +111,9 @@ class AppState: ObservableObject {
     @Published var isPowerLimited: Bool = false
     @Published var limitReason: String = ""
     
-    // Baud Rate Testing
+    // Baud Rate Detection
     @Published var isProbingBaud: Bool = false
-    @Published var lastBaudTestResult: Bool? = nil
+    @Published var lastBaudDetectionResult: Bool? = nil
     
     // Modes
     @Published var currentMode: LightingMode = .manual
@@ -440,23 +444,43 @@ class AppState: ObservableObject {
         }
     }
     
-    func testCurrentBaudRate() {
-        guard !selectedPort.isEmpty else { return }
-        let targetBaud = Int(baudRate) ?? 115200
-        let targetPath = selectedPort
+    func autoDetectBaudRate() {
+        guard !selectedPort.isEmpty && selectedPort != "None" else { return }
         
         isProbingBaud = true
-        lastBaudTestResult = nil
+        lastBaudDetectionResult = nil
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
-            // Probing uses O_NONBLOCK so it won't hang the thread indefinitely
-            let success = self.serialPort.probeBaudRate(path: targetPath, baudRate: targetBaud)
+            // Preferred order: Highest to lowest for better performance
+            let ratesToTry = self.availableBaudRates.reversed()
+            var detectedRate: String? = nil
+            
+            for rateStr in ratesToTry {
+                if let rateInt = Int(rateStr) {
+                    // Probing uses a non-blocking local session to verify handshake
+                    if self.serialPort.probeBaudRate(path: self.selectedPort, baudRate: rateInt) {
+                        detectedRate = rateStr
+                        break
+                    }
+                }
+            }
             
             DispatchQueue.main.async {
                 self.isProbingBaud = false
-                self.lastBaudTestResult = success
+                if let rate = detectedRate {
+                    self.baudRate = rate
+                    self.lastBaudDetectionResult = true
+                    
+                    // Apply immediately if already running
+                    if self.isRunning {
+                        self.stop()
+                        self.start()
+                    }
+                } else {
+                    self.lastBaudDetectionResult = false
+                }
             }
         }
     }

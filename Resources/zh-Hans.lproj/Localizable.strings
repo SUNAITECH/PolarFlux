@@ -72,6 +72,11 @@
 "TESTING" = "正在测试...";
 "REFRESH_PORTS" = "刷新端口";
 "NO_PORTS_FOUND" = "未找到端口";
+"AUTO_DETECT_BAUD" = "自动探测波特率";
+"DETECTING" = "正在探测...";
+"DETECTION_SUCCESS" = "已探测到: %@";
+"DETECTION_FAILED" = "探测失败";
+"BAUD_RATE_AUTO_ONLY" = "为了安全，波特率将被自动探测。";
 
 /* LED Layout */
 "ZONE_CONFIG" = "区域配置";

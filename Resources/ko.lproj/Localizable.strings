@@ -72,6 +72,11 @@
 "TESTING" = "테스트 중...";
 "REFRESH_PORTS" = "포트 새로고침";
 "NO_PORTS_FOUND" = "포트를 찾을 수 없음";
+"AUTO_DETECT_BAUD" = "보드 레이트 자동 감지";
+"DETECTING" = "감지 중...";
+"DETECTION_SUCCESS" = "감지됨: %@";
+"DETECTION_FAILED" = "감지 실패";
+"BAUD_RATE_AUTO_ONLY" = "안전을 위해 보드 레이트가 자동으로 감지됩니다.";
 
 /* LED Layout */
 "ZONE_CONFIG" = "구역 설정";

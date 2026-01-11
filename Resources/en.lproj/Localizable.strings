@@ -72,6 +72,11 @@
 "TESTING" = "Testing...";
 "REFRESH_PORTS" = "Refresh Ports";
 "NO_PORTS_FOUND" = "No ports found";
+"AUTO_DETECT_BAUD" = "Auto-Detect Baud Rate";
+"DETECTING" = "Detecting...";
+"DETECTION_SUCCESS" = "Detected: %@";
+"DETECTION_FAILED" = "Detection Failed";
+"BAUD_RATE_AUTO_ONLY" = "Baud rate is automatically detected for safety.";
 
 /* LED Layout */
 "ZONE_CONFIG" = "Zone Configuration";

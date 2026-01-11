@@ -72,6 +72,11 @@
 "TESTING" = "Testet...";
 "REFRESH_PORTS" = "Ports aktualisieren";
 "NO_PORTS_FOUND" = "Keine Ports gefunden";
+"AUTO_DETECT_BAUD" = "Baudrate automatisch erkennen";
+"DETECTING" = "Erkennt...";
+"DETECTION_SUCCESS" = "Erkannt: %@";
+"DETECTION_FAILED" = "Erkennung fehlgeschlagen";
+"BAUD_RATE_AUTO_ONLY" = "Baudrate wird aus Sicherheitsgründen automatisch erkannt.";
 
 /* LED Layout */
 "ZONE_CONFIG" = "Zonenkonfiguration";

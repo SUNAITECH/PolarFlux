@@ -72,6 +72,11 @@
 "TESTING" = "Test en cours...";
 "REFRESH_PORTS" = "Actualiser les ports";
 "NO_PORTS_FOUND" = "Aucun port trouvé";
+"AUTO_DETECT_BAUD" = "Auto-détecter le débit en bauds";
+"DETECTING" = "Détection...";
+"DETECTION_SUCCESS" = "Détecté : %@";
+"DETECTION_FAILED" = "Échec de la détection";
+"BAUD_RATE_AUTO_ONLY" = "Le débit en bauds est automatiquement détecté pour la sécurité.";
 
 /* LED Layout */
 "ZONE_CONFIG" = "Configuration des zones";

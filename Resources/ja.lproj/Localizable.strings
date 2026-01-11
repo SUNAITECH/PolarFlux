@@ -72,6 +72,11 @@
 "TESTING" = "テスト中...";
 "REFRESH_PORTS" = "ポートを更新";
 "NO_PORTS_FOUND" = "ポートが見つかりません";
+"AUTO_DETECT_BAUD" = "ボーレートを自動検出";
+"DETECTING" = "検出中...";
+"DETECTION_SUCCESS" = "検出済み: %@";
+"DETECTION_FAILED" = "検出失敗";
+"BAUD_RATE_AUTO_ONLY" = "安全のため、ボーレートは自動的に検出されます。";
 
 /* LED Layout */
 "ZONE_CONFIG" = "ゾーン設定";
