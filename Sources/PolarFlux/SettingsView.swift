@@ -237,8 +237,9 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .disabled(appState.isTestingOrientation)
                     .onChange(of: appState.perspectiveOriginMode) { newMode, _ in
-                        if appState.currentMode == .sync && appState.isRunning {
+                        if !appState.isTestingOrientation && appState.currentMode == .sync && appState.isRunning {
                             appState.restartSync()
                         }
                     }
@@ -482,11 +483,14 @@ struct SettingsView: View {
                     }
 
                     if let initial = initialLanguage, initial != appState.appLanguage {
-                        Text(String(localized: "RESTART_REQUIRED"))
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .padding(.top, -10)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text(String(localized: "RESTART_REQUIRED"))
+                        }
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .padding(.top, -10)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     
                     Divider()
