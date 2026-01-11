@@ -31,6 +31,8 @@
 "POWER_SAFETY_SUBTITLE" = "Proteger hardware y fuente de alimentación";
 "GENERAL" = "General";
 "GENERAL_SUBTITLE" = "Comportamiento y inicio de la aplicación";
+"SYNC_SETTINGS" = "Ajustes de Sincronización";
+"SYNC_SETTINGS_SUBTITLE" = "Configurar captura, orientación y perspectiva";
 "ABOUT" = "Acerca de";
 
 /* Processing Settings */
@@ -151,6 +153,7 @@
 "CONNECTION_LOST" = "Conexión perdida";
 "SMART_FALLBACK_TRIGGERED" = "Límite de potencia alcanzado - Reduciendo brillo";
 "AUTO_RESTARTING" = "Reiniciando automáticamente con %d%% de brillo";
+"RESTART_REQUIRED" = "Reiniciar para aplicar";
 
 /* Modes & Enums */
 "SCREEN_SYNC" = "Sincronización de Pantalla";

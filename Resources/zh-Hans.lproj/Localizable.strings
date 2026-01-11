@@ -31,6 +31,8 @@
 "POWER_SAFETY_SUBTITLE" = "保护您的硬件和电源供应";
 "GENERAL" = "常规设置";
 "GENERAL_SUBTITLE" = "应用程序行为和启动设置";
+"SYNC_SETTINGS" = "同步设置";
+"SYNC_SETTINGS_SUBTITLE" = "配置屏幕捕获、方向和透视校正";
 "ABOUT" = "关于";
 
 /* Processing Settings */
@@ -151,6 +153,7 @@
 "CONNECTION_LOST" = "连接丢失";
 "SMART_FALLBACK_TRIGGERED" = "达到功率限制 - 正在降低亮度";
 "AUTO_RESTARTING" = "正在以 %d%% 亮度自动重启";
+"RESTART_REQUIRED" = "重启应用以生效";
 
 /* Modes & Enums */
 "SCREEN_SYNC" = "屏幕同步";

@@ -31,6 +31,8 @@
 "POWER_SAFETY_SUBTITLE" = "하드웨어 및 전원 공급 장치 보호";
 "GENERAL" = "일반";
 "GENERAL_SUBTITLE" = "애플리케이션 동작 및 시작 설정";
+"SYNC_SETTINGS" = "동기화 설정";
+"SYNC_SETTINGS_SUBTITLE" = "캡처, 방향 및 원근 설정";
 "ABOUT" = "정보";
 
 /* Processing Settings */
@@ -151,6 +153,7 @@
 "CONNECTION_LOST" = "연결 끊김";
 "SMART_FALLBACK_TRIGGERED" = "전력 제한 도달 - 밝기 감소 중";
 "AUTO_RESTARTING" = "밝기 %d%%로 자동 재시작 중";
+"RESTART_REQUIRED" = "재시작 필요";
 
 /* Modes & Enums */
 "SCREEN_SYNC" = "화면 동기화";

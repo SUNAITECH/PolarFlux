@@ -31,6 +31,8 @@
 "POWER_SAFETY_SUBTITLE" = "Hardware und Netzteil schützen";
 "GENERAL" = "Allgemein";
 "GENERAL_SUBTITLE" = "Verhalten und Start der App";
+"SYNC_SETTINGS" = "Sync-Einstellungen";
+"SYNC_SETTINGS_SUBTITLE" = "Aufnahme, Ausrichtung und Perspektive konfigurieren";
 "ABOUT" = "Über";
 
 /* Processing Settings */
@@ -151,6 +153,7 @@
 "CONNECTION_LOST" = "Verbindung verloren";
 "SMART_FALLBACK_TRIGGERED" = "Leistungslimit erreicht - Helligkeit wird reduziert";
 "AUTO_RESTARTING" = "Automatischer Neustart mit %d%% Helligkeit";
+"RESTART_REQUIRED" = "Neustart erforderlich";
 
 /* Modes & Enums */
 "SCREEN_SYNC" = "Bildschirmsynchronisation";

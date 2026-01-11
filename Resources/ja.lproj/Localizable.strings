@@ -31,6 +31,8 @@
 "POWER_SAFETY_SUBTITLE" = "ハードウェアと電源の保護";
 "GENERAL" = "一般";
 "GENERAL_SUBTITLE" = "アプリの動作と起動設定";
+"SYNC_SETTINGS" = "同期設定";
+"SYNC_SETTINGS_SUBTITLE" = "キャプチャ、向き、視点の構成";
 "ABOUT" = "情報";
 
 /* Processing Settings */
@@ -151,6 +153,7 @@
 "CONNECTION_LOST" = "接続が切れました";
 "SMART_FALLBACK_TRIGGERED" = "電力制限に達しました - 明るさを下げています";
 "AUTO_RESTARTING" = "明るさ %d%% で自動再起動中";
+"RESTART_REQUIRED" = "再起動が必要です";
 
 /* Modes & Enums */
 "SCREEN_SYNC" = "画面同期";

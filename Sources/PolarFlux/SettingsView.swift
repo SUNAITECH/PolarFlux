@@ -4,6 +4,7 @@ struct SettingsView: View {
     @ObservedObject var appState: AppState
     @State private var selection: String? = "Connection"
     @State private var isCalibrationLocked: Bool = true
+    @State private var initialLanguage: String?
     
     var body: some View {
         NavigationSplitView {
@@ -14,6 +15,9 @@ struct SettingsView: View {
                     }
                     NavigationLink(value: "LED Layout") {
                         Label(String(localized: "LED_LAYOUT"), systemImage: "lightbulb.led")
+                    }
+                    NavigationLink(value: "SyncSettings") {
+                        Label(String(localized: "SYNC_SETTINGS"), systemImage: "rectangle.inset.filled.and.person.filled")
                     }
                 }
                 
@@ -55,6 +59,7 @@ struct SettingsView: View {
                             switch selection {
                             case "Connection": connectionSettings
                             case "LED Layout": ledSettings
+                            case "SyncSettings": syncSettings
                             case "Audio": audioSettings
                             case "Calibration": calibrationSettings
                             case "Power": powerSettings
@@ -77,6 +82,11 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 900, minHeight: 650)
+        .onAppear {
+            if initialLanguage == nil {
+                initialLanguage = appState.appLanguage
+            }
+        }
     }
     
     var audioSettings: some View {
@@ -157,7 +167,13 @@ struct SettingsView: View {
                 }
                 .padding(10)
             }
-            
+        }
+    }
+
+    var syncSettings: some View {
+        VStack(alignment: .leading, spacing: 25) {
+            headerView(title: String(localized: "SYNC_SETTINGS"), subtitle: String(localized: "SYNC_SETTINGS_SUBTITLE"), icon: "rectangle.inset.filled.and.person.filled")
+
             GroupBox(String(localized: "SCREEN_SYNC_ORIENTATION")) {
                 VStack(alignment: .leading, spacing: 12) {
                     Picker(String(localized: "DIRECTION"), selection: $appState.screenOrientation) {
@@ -463,6 +479,14 @@ struct SettingsView: View {
                         }
                         .pickerStyle(.menu)
                         .frame(width: 150)
+                    }
+
+                    if let initial = initialLanguage, initial != appState.appLanguage {
+                        Text(String(localized: "RESTART_REQUIRED"))
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .padding(.top, -10)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     
                     Divider()

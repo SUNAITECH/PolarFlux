@@ -31,6 +31,8 @@
 "POWER_SAFETY_SUBTITLE" = "Protect your hardware and power supply";
 "GENERAL" = "General";
 "GENERAL_SUBTITLE" = "Application behavior and startup";
+"SYNC_SETTINGS" = "Sync Settings";
+"SYNC_SETTINGS_SUBTITLE" = "Configure capture, orientation, and perspective";
 "ABOUT" = "About";
 
 /* Processing Settings */
@@ -151,6 +153,7 @@
 "CONNECTION_LOST" = "Connection Lost";
 "SMART_FALLBACK_TRIGGERED" = "Power Limit Reached - Reducing Brightness";
 "AUTO_RESTARTING" = "Auto-restarting with brightness %d%%";
+"RESTART_REQUIRED" = "Restart required to apply changes";  
 
 /* Modes & Enums */
 "SCREEN_SYNC" = "Screen Sync";

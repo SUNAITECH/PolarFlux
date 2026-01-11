@@ -31,6 +31,8 @@
 "POWER_SAFETY_SUBTITLE" = "Защита оборудования и блока питания";
 "GENERAL" = "Общие";
 "GENERAL_SUBTITLE" = "Поведение приложения и запуск";
+"SYNC_SETTINGS" = "Настройки синхронизации";
+"SYNC_SETTINGS_SUBTITLE" = "Настройка захвата, ориентации и перспективы";
 "ABOUT" = "О программе";
 
 /* Processing Settings */
@@ -151,6 +153,7 @@
 "CONNECTION_LOST" = "Соединение потеряно";
 "SMART_FALLBACK_TRIGGERED" = "Достигнут предел мощности — снижение яркости";
 "AUTO_RESTARTING" = "Автоперезапуск с яркостью %d%%";
+"RESTART_REQUIRED" = "Требуется перезапуск";
 
 /* Modes & Enums */
 "SCREEN_SYNC" = "Синхронизация экрана";

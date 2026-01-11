@@ -31,6 +31,8 @@
 "POWER_SAFETY_SUBTITLE" = "Protéger le matériel et l'alimentation";
 "GENERAL" = "Général";
 "GENERAL_SUBTITLE" = "Comportement et démarrage de l'app";
+"SYNC_SETTINGS" = "Paramètres de Sync";
+"SYNC_SETTINGS_SUBTITLE" = "Configurer la capture, l'orientation et la perspective";
 "ABOUT" = "À propos";
 
 /* Processing Settings */
@@ -151,6 +153,7 @@
 "CONNECTION_LOST" = "Connexion perdue";
 "SMART_FALLBACK_TRIGGERED" = "Limite de puissance atteinte - Réduction de la luminosité";
 "AUTO_RESTARTING" = "Redémarrage automatique avec %d%% de luminosité";
+"RESTART_REQUIRED" = "Redémarrage requis";
 
 /* Modes & Enums */
 "SCREEN_SYNC" = "Sync Écran";
