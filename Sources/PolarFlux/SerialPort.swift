@@ -227,24 +227,9 @@ class SerialPort {
                 self.totalPacketsSent += 1
             }
             
-            // Wait for drainage
-            if self.fileDescriptor >= 0 {
-                let drainResult = tcdrain(self.fileDescriptor)
-                if drainResult == -1 {
-                    self.handleError()
-                }
-                
-                // Adaptive Waiting
-                // Calculate how long actual transmission + drain took
-                let elapsed = CACurrentMediaTime() - startTime
-                
-                // If the operation was faster than our target pacing, wait the difference
-                // This ensures we don't flood the device, but we don't wait unnecessarily if transmission was slow
-                if elapsed < targetDevicePacing {
-                    let sleepTime = targetDevicePacing - elapsed
-                    usleep(useconds_t(sleepTime * 1_000_000))
-                }
-            }
+            // Removed tcdrain and manual pacing to allow true asynchronous hardware transmission.
+            // Theoretical transfer happens in background via Kernel/UART driver.
+            // This relies on the kernel buffer to handle backpressure (write will block if buffer full).
         }
         
         self.lastWriteLatency = CACurrentMediaTime() - startTime
