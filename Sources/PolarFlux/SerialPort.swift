@@ -4,7 +4,15 @@ import QuartzCore
 
 class SerialPort {
     private var fileDescriptor: Int32 = -1
-    private let queue = DispatchQueue(label: "com.sunaish.polarflux.serial")
+    private let queue = DispatchQueue(label: "com.sunaish.polarflux.serial", qos: .userInteractive)
+    
+    // Ring Buffer Strategy
+    private var pendingData: [UInt8]?
+    private var isSending: Bool = false
+    private let lock = NSLock()
+    
+    // Adaptive Timing
+    private let targetDevicePacing: Double = 0.004 // 4ms assumed device processing capability
     
     var onDisconnect: (() -> Void)?
     
@@ -149,69 +157,106 @@ class SerialPort {
     }
     
     // Thread-safe check for connection status
-    // We use a separate backing store since checking fileDescriptor directly
-    // might be racy if we don't lock, but valid fileDescriptor is atomic enough for simple checks.
-    // However, to be pedantic:
     private var isConnectedState: Bool = false
     var isConnected: Bool {
         return queue.sync { isConnectedState }
     }
     
     func send(data: [UInt8], completion: (() -> Void)? = nil) {
-        // Use thread-safe property check
-        guard isConnected else {
+        // Non-blocking Send Queue with "Overwrite Oldest" strategy
+        lock.lock()
+        if !isConnectedState {
+            lock.unlock()
             completion?()
             return
         }
         
-        queue.async {
-            let startTime = CACurrentMediaTime()
-            data.withUnsafeBufferPointer { buffer in
-                guard let baseAddress = buffer.baseAddress else { return }
-                
-                // Blocking write
-                let bytesWritten = write(self.fileDescriptor, baseAddress, buffer.count)
-                
-                if bytesWritten < 0 {
-                    let err = errno
-                    Logger.shared.log("Write error: \(err)")
-                    self.writeErrorCount += 1
-                    // Handle disconnection (ENXIO=6, EBADF=9, EIO=5)
-                    if err == 6 || err == 9 || err == 5 {
-                        self.closeInternal()
-                        DispatchQueue.main.async {
-                            self.onDisconnect?()
-                        }
-                    }
-                } else {
-                    self.totalBytesSent += UInt64(bytesWritten)
-                    self.totalPacketsSent += 1
-                    if bytesWritten < buffer.count {
-                        Logger.shared.log("Partial write: \(bytesWritten)/\(buffer.count)")
-                    }
+        // Overwrite the pending frame with the newest one (Depth 2: Current + Pending)
+        pendingData = data
+        
+        // If we are not currently sending, start the transmission loop
+        if !isSending {
+            isSending = true
+            lock.unlock()
+            
+            queue.async { [weak self] in
+                self?.transmitLoop()
+            }
+        } else {
+            lock.unlock()
+        }
+        
+        // Immediate completion because we've queued it (non-blocking)
+        completion?()
+    }
+    
+    private func transmitLoop() {
+        while true {
+            lock.lock()
+            guard let data = pendingData else {
+                isSending = false
+                lock.unlock()
+                return // Queue empty, stop loop
+            }
+            // Consume the data, clear pending
+            pendingData = nil
+            lock.unlock()
+            
+            performWrite(data: data)
+        }
+    }
+    
+    private func performWrite(data: [UInt8]) {
+        let startTime = CACurrentMediaTime()
+        
+        data.withUnsafeBufferPointer { buffer in
+            guard let baseAddress = buffer.baseAddress else { return }
+            
+            // Blocking write
+            let bytesWritten = write(self.fileDescriptor, baseAddress, buffer.count)
+            
+            if bytesWritten < 0 {
+                let err = errno
+                Logger.shared.log("Write error: \(err)")
+                self.writeErrorCount += 1
+                if err == 6 || err == 9 || err == 5 {
+                    self.handleError()
+                }
+            } else {
+                self.totalBytesSent += UInt64(bytesWritten)
+                self.totalPacketsSent += 1
+            }
+            
+            // Wait for drainage
+            if self.fileDescriptor >= 0 {
+                let drainResult = tcdrain(self.fileDescriptor)
+                if drainResult == -1 {
+                    self.handleError()
                 }
                 
-                // Wait for data to be transmitted (matches C++ tcdrain)
-                if self.fileDescriptor >= 0 {
-                    let result = tcdrain(self.fileDescriptor)
-                    if result == -1 {
-                        let err = errno
-                        Logger.shared.log("tcdrain error: \(err)")
-                        if err == 6 || err == 9 || err == 5 {
-                            self.closeInternal()
-                            DispatchQueue.main.async {
-                                self.onDisconnect?()
-                            }
-                            completion?()
-                            return
-                        }
-                    }
-                    // Add a delay to prevent overwhelming the device/driver
-                    usleep(4000) 
+                // Adaptive Waiting
+                // Calculate how long actual transmission + drain took
+                let elapsed = CACurrentMediaTime() - startTime
+                
+                // If the operation was faster than our target pacing, wait the difference
+                // This ensures we don't flood the device, but we don't wait unnecessarily if transmission was slow
+                if elapsed < targetDevicePacing {
+                    let sleepTime = targetDevicePacing - elapsed
+                    usleep(useconds_t(sleepTime * 1_000_000))
                 }
             }
-            self.lastWriteLatency = CACurrentMediaTime() - startTime
-            completion?()
+        }
+        
+        self.lastWriteLatency = CACurrentMediaTime() - startTime
+    }
+    
+    private func handleError() {
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            self.closeInternal()
+            DispatchQueue.main.async {
+                self.onDisconnect?()
+            }
         }
     }
     
