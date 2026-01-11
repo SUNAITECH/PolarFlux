@@ -78,6 +78,9 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         // 5. Saliency Statistics Accumulators (Patch Point 2)
         var saliencyMeanAcc: Double = 0
         var saliencyVarAcc: Double = 0
+        
+        // 6. Sector Intensity (Per-LED responsive tracking)
+        var localIntensity: Double = 0
     }
     
     private var zoneStates: [ZoneState] = []
@@ -140,6 +143,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 self.lastProcessTime = 0
                 self.lastOutputColors.removeAll()
                 self.currentSceneIntensity = 0.0
+                self.smoothedGlobalLuma = 0.5
             }
             
             try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: processingQueue)
@@ -170,6 +174,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var lastProcessTime: TimeInterval = 0 // DEPRECATED
     private var lastOutputColors: [(UInt8, UInt8, UInt8)] = []
     private var currentSceneIntensity: Double = 0.0
+    private var smoothedGlobalLuma: Double = 0.5
     
     // MARK: - SCStreamDelegate
     func stream(_ stream: SCStream, didStopWithError error: Error) {
@@ -602,8 +607,15 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             zoneStates = Array(repeating: ZoneState(), count: totalZones)
         }
         
+        // 0. Global stats for Adaptive Brightness (Previous frame's smoothed value)
+        // We use a smoothed factor to prevent flickering
+        let adaptiveBrightnessFactor = 1.0 - (smoothedGlobalLuma * 0.35) 
+        var cumulativeLuma: Double = 0
+        
         var capturedColors: [(UInt8, UInt8, UInt8)] = []
         var zoneDistances: [Double] = []
+        var sectorIntensities: [Double] = []
+        var processedBuffer: [(r: Double, g: Double, b: Double)] = []
         
         for i in 0..<totalZones {
             let acc = accumulators[i]
@@ -645,27 +657,25 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 // Point 2: Optimize Peak Detection & Dynamic Blending
                 // Thresholds based on Saliency Score
                 if state.peakSaliency > 5.0 { 
-                    // High saliency peak: Prioritize peak color strongly (80%+)
-                    mixFactor = 0.85
+                    // High saliency peak: Prioritize peak color strongly (90%+)
+                    mixFactor = 0.92
                 } else {
                     // Medium saliency: Dynamic adjustment based on variation
                     let smoothedMean = state.saliencyMeanAcc
                     let smoothedVar = state.saliencyVarAcc
                     let stdDev = sqrt(max(0, smoothedVar))
                     let cv = (smoothedMean > 0) ? (stdDev / smoothedMean) : 0
-                    // CV threshold mix
-                    mixFactor = min(max((cv - 0.2) * 2.5, 0.0), 0.6)
+                    // CV threshold mix - increase max to 0.75 for better layers
+                    mixFactor = min(max((cv - 0.2) * 2.5, 0.0), 0.75)
                 }
                 
                 // Smart Saturation Enhancement for Peak Color
-                // We boost the components of the peak color before mixing to ensure it "pops"
-                // but keep brightness spread roughly consistent
                 let pR = state.peakR
                 let pG = state.peakG
                 let pB = state.peakB
                 let pGray = 0.2126*pR + 0.7152*pG + 0.0722*pB
                 
-                let peakSatBoost = 1.15 // 15% saturation boost for peaks
+                let peakSatBoost = 1.25 // Increase to 25% saturation boost for peaks
                 let eR = pGray + (pR - pGray) * peakSatBoost
                 let eG = pGray + (pG - pGray) * peakSatBoost
                 let eB = pGray + (pB - pGray) * peakSatBoost
@@ -747,7 +757,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             let minC = min(cR, min(cG, cB))
             let sat = (maxC > 1.0) ? ((maxC - minC) / maxC) : 0.0
             
-            let satFactor = 1.6 - (sat * 0.6) 
+            // Point: More aggressive saturation to reduce "whitish" colors
+            let satFactor = 1.8 - (sat * 0.8) 
             let totalSat = currentSaturation * satFactor
             
             if totalSat != 1.0 {
@@ -755,6 +766,15 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 cR = curGray + (cR - curGray) * totalSat
                 cG = curGray + (cG - curGray) * totalSat
                 cB = curGray + (cB - curGray) * totalSat
+                
+                // Additional white core suppression for low-saturation colors
+                if sat < 0.25 {
+                    // Stronger suppression: multiply saturation distance
+                    let boost = 1.3 - sat * 0.8 
+                    cR = curGray + (cR - curGray) * boost
+                    cG = curGray + (cG - curGray) * boost
+                    cB = curGray + (cB - curGray) * boost
+                }
             }
             
             // Calibration
@@ -788,44 +808,73 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             var finalB_out = cB
             
             if currentMax > 0 {
-                let targetMax = currentMax * brightness
-                let scale = (targetMax > 255) ? (255.0 / currentMax) : brightness
+                // Incorporate Adaptive Brightness Factor
+                let targetMax = currentMax * brightness * adaptiveBrightnessFactor
+                let scale = (targetMax > 255) ? (255.0 / currentMax) : (brightness * adaptiveBrightnessFactor)
                 finalR_out *= scale
                 finalG_out *= scale
                 finalB_out *= scale
             }
             
-            // Robust conversion to UInt8 (Prevents crash on negative/overflow values)
+            // Stats for next frame
+            cumulativeLuma += (0.2126 * finalR_out + 0.7152 * finalG_out + 0.0722 * finalB_out) / 255.0
+            
+            // 7. Per-Sector Intensity Calculation (Responsive & Stable)
+            let normDistance = min(distance / 120.0, 1.0)
+            if normDistance > state.localIntensity {
+                state.localIntensity = (state.localIntensity * 0.4) + (normDistance * 0.6)
+            } else {
+                state.localIntensity = (state.localIntensity * 0.92) + (normDistance * 0.08)
+            }
+            sectorIntensities.append(state.localIntensity)
+            
+            processedBuffer.append((finalR_out, finalG_out, finalB_out))
+        }
+        
+        // 7.5 Spatial Hierarchy & Contrast Enhancement
+        // This pass increases the difference between adjacent zones to reduce "uniformity"
+        for i in 0..<totalZones {
+            let prevIdx = (i - 1 + totalZones) % totalZones
+            let nextIdx = (i + 1) % totalZones
+            
+            let curr = processedBuffer[i]
+            let prev = processedBuffer[prevIdx]
+            let next = processedBuffer[nextIdx]
+            
+            let currLuma = 0.2126 * curr.r + 0.7152 * curr.g + 0.0722 * curr.b
+            let neighLuma = ( (0.2126 * prev.r + 0.7152 * prev.g + 0.0722 * prev.b) + (0.2126 * next.r + 0.7152 * next.g + 0.0722 * next.b) ) / 2.0
+            
+            var scale: Double = 1.0
+            if currLuma > 5.0 {
+                // Spatial Sharpening: If I am brighter than my neighbors, be even brighter.
+                // If I am darker, be even darker.
+                let diff = (currLuma - neighLuma) / max(currLuma, 10.0)
+                scale = 1.0 + diff * 0.25 // 25% contrast boost
+                scale = min(max(scale, 0.7), 1.3) // Safeguard
+            }
+            
+            // Apply scale and convert to UInt8
             capturedColors.append((
-                UInt8(min(max(finalR_out, 0), 255)),
-                UInt8(min(max(finalG_out, 0), 255)),
-                UInt8(min(max(finalB_out, 0), 255))
+                UInt8(min(max(curr.r * scale, 0), 255)),
+                UInt8(min(max(curr.g * scale, 0), 255)),
+                UInt8(min(max(curr.b * scale, 0), 255))
             ))
         }
         
-        // 7. Scene Intensity Calculation
-        if !zoneDistances.isEmpty {
-            let sortedDistances = zoneDistances.sorted()
-            let medianDistance = sortedDistances[sortedDistances.count / 2]
-            let newIntensity = min(max(medianDistance / 120.0, 0.0), 1.0)
-            
-            if newIntensity > currentSceneIntensity {
-                currentSceneIntensity = newIntensity
-            } else {
-                currentSceneIntensity = (currentSceneIntensity * 0.85) + (newIntensity * 0.15)
-            }
-            
-            for i in 0..<totalZones {
-                zoneStates[i].lastR = zoneStates[i].estR
-                zoneStates[i].lastG = zoneStates[i].estG
-                zoneStates[i].lastB = zoneStates[i].estB
-            }
+        // 8. Global Stats Update (for Adaptive Brightness)
+        let frameAvgLuma = cumulativeLuma / max(1.0, Double(totalZones))
+        self.smoothedGlobalLuma = (self.smoothedGlobalLuma * 0.96) + (frameAvgLuma * 0.04)
+        
+        for i in 0..<totalZones {
+            zoneStates[i].lastR = zoneStates[i].estR
+            zoneStates[i].lastG = zoneStates[i].estG
+            zoneStates[i].lastB = zoneStates[i].estB
         }
         
-        // 8. Physics & Spatial Constraint
-        var smoothedColors = physicsEngine.process(targetColors: capturedColors, dt: dt, sceneIntensity: currentSceneIntensity)
+        // 9. Physics & Spatial Constraint
+        var smoothedColors = physicsEngine.process(targetColors: capturedColors, dt: dt, sectorIntensities: sectorIntensities)
         
-        // 9. Orientation Transformation (Standard is CW, Reverse is CCW)
+        // 10. Orientation Transformation (Standard is CW, Reverse is CCW)
         if orientation == .reverse {
             // Standard: [Left, Top, Right, Bottom]
             smoothedColors.reverse()

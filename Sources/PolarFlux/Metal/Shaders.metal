@@ -32,14 +32,20 @@ float calculateSaliency(float3 color) {
     float expBoost = exp(vividness * 2.5); // Strong non-linear boost for vivid pixels
     
     // 5. Sigmoid Compression
-    // Compresses the final weight to a normalized range [0, 1] but allows peaks to stand out
     // Center around 0.5 input, steep curve
-    float purity = saturation * maxVal; // Weighted saturation
-    float sigmoid = 1.0 / (1.0 + exp(-12.0 * (purity - 0.4)));
+    // To further suppress whitish colors, we penalize low saturation more aggressively
+    float purity = saturation * maxVal; 
+    float sigmoid = 1.0 / (1.0 + exp(-15.0 * (purity - 0.45))); // Center shifted higher and slope steepened
+    
+    // Additional "White Core" suppression:
+    // If color is very bright and saturation is low, heavily penalize the weight.
+    if (saturation < 0.2 && maxVal > 0.7) {
+        sigmoid *= 0.1; 
+    }
     
     // Final Saliency Weight
     // Base brightness weight ensures we don't boost dark noise
-    float briWeight = smoothstep(0.05, 0.3, y); 
+    float briWeight = smoothstep(0.05, 0.35, y); 
     
     return sigmoid * expBoost * hueWeight * briWeight;
 }

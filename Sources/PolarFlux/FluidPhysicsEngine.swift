@@ -17,7 +17,7 @@ class FluidPhysicsEngine {
     private var states: [SpringState] = []
     private var flowPhase: Double = 0.0
     
-    func process(targetColors: [(UInt8, UInt8, UInt8)], dt: Double, sceneIntensity: Double = 0.0) -> [(UInt8, UInt8, UInt8)] {
+    func process(targetColors: [(UInt8, UInt8, UInt8)], dt: Double, sectorIntensities: [Double]? = nil) -> [(UInt8, UInt8, UInt8)] {
         // Initialize states if size mismatch
         if states.count != targetColors.count {
             states = targetColors.map { 
@@ -38,35 +38,28 @@ class FluidPhysicsEngine {
         var smoothedColors = [(UInt8, UInt8, UInt8)]()
         smoothedColors.reserveCapacity(count)
         
-        // --- Patch Point 4: Advanced Physics Parameter Mapping ---
+        // --- Adaptive Physics Parameter Mapping ---
         
-        // 1. Define Extreme Parameter Sets
-        // Calm Scene: Low stiffness (soft), High damping (heavy/slow)
-        // Increased base stiffness and reduced damping to make colors more "vibrant" and less "washed out" by smoothing.
-    let stiffness_low = 0.02
-    let damping_high = 0.88
+        let stiffness_low = 0.02
+        let damping_high = 0.88
+        let stiffness_high = 0.2
+        let damping_low = 0.42
         
-    // Intense Scene: High stiffness (tight), Low damping (fast/responsive)
-    let stiffness_high = 0.2
-    let damping_low = 0.42
-        
-        // 2. Response Curve (Smoothstep)
-        // This ensures a non-linear transition that is stable at the ends and smooth in the middle.
         func smoothstep(edge0: Double, edge1: Double, x: Double) -> Double {
             let t = min(max((x - edge0) / (edge1 - edge0), 0.0), 1.0)
             return t * t * (3.0 - 2.0 * t)
         }
         
-        let intensity = min(max(sceneIntensity, 0.0), 1.0)
-        let mix = smoothstep(edge0: 0.0, edge1: 1.0, x: intensity)
-        
-        // 3. Interpolate Parameters
-        let dynamicTension = stiffness_low + (stiffness_high - stiffness_low) * mix
-        let dynamicFriction = damping_high + (damping_low - damping_high) * mix
-        
         for i in 0..<count {
             let target = targetColors[i]
             var state = states[i]
+            
+            // Per-Sector Intensity Physics
+            let intensity = (sectorIntensities != nil && i < sectorIntensities!.count) ? sectorIntensities![i] : 0.0
+            let mix = smoothstep(edge0: 0.1, edge1: 0.7, x: intensity)
+            
+            let dynamicTension = stiffness_low + (stiffness_high - stiffness_low) * mix
+            let dynamicFriction = damping_high + (damping_low - damping_high) * mix
             
             // Fluid Neighbors (Circular Buffer)
             let upstreamIdx = (i - 1 + count) % count
@@ -74,16 +67,23 @@ class FluidPhysicsEngine {
             let upstream = states[upstreamIdx]
             let downstream = states[downstreamIdx]
             
-            // 1. Dynamic Flow Field Generation
-            // Reduced flow vector to decrease spatial "blurring" between LEDs.
-            let flowVector = 0.06 + sin(Double(i) * 0.15 + self.flowPhase) * 0.03
+            // 1. Edge-Aware Dynamic Flow Field
+            // Coupling is reduced if the color difference is high to preserve edge layers.
+            let colorDistUp = sqrt(pow(upstream.r - state.r, 2) + pow(upstream.g - state.g, 2) + pow(upstream.b - state.b, 2))
+            let edgeWeightUp = 1.0 / (1.0 + pow(colorDistUp / 30.0, 2)) // Reduce coupling as distance increases
             
-            // 2. Fluid Coupling Forces
-            let advectionR = (upstream.r - state.r) * flowVector + (upstream.vr - state.vr) * flowVector * 0.4
-            let advectionG = (upstream.g - state.g) * flowVector + (upstream.vg - state.vg) * flowVector * 0.4
-            let advectionB = (upstream.b - state.b) * flowVector + (upstream.vb - state.vb) * flowVector * 0.4
+            let baseFlow = 0.04 + sin(Double(i) * 0.15 + self.flowPhase) * 0.02
+            let flowVector = baseFlow * edgeWeightUp * (1.0 - mix * 0.5) // Less coupling in high-intensity areas
             
-            let dragFactor = 0.04
+            // 2. Fluid Coupling Forces (Advection & Drag)
+            let advectionR = (upstream.r - state.r) * flowVector + (upstream.vr - state.vr) * flowVector * 0.3
+            let advectionG = (upstream.g - state.g) * flowVector + (upstream.vg - state.vg) * flowVector * 0.3
+            let advectionB = (upstream.b - state.b) * flowVector + (upstream.vb - state.vb) * flowVector * 0.3
+            
+            let colorDistDown = sqrt(pow(downstream.r - state.r, 2) + pow(downstream.g - state.g, 2) + pow(downstream.b - state.b, 2))
+            let edgeWeightDown = 1.0 / (1.0 + pow(colorDistDown / 30.0, 2))
+            let dragFactor = 0.03 * edgeWeightDown
+            
             let dragR = (downstream.r - state.r) * dragFactor
             let dragG = (downstream.g - state.g) * dragFactor
             let dragB = (downstream.b - state.b) * dragFactor
@@ -101,18 +101,15 @@ class FluidPhysicsEngine {
             var tension: Double
             var friction: Double
             
-            // Hybrid Physics: Combine Distance-Based Adaptive Physics with Scene-Intensity Dynamics
+            // Hybrid Physics: Combine Distance-Based Snap with Sector-Intensity Dynamics
             if dist > 120.0 {
-                // Snap logic for massive changes (e.g. scene cuts)
                 tension = 0.45; friction = 0.35
             } else if dist < 5.0 {
-                // Very close: Use dynamic parameters to settle perfectly
                 tension = dynamicTension
                 friction = dynamicFriction
             } else {
-                // Interpolate between dynamic parameters and snap parameters based on distance
                 let distT = min(max((dist - 5.0) / 115.0, 0.0), 1.0)
-                let distMix = distT * distT // Quadratic for faster snap response
+                let distMix = distT * distT
                 
                 tension = dynamicTension + (0.45 - dynamicTension) * distMix
                 friction = dynamicFriction + (0.35 - dynamicFriction) * distMix
@@ -134,15 +131,13 @@ class FluidPhysicsEngine {
             state.vb *= pow(1.0 - friction, timeScale)
             state.b += state.vb * timeScale
             
-            // Update State
             states[i] = state
             
-            // Clamp and Assign
-            let finalR = UInt8(min(max(state.r, 0), 255))
-            let finalG = UInt8(min(max(state.g, 0), 255))
-            let finalB = UInt8(min(max(state.b, 0), 255))
-            
-            smoothedColors.append((finalR, finalG, finalB))
+            smoothedColors.append((
+                UInt8(min(max(state.r, 0), 255)),
+                UInt8(min(max(state.g, 0), 255)),
+                UInt8(min(max(state.b, 0), 255))
+            ))
         }
         
         return smoothedColors
