@@ -342,11 +342,7 @@ class AppState: ObservableObject {
                 if !self.selectedPort.isEmpty {
                      // small delay for port re-enumeration
                      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                         if self.serialPort.connect(path: self.selectedPort, baudRate: Int(self.baudRate) ?? 115200) {
-                             Logger.shared.log("Wake: Auto-reconnected to \(self.selectedPort)")
-                         } else {
-                             Logger.shared.log("Wake: Failed to reconnect serial port.")
-                         }
+                         _ = self.connectSerial()
                      }
                 }
             }
@@ -1020,6 +1016,23 @@ class AppState: ObservableObject {
         }
     }
     
+    private func findValidBaudRate(for path: String) -> Int? {
+        // 1. Try current baud rate first
+        if let current = Int(baudRate), serialPort.probeBaudRate(path: path, baudRate: current) {
+            return current
+        }
+        
+        // 2. Scan available rates (High to Low for performance)
+        for rateStr in availableBaudRates.reversed() {
+            if let rateInt = Int(rateStr) {
+                if serialPort.probeBaudRate(path: path, baudRate: rateInt) {
+                    return rateInt
+                }
+            }
+        }
+        return nil
+    }
+    
     private func connectSerial() -> Bool {
         // Prevent flooding connection attempts
         let now = Date()
@@ -1030,30 +1043,43 @@ class AppState: ObservableObject {
         lastConnectionAttempt = now
 
         if !serialPort.isConnected {
-            let baud = Int(baudRate) ?? 115200
-            
-            // 1. Try the selected port first
+            // 1. Try the selected port first with current baud (Fast Path)
             if !selectedPort.isEmpty {
-                Logger.shared.log("Connecting to \(selectedPort) at \(baud)")
-                if serialPort.connect(path: selectedPort, baudRate: baud) {
+                let currentBaud = Int(baudRate) ?? 115200
+                Logger.shared.log("Attempting direct connection to \(selectedPort) at \(currentBaud)")
+                if serialPort.connect(path: selectedPort, baudRate: currentBaud) {
                     if handleSuccessfulConnection() { return true }
+                }
+
+                // 2. Fallback to probing if direct connection failed
+                Logger.shared.log("Direct connection failed. Probing for valid baud on \(selectedPort)...")
+                if let validBaud = findValidBaudRate(for: selectedPort) {
+                    if serialPort.connect(path: selectedPort, baudRate: validBaud) {
+                        if handleSuccessfulConnection() {
+                            DispatchQueue.main.async { self.baudRate = String(validBaud) }
+                            return true 
+                        }
+                    }
                 }
             }
             
-            // 2. If selected port failed or was empty, try auto-discovery
-            Logger.shared.log("Selected port failed or empty. Starting auto-discovery...")
+            // 3. If selected port failed or was empty, try auto-discovery
+            Logger.shared.log("Target port unresponsive. Starting full auto-discovery...")
             let ports = serialPort.listPorts()
             for port in ports {
                 if port == selectedPort { continue } // Already tried
                 
                 Logger.shared.log("Trying auto-discovery on \(port)")
-                if serialPort.connect(path: port, baudRate: baud) {
-                    if handleSuccessfulConnection() {
-                        DispatchQueue.main.async {
-                            self.selectedPort = port
-                            self.availablePorts = self.serialPort.listPorts()
+                if let validBaud = findValidBaudRate(for: port) {
+                    if serialPort.connect(path: port, baudRate: validBaud) {
+                        if handleSuccessfulConnection() {
+                            DispatchQueue.main.async {
+                                self.selectedPort = port
+                                self.baudRate = String(validBaud)
+                                self.availablePorts = self.serialPort.listPorts()
+                            }
+                            return true
                         }
-                        return true
                     }
                 }
             }
