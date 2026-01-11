@@ -259,40 +259,43 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             // Note: Accumulator moved to top-level struct to share with Metal path.
             // Using local variable type inference to use the global struct.
             
-            // Helper: Fast RGB to CIELAB (Approximation for Performance)
-            // We need L* (Lightness) and Chroma (C*) for Saliency.
-            // Full XYZ conversion is too heavy for 60fps loop, so we use a high-quality perceptual approximation.
+            // Helper: Perceptual Saliency (CPU version matching Metal implementation)
             func calculatePerceptualSaliency(r: Double, g: Double, b: Double) -> Double {
-                // 1. Linearize (Approximate Gamma 2.2)
-                let lr = r * r
-                let lg = g * g
-                let lb = b * b
+                // Normalize to 0-1 for calculation
+                let nr = r / 255.0
+                let ng = g / 255.0
+                let nb = b / 255.0
                 
-                // 2. Luminance (Y)
-                let y = 0.299 * lr + 0.587 * lg + 0.114 * lb
+                // 1. Non-linear Brightness (Gamma 2.0 approx) - Rec 709
+                let y = 0.2126 * nr * nr + 0.7152 * ng * ng + 0.0722 * nb * nb
                 
-                // 3. Chromaticity (Distance from Grey)
-                // In Lab, this is sqrt(a*a + b*b).
-                // In RGB, a good proxy is the variance between channels relative to luminance.
-                let avg = (r + g + b) / 3.0
-                let dev = abs(r - avg) + abs(g - avg) + abs(b - avg)
+                // 2. Efficient Saturation (HSV approximation)
+                let maxVal = max(nr, max(ng, nb))
+                let minVal = min(nr, min(ng, nb))
+                let delta = maxVal - minVal
+                let saturation = (maxVal > 0) ? (delta / maxVal) : 0
                 
-                // 4. Saliency = Chroma * Luminance Weight
-                // We use a Sigmoid function to map saturation to weight, as requested.
-                // Sigmoid: 1 / (1 + exp(-k * (x - x0)))
-                // Here we simplify: Smoothstep-like curve for Chroma.
+                // 3. Hue Specific Weight (Warm Boost)
+                // Boost Red/Orange/Yellow
+                var hueWeight = 1.0
+                if nr > nb && (nr > ng * 0.5) {
+                    hueWeight = 1.2
+                }
                 
-                let saturation = (avg > 0) ? (dev / avg) : 0
+                // 4. Exponential Weighting
+                let vividness = saturation * sqrt(maxVal)
+                let expBoost = exp(vividness * 2.5)
                 
-                // Sigmoid-like mapping for Saturation (Center at 0.4, Slope 15)
-                // We move the center up and increase slope to aggressively favor highly saturated colors.
-                // This ensures that vibrant "peaks" dominate the sampling weight.
-                let satWeight = 1.0 / (1.0 + exp(-15.0 * (saturation - 0.4)))
+                // 5. Sigmoid Compression
+                let purity = saturation * maxVal
+                let sigmoid = 1.0 / (1.0 + exp(-12.0 * (purity - 0.4)))
                 
-                // Brightness Weight (Linear is fine, but let's suppress very dark)
-                let briWeight = (y > 1600) ? 1.0 : (y / 1600.0) // 1600 = 40^2, slightly lower threshold
+                // Brightness Weight (Smoothstep-like gate)
+                // Prevents dark noise from being picked up
+                let t = min(max((y - 0.05) / 0.25, 0.0), 1.0)
+                let briWeight = t * t * (3.0 - 2.0 * t)
                 
-                return satWeight * briWeight
+                return sigmoid * expBoost * hueWeight * briWeight
             }
             
             // --- Execution Pipeline ---
@@ -627,26 +630,49 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 state.saliencyVarAcc = (state.saliencyVarAcc * (1.0 - alpha)) + (max(0, frameVarSaliency) * alpha)
             }
             
-            // Dynamic Hybrid Mixing
+            // Dynamic Hybrid Mixing (Optimized)
             var finalR: Double = 0
             var finalG: Double = 0
             var finalB: Double = 0
             
             if state.accWeight > 0 {
-                let smoothedMean = state.saliencyMeanAcc
-                let smoothedVar = state.saliencyVarAcc
-                let stdDev = sqrt(max(0, smoothedVar))
-                let cv = (smoothedMean > 0) ? (stdDev / smoothedMean) : 0
-                
                 let avgR = state.accR / state.accWeight
                 let avgG = state.accG / state.accWeight
                 let avgB = state.accB / state.accWeight
                 
-                let mixFactor = min(max((cv - 0.3) * 2.0, 0.0), 1.0)
+                var mixFactor: Double = 0.0
                 
-                finalR = (avgR * (1.0 - mixFactor)) + (state.peakR * mixFactor)
-                finalG = (avgG * (1.0 - mixFactor)) + (state.peakG * mixFactor)
-                finalB = (avgB * (1.0 - mixFactor)) + (state.peakB * mixFactor)
+                // Point 2: Optimize Peak Detection & Dynamic Blending
+                // Thresholds based on Saliency Score
+                if state.peakSaliency > 5.0 { 
+                    // High saliency peak: Prioritize peak color strongly (80%+)
+                    mixFactor = 0.85
+                } else {
+                    // Medium saliency: Dynamic adjustment based on variation
+                    let smoothedMean = state.saliencyMeanAcc
+                    let smoothedVar = state.saliencyVarAcc
+                    let stdDev = sqrt(max(0, smoothedVar))
+                    let cv = (smoothedMean > 0) ? (stdDev / smoothedMean) : 0
+                    // CV threshold mix
+                    mixFactor = min(max((cv - 0.2) * 2.5, 0.0), 0.6)
+                }
+                
+                // Smart Saturation Enhancement for Peak Color
+                // We boost the components of the peak color before mixing to ensure it "pops"
+                // but keep brightness spread roughly consistent
+                let pR = state.peakR
+                let pG = state.peakG
+                let pB = state.peakB
+                let pGray = 0.2126*pR + 0.7152*pG + 0.0722*pB
+                
+                let peakSatBoost = 1.15 // 15% saturation boost for peaks
+                let eR = pGray + (pR - pGray) * peakSatBoost
+                let eG = pGray + (pG - pGray) * peakSatBoost
+                let eB = pGray + (pB - pGray) * peakSatBoost
+                
+                finalR = (avgR * (1.0 - mixFactor)) + (eR * mixFactor)
+                finalG = (avgG * (1.0 - mixFactor)) + (eG * mixFactor)
+                finalB = (avgB * (1.0 - mixFactor)) + (eB * mixFactor)
             }
             
             // Adaptive Kalman Filter
@@ -694,33 +720,72 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             }
             zoneDistances.append(distance)
             
-            // Tone Mapping & Calibration
-            var r_cal = r_out
-            var g_cal = g_out
-            var b_cal = b_out
+            // Point 3: Dynamic Tone Mapping & Enhancement Pipeline
+            var cR = max(0, r_out)
+            var cG = max(0, g_out)
+            var cB = max(0, b_out)
             
-            if currentSaturation != 1.0 {
-                let gray = 0.299 * r_out + 0.587 * g_out + 0.114 * b_out
-                let boost = currentSaturation * 1.1
-                r_cal = max(0, gray + (r_out - gray) * boost)
-                g_cal = max(0, gray + (g_out - gray) * boost)
-                b_cal = max(0, gray + (b_out - gray) * boost)
+            // 1. Dynamic Contrast Expansion
+            let luma = 0.2126 * cR + 0.7152 * cG + 0.0722 * cB
+            // Optimized S-curve contrast on Luma
+            let nL = min(max(luma / 255.0, 0.0), 1.0)
+            let contrast = 1.1 
+            let newNL = (nL - 0.5) * contrast + 0.5 + (nL * nL * 0.1)
+            let lumaScale = (nL > 0.001) ? (max(0.0, newNL) / nL) : 1.0
+            
+            cR *= lumaScale
+            cG *= lumaScale
+            cB *= lumaScale
+            
+            // 2. Adaptive Saturation Enhancement
+            // Ensure components are non-negative before calculating saturation
+            cR = max(0, cR)
+            cG = max(0, cG)
+            cB = max(0, cB)
+            
+            let maxC = max(cR, max(cG, cB))
+            let minC = min(cR, min(cG, cB))
+            let sat = (maxC > 1.0) ? ((maxC - minC) / maxC) : 0.0
+            
+            let satFactor = 1.6 - (sat * 0.6) 
+            let totalSat = currentSaturation * satFactor
+            
+            if totalSat != 1.0 {
+                let curGray = 0.2126 * cR + 0.7152 * cG + 0.0722 * cB
+                cR = curGray + (cR - curGray) * totalSat
+                cG = curGray + (cG - curGray) * totalSat
+                cB = curGray + (cB - curGray) * totalSat
             }
             
-            r_cal *= currentCalibration.r
-            g_cal *= currentCalibration.g
-            b_cal *= currentCalibration.b
+            // Calibration
+            cR *= currentCalibration.r
+            cG *= currentCalibration.g
+            cB *= currentCalibration.b
             
+            // 3. Vibrance Protection (Soft Clipping)
+            func softClip(_ val: Double) -> Double {
+                let boundedVal = max(0, val)
+                let x = boundedVal / 255.0
+                if x < 0.8 { return boundedVal }
+                return 255.0 * (0.8 + (1.0 - exp(-(x - 0.8) * 4.0)) * 0.2)
+            }
+            cR = softClip(cR)
+            cG = softClip(cG)
+            cB = softClip(cB)
+
+            // 4. Gamma Correction (sRGB Approx)
+            // cR, cG, cB are guaranteed >= 0 here due to softClip
             if currentGamma != 1.0 {
-                r_cal = pow(r_cal / 255.0, currentGamma) * 255.0
-                g_cal = pow(g_cal / 255.0, currentGamma) * 255.0
-                b_cal = pow(b_cal / 255.0, currentGamma) * 255.0
+                cR = pow(cR / 255.0, currentGamma) * 255.0
+                cG = pow(cG / 255.0, currentGamma) * 255.0
+                cB = pow(cB / 255.0, currentGamma) * 255.0
             }
             
-            let currentMax = max(r_cal, max(g_cal, b_cal))
-            var finalR_out = r_cal
-            var finalG_out = g_cal
-            var finalB_out = b_cal
+            // 5. Smart Brightness Scaling
+            let currentMax = max(cR, max(cG, cB))
+            var finalR_out = cR
+            var finalG_out = cG
+            var finalB_out = cB
             
             if currentMax > 0 {
                 let targetMax = currentMax * brightness
@@ -730,7 +795,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 finalB_out *= scale
             }
             
-            capturedColors.append((UInt8(min(finalR_out, 255)), UInt8(min(finalG_out, 255)), UInt8(min(finalB_out, 255))))
+            // Robust conversion to UInt8 (Prevents crash on negative/overflow values)
+            capturedColors.append((
+                UInt8(min(max(finalR_out, 0), 255)),
+                UInt8(min(max(finalG_out, 0), 255)),
+                UInt8(min(max(finalB_out, 0), 255))
+            ))
         }
         
         // 7. Scene Intensity Calculation

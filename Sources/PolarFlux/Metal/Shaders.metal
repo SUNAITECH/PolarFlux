@@ -1,33 +1,47 @@
 #include <metal_stdlib>
 using namespace metal;
 
-constant float3 kRec709Luma = float3(0.299, 0.587, 0.114);
+constant float3 kRec709Luma = float3(0.2126, 0.7152, 0.0722);
 
 // Helper function: Calculate Perceptual Saliency
-// Matches the CPU implementation in ScreenCapture.swift
 float calculateSaliency(float3 color) {
-    // 1. Linearize (Approximate Gamma 2.2) 
-    float3 linear = color * color;
+    // 1. Non-linear Brightness (Gamma 2.0 approximation)
+    // We use the square of the color values to approximate the non-linear response
+    float3 linearColor = color * color;
+    float y = dot(linearColor, kRec709Luma);
     
-    // 2. Luminance (Y)
-    float y = dot(linear, kRec709Luma);
+    // 2. Efficient Saturation (HSV approximation)
+    float maxVal = max(max(color.r, color.g), color.b);
+    float minVal = min(min(color.r, color.g), color.b);
+    float delta = maxVal - minVal;
+    float saturation = (maxVal > 0.0) ? (delta / maxVal) : 0.0;
     
-    // 3. Chromaticity (Distance from Grey)
-    float avg = (color.r + color.g + color.b) / 3.0;
-    float dev = abs(color.r - avg) + abs(color.g - avg) + abs(color.b - avg);
+    // 3. Hue-Specific Enhancement
+    // We want to boost warm colors (Red, Orange, Yellow) which are high impact.
+    // Hue estimation without full atan2:
+    // Warm colors have high Red component relative to Blue.
+    float hueWeight = 1.0;
+    if (color.r > color.b && (color.r > color.g * 0.5)) {
+        // Boost Red/Orange/Yellow spectrum
+        hueWeight = 1.2; 
+    }
     
-    float saturation = (avg > 0.001) ? (dev / avg) : 0.0;
+    // 4. Exponential Boosting for Vivid Areas
+    // Combined metric of Saturation and Brightness
+    float vividness = saturation * sqrt(maxVal); 
+    float expBoost = exp(vividness * 2.5); // Strong non-linear boost for vivid pixels
     
-    // 4. Saliency = Chroma * Luminance Weight
-    // Sigmoid mapping for Saturation
-    float satWeight = 1.0 / (1.0 + exp(-15.0 * (saturation - 0.4)));
+    // 5. Sigmoid Compression
+    // Compresses the final weight to a normalized range [0, 1] but allows peaks to stand out
+    // Center around 0.5 input, steep curve
+    float purity = saturation * maxVal; // Weighted saturation
+    float sigmoid = 1.0 / (1.0 + exp(-12.0 * (purity - 0.4)));
     
-    // Brightness Weight
-    // CPU threshold 1600 (scale 255) -> ~0.0246 (scale 1.0)
-    float threshold = 0.0246;
-    float briWeight = (y > threshold) ? 1.0 : (y / threshold);
+    // Final Saliency Weight
+    // Base brightness weight ensures we don't boost dark noise
+    float briWeight = smoothstep(0.05, 0.3, y); 
     
-    return satWeight * briWeight;
+    return sigmoid * expBoost * hueWeight * briWeight;
 }
 
 // Kernel: Downsample and Saliency Analysis
