@@ -4,6 +4,7 @@ import AppKit
 import ScreenCaptureKit
 import CoreMedia
 import VideoToolbox
+import simd
 
 struct ZoneConfig {
     var left: Int
@@ -34,6 +35,10 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     // Metal Integration
     private let metalProcessor = MetalProcessor()
     var useMetal: Bool = true
+    
+    // Computational Color Science: Adaptation State
+    private var currentInferredWhitePoint = SIMD3<Float>(1.0, 1.0, 1.0)
+    private var currentAdaptedLuma: Float = 0.5
     
     // Callback for sending data back to AppState
     var onFrameProcessed: (([UInt8]) -> Void)?
@@ -208,8 +213,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         
         // 1. Metal Acceleration
         if self.useMetal && metalProcessor.isAvailable {
-            if let (avg, peak) = metalProcessor.process(pixelBuffer: pixelBuffer) {
-                let ledData = processFrameMetal(
+            if let (avg, peak) = metalProcessor.process(
+                pixelBuffer: pixelBuffer,
+                whitePoint: currentInferredWhitePoint,
+                adaptedLuma: currentAdaptedLuma
+            ) {
+                let (ledData, frameInferredWhite, frameLuma) = processFrameMetal(
                     avg: avg,
                     peak: peak,
                     config: currentConfig,
@@ -218,6 +227,15 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     dt: safeDt,
                     brightness: currentBrightness
                 )
+                
+                // Temporal Smoothing for Global Adaptation (Von Kries & S-Curve)
+                // Slow adaptation (tau ~ 2s) for white point, faster (tau ~ 0.5s) for luma
+                let wpAlpha = Float(min(safeDt * 0.5, 1.0))
+                let lumaAlpha = Float(min(safeDt * 2.0, 1.0))
+                
+                currentInferredWhitePoint = mix(currentInferredWhitePoint, frameInferredWhite, t: wpAlpha)
+                currentAdaptedLuma = currentAdaptedLuma * (1.0 - lumaAlpha) + frameLuma * lumaAlpha
+                
                 onFrameProcessed?(ledData)
                 return
             }
@@ -235,7 +253,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let ptr = baseAddress.bindMemory(to: UInt8.self, capacity: bytesPerRow * height)
         
         // Process Frame
-        let ledData = processFrame(
+        let result = processFrame(
             ptr: ptr,
             width: width,
             height: height,
@@ -247,63 +265,102 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             brightness: currentBrightness
         )
         
+        // Temporal Smoothing for Global Adaptation
+        let adaptAlpha = Float(1.0 - exp(-safeDt / 1.5))
+        self.currentInferredWhitePoint = mix(self.currentInferredWhitePoint, result.1, t: adaptAlpha)
+        self.currentAdaptedLuma = self.currentAdaptedLuma * (1.0 - adaptAlpha) + result.2 * adaptAlpha
+        
         // Callback
-        onFrameProcessed?(ledData)
+        onFrameProcessed?(result.0)
     }
     
-    private func processFrame(ptr: UnsafePointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, config: ZoneConfig, ledCount: Int, orientation: ScreenOrientation, dt: Double, brightness: Double) -> [UInt8] {
+    private func processFrame(ptr: UnsafePointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, config: ZoneConfig, ledCount: Int, orientation: ScreenOrientation, dt: Double, brightness: Double) -> ([UInt8], SIMD3<Float>, Float) {
             
             // Safety Check
-            if width <= 0 || height <= 0 { return [] }
+            if width <= 0 || height <= 0 { return ([], SIMD3<Float>(1, 1, 1), 0.5) }
 
             var ledData = [UInt8]()
             ledData.reserveCapacity(ledCount * 3)
             
             // --- Frontier Tech: Perceptual Color Engine ---
             
-            // Note: Accumulator moved to top-level struct to share with Metal path.
-            // Using local variable type inference to use the global struct.
+            let wp = self.currentInferredWhitePoint
+            let al = self.currentAdaptedLuma
             
-            // Helper: Perceptual Saliency (CPU version matching Metal implementation)
-            func calculatePerceptualSaliency(r: Double, g: Double, b: Double) -> Double {
-                // Normalize to 0-1 for calculation
-                let nr = r / 255.0
-                let ng = g / 255.0
-                let nb = b / 255.0
+            func applyPerceptualEnhancement(r: Double, g: Double, b: Double) -> (Double, Double, Double) {
+                // 1. Von Kries Chromatic Adaptation
+                var nr = (r / 255.0) / Double(max(wp.x, 0.01))
+                var ng = (g / 255.0) / Double(max(wp.y, 0.01))
+                var nb = (b / 255.0) / Double(max(wp.z, 0.01))
                 
-                // 1. Non-linear Brightness (Gamma 2.0 approx) - Rec 709
-                let y = 0.2126 * nr * nr + 0.7152 * ng * ng + 0.0722 * nb * nb
+                // 2. Luminance Adaptation (S-curve)
+                let luma = 0.2126 * nr + 0.7152 * ng + 0.0722 * nb
+                let k = 1.25
+                let l_adapted = Double(max(al, 0.1))
+                let l_enhanced = pow(max(luma, 0.001), k) / (pow(max(luma, 0.001), k) + pow(l_adapted, k))
                 
-                // 2. Efficient Saturation (HSV approximation)
+                let scale = (luma > 0.001) ? (l_enhanced / luma) : 1.0
+                nr *= scale
+                ng *= scale
+                nb *= scale
+                
+                // 3. H-K Effect
                 let maxVal = max(nr, max(ng, nb))
                 let minVal = min(nr, min(ng, nb))
-                let delta = maxVal - minVal
-                let saturation = (maxVal > 0) ? (delta / maxVal) : 0
+                let saturation = (maxVal > 0.001) ? (maxVal - minVal) / maxVal : 0.0
+                let hkScale = 1.0 + 0.45 * saturation * saturation
+                nr *= hkScale
+                ng *= hkScale
+                nb *= hkScale
                 
-                // 3. Hue Specific Weight (Warm Boost)
-                // Boost Red/Orange/Yellow
+                // 4. Hunt Effect
+                let gray = 0.2126 * nr + 0.7152 * ng + 0.0722 * nb
+                let huntScale = 1.0 + 0.35 * l_enhanced
+                nr = gray + (nr - gray) * huntScale
+                ng = gray + (ng - gray) * huntScale
+                nb = gray + (nb - gray) * huntScale
+                
+                return (nr, ng, nb)
+            }
+            
+            // Helper: Perceptual Saliency
+            func calculatePerceptualSaliency(nr: Double, ng: Double, nb: Double) -> Double {
+                let y = 0.2126 * nr * nr + 0.7152 * ng * ng + 0.0722 * nb * nb
+                let maxVal = max(nr, max(ng, nb))
+                let minVal = min(nr, min(ng, nb))
+                let saturation = (maxVal > 0) ? (maxVal - minVal) / maxVal : 0
+                
                 var hueWeight = 1.0
                 if nr > nb && (nr > ng * 0.5) {
-                    hueWeight = 1.2
+                    hueWeight = 1.35
                 }
                 
-                // 4. Exponential Weighting
                 let vividness = saturation * sqrt(maxVal)
-                let expBoost = exp(vividness * 2.5)
-                
-                // 5. Sigmoid Compression
+                let expBoost = exp(vividness * 2.8)
                 let purity = saturation * maxVal
-                let sigmoid = 1.0 / (1.0 + exp(-12.0 * (purity - 0.4)))
+                let sigmoid = 1.0 / (1.0 + exp(-15.0 * (purity - 0.45)))
                 
-                // Brightness Weight (Smoothstep-like gate)
-                // Prevents dark noise from being picked up
-                let t = min(max((y - 0.05) / 0.25, 0.0), 1.0)
+                var finalSigmoid = sigmoid
+                if saturation < 0.2 && maxVal > 0.7 {
+                    finalSigmoid *= 0.05
+                }
+                
+                let t = min(max((y - 0.02) / 0.38, 0.0), 1.0)
                 let briWeight = t * t * (3.0 - 2.0 * t)
                 
-                return sigmoid * expBoost * hueWeight * briWeight
+                return finalSigmoid * expBoost * hueWeight * briWeight
             }
             
             // --- Execution Pipeline ---
+            
+            // Stats for adaptation
+            var frameLumaAcc: Double = 0
+            var frameRSum: Double = 0
+            var frameGSum: Double = 0
+            var frameBSum: Double = 0
+            var frameWeightAcc: Double = 0
+            
+            // ... (rest of setup)
             
             // 1. Setup Capture Area
             let xOffset = 0
@@ -311,14 +368,13 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             let capWidth = width
             let capHeight = height
             
-            // 2. Perspective Origin (Golden Ratio Point on Vertical Center Line or manual override)
+            // 2. Perspective Origin 
             let originX = Double(xOffset) + Double(capWidth) / 2.0
             let normalizedOriginY = normalizedOriginY(for: config)
             let originY = Double(yOffset) + normalizedOriginY * Double(capHeight)
             
-            // 3. Generate Perimeter Boundary Points for LEDs (Always CW: BL -> TL -> TR -> BR -> BL)
+            // 3. Generate Perimeter Boundary Points
             var boundaryPoints: [CGPoint] = []
-            // Left: BL -> TL
             if config.left > 0 {
                 for i in 0...config.left {
                     let y = Double(yOffset + capHeight) - Double(i) * (Double(capHeight) / Double(config.left))
@@ -327,7 +383,6 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             } else {
                 boundaryPoints.append(CGPoint(x: Double(xOffset), y: Double(yOffset + capHeight)))
             }
-            // Top: TL -> TR
             if config.top > 0 {
                 if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
                 for i in 0...config.top {
@@ -335,7 +390,6 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     boundaryPoints.append(CGPoint(x: x, y: Double(yOffset)))
                 }
             }
-            // Right: TR -> BR
             if config.right > 0 {
                 if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
                 for i in 0...config.right {
@@ -343,7 +397,6 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     boundaryPoints.append(CGPoint(x: Double(xOffset + capWidth), y: y))
                 }
             }
-            // Bottom: BR -> BL
             if config.bottom > 0 {
                 if !boundaryPoints.isEmpty { boundaryPoints.removeLast() }
                 for i in 0...config.bottom {
@@ -353,26 +406,22 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             }
             
             let totalZones = config.left + config.top + config.right + config.bottom
-            if totalZones <= 0 { return [] }
+            if totalZones <= 0 { return ([], SIMD3<Float>(1, 1, 1), 0.5) }
             
-            // 4. Calculate Boundary Angles
             var boundaryAngles: [Double] = []
             for p in boundaryPoints {
                 boundaryAngles.append(atan2(p.y - originY, p.x - originX))
             }
             
-            // Normalize angles to be strictly increasing
             if !boundaryAngles.isEmpty {
                 var lastA = boundaryAngles[0]
                 for i in 1..<boundaryAngles.count {
-                    while boundaryAngles[i] <= lastA {
-                        boundaryAngles[i] += 2.0 * .pi
-                    }
+                    while boundaryAngles[i] <= lastA { boundaryAngles[i] += 2.0 * .pi }
                     lastA = boundaryAngles[i]
                 }
             }
             guard let lowerBound = boundaryAngles.first, var upperBound = boundaryAngles.last else {
-                return []
+                return ([], SIMD3<Float>(1, 1, 1), 0.5)
             }
             if upperBound <= lowerBound {
                 upperBound = lowerBound + 2.0 * .pi
@@ -383,23 +432,31 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             let maxRadialDistance = max(1.0, sqrt(Double(capWidth) * Double(capWidth) + Double(capHeight) * Double(capHeight)) / 2.0)
             let distanceCompensationFactor = 0.6
             
-            for y in stride(from: yOffset, to: yOffset + capHeight, by: 2) {
-                for x in stride(from: xOffset, to: xOffset + capWidth, by: 2) {
+            for y in stride(from: yOffset, to: yOffset + capHeight, by: 4) {
+                for x in stride(from: xOffset, to: xOffset + capWidth, by: 4) {
                     let offset = y * bytesPerRow + x * 4
                     if offset + 3 >= height * bytesPerRow { continue }
                     
-                    let b = Double(ptr[offset])
-                    let g = Double(ptr[offset + 1])
-                    let r = Double(ptr[offset + 2])
+                    let b_in = Double(ptr[offset])
+                    let g_in = Double(ptr[offset + 1])
+                    let r_in = Double(ptr[offset + 2])
                     
-                    let saliency = calculatePerceptualSaliency(r: r, g: g, b: b)
+                    // Enhancement
+                    let (nr, ng, nb) = applyPerceptualEnhancement(r: r_in, g: g_in, b: b_in)
+                    let saliency = calculatePerceptualSaliency(nr: nr, ng: ng, nb: nb)
                     
-                    // Find LED index using angle
+                    // Track stats for adaptation
+                    let luma = 0.2126 * nr + 0.7152 * ng + 0.0722 * nb
+                    frameLumaAcc += luma * saliency
+                    frameRSum += nr * saliency
+                    frameGSum += ng * saliency
+                    frameBSum += nb * saliency
+                    frameWeightAcc += saliency
+                    
                     var pixelAngle = atan2(Double(y) - originY, Double(x) - originX)
                     while pixelAngle < lowerBound { pixelAngle += 2.0 * .pi }
                     while pixelAngle >= upperBound { pixelAngle -= 2.0 * .pi }
                     
-                    // Binary search for index
                     var low = 0
                     var high = totalZones - 1
                     var index = 0
@@ -418,36 +475,39 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     let radialDistance = sqrt(dx*dx + dy*dy)
                     let normalizedRadial = min(max(radialDistance / maxRadialDistance, 0.0), 1.0)
                     let distanceWeight = 1.0 + distanceCompensationFactor * normalizedRadial
-                    let weightedSaliency = saliency * distanceWeight
+                    let finalWeight = saliency * distanceWeight
 
-                    // Accumulate
-                    accumulators[index].r += r * weightedSaliency
-                    accumulators[index].g += g * weightedSaliency
-                    accumulators[index].b += b * weightedSaliency
-                    accumulators[index].weight += weightedSaliency
+                    accumulators[index].r += nr * 255.0 * finalWeight
+                    accumulators[index].g += ng * 255.0 * finalWeight
+                    accumulators[index].b += nb * 255.0 * finalWeight
+                    accumulators[index].weight += finalWeight
                     
                     if saliency > accumulators[index].peakSaliency {
                         accumulators[index].peakSaliency = saliency
-                        accumulators[index].peakR = r
-                        accumulators[index].peakG = g
-                        accumulators[index].peakB = b
+                        accumulators[index].peakR = nr * 255.0
+                        accumulators[index].peakG = ng * 255.0
+                        accumulators[index].peakB = nb * 255.0
                     }
                     
-                    accumulators[index].saliencySum += weightedSaliency
-                    accumulators[index].saliencySqSum += weightedSaliency * weightedSaliency
+                    accumulators[index].saliencySum += finalWeight
+                    accumulators[index].saliencySqSum += finalWeight * finalWeight
                     accumulators[index].pixelCount += 1
                 }
             }
             
-            // 6. State Initialization & Update
-            return finalizeFrame(accumulators: accumulators, totalZones: totalZones, brightness: brightness, dt: dt, config: config, orientation: orientation, ledCount: ledCount)
+            let avgLuma = Float(frameWeightAcc > 1e-5 ? frameLumaAcc / frameWeightAcc : 0.5)
+            let frameWhite = frameWeightAcc > 1e-5 ? SIMD3<Float>(Float(frameRSum/frameWeightAcc), Float(frameGSum/frameWeightAcc), Float(frameBSum/frameWeightAcc)) : SIMD3<Float>(1, 1, 1)
+            
+            let finalLedData = finalizeFrame(accumulators: accumulators, totalZones: totalZones, brightness: brightness, dt: dt, config: config, orientation: orientation, ledCount: ledCount)
+            return (finalLedData, frameWhite, avgLuma)
     }
 
     // MARK: - Metal Acceleration Logic
-    private func processFrameMetal(avg: [Float], peak: [Float], config: ZoneConfig, ledCount: Int, orientation: ScreenOrientation, dt: Double, brightness: Double) -> [UInt8] {
+    private func processFrameMetal(avg: [Float], peak: [Float], config: ZoneConfig, ledCount: Int, orientation: ScreenOrientation, dt: Double, brightness: Double) -> ([UInt8], SIMD3<Float>, Float) {
         let width = metalProcessor.outputWidth
         let height = metalProcessor.outputHeight
         
+        // 1. Setup Capture Area
         let xOffset = 0
         let yOffset = 0
         let capWidth = width
@@ -491,7 +551,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         }
         
         let totalZones = config.left + config.top + config.right + config.bottom
-        if totalZones <= 0 { return [] }
+        if totalZones <= 0 { return ([], SIMD3<Float>(1, 1, 1), 0.5) }
         
         // 4. Boundary Angles
         var boundaryAngles: [Double] = []
@@ -506,13 +566,19 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 lastA = boundaryAngles[i]
             }
         }
-        guard let lowerBound = boundaryAngles.first, var upperBound = boundaryAngles.last else { return [] }
+        guard let lowerBound = boundaryAngles.first, var upperBound = boundaryAngles.last else { return ([], SIMD3<Float>(1, 1, 1), 0.5) }
         if upperBound <= lowerBound { upperBound = lowerBound + 2.0 * .pi }
         
         // 5. Processing Loop (Metal Grid)
         var accumulators = Array(repeating: Accumulator(), count: totalZones)
         let maxRadialDistance = max(1.0, sqrt(Double(capWidth)*Double(capWidth) + Double(capHeight)*Double(capHeight)) / 2.0)
         let distanceCompensationFactor = 0.6
+        
+        var frameLumaAcc: Double = 0
+        var frameRSum: Double = 0
+        var frameGSum: Double = 0
+        var frameBSum: Double = 0
+        var frameWeightAcc: Double = 0
         
         for y in 0..<height {
             for x in 0..<width {
@@ -526,6 +592,18 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 let sumR = Double(avg[offset])
                 let sumG = Double(avg[offset + 1])
                 let sumB = Double(avg[offset + 2])
+                
+                // Track global stats for Computational Color Science Adaptation
+                let localAvgR = sumR / weightSum
+                let localAvgG = sumG / weightSum
+                let localAvgB = sumB / weightSum
+                let luma = 0.2126 * localAvgR + 0.7152 * localAvgG + 0.0722 * localAvgB
+                
+                frameLumaAcc += luma * weightSum
+                frameRSum += localAvgR * weightSum
+                frameGSum += localAvgG * weightSum
+                frameBSum += localAvgB * weightSum
+                frameWeightAcc += weightSum
                 
                 let peakSaliency = Double(peak[offset + 3])
                 let peakR = Double(peak[offset])
@@ -564,27 +642,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 accumulators[index].g += sumG * distanceWeight
                 accumulators[index].b += sumB * distanceWeight
                 
-                // weightSum is Sum(Saliency).
-                // We want Sum(Saliency * Distance).
-                let weightedWeight = weightSum * distanceWeight
-                accumulators[index].weight += weightedWeight
+                let finalWeight = weightSum * distanceWeight
+                accumulators[index].weight += finalWeight
                 
                 // Stats
-                accumulators[index].saliencySum += weightedWeight
-                accumulators[index].saliencySqSum += weightedWeight * weightedWeight // Aprrox? Square of sum is not sum of squares.
-                // Correction: Variance calculation requires Sum(x^2).
-                // Metal didn't output Sum(Saliency^2).
-                // It output Sum(Saliency).
-                // For "Variance", we are estimating noise.
-                // Using (Sum * Sum) / N is wrong.
-                // It's acceptable to approximate SaliencySqSum as (SumSaliency * AverageSaliency) * DistanceSq?
-                // Or just ignore variance in Metal mode?
-                // Or add channel to Metal?
-                // Let's approximate: Assume uniform distribution in block.
-                // SaliencySqSum ~= (weightSum * weightSum) / blockPixels? No.
-                // Let's use `weightedWeight` as proxy for now to avoid stalling.
-                accumulators[index].saliencySqSum += (weightedWeight * weightedWeight) / 1.0 // Rough
-                
+                accumulators[index].saliencySum += finalWeight
+                accumulators[index].saliencySqSum += (finalWeight * finalWeight) 
                 accumulators[index].pixelCount += 1 // Defines "Blocks" now
                 
                 // Peak
@@ -597,7 +660,11 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             }
         }
         
-        return finalizeFrame(accumulators: accumulators, totalZones: totalZones, brightness: brightness, dt: dt, config: config, orientation: orientation, ledCount: ledCount)
+        let avgLuma = Float(frameWeightAcc > 0 ? frameLumaAcc / frameWeightAcc : 0.5)
+        let frameWhite = frameWeightAcc > 0 ? SIMD3<Float>(Float(frameRSum/frameWeightAcc), Float(frameGSum/frameWeightAcc), Float(frameBSum/frameWeightAcc)) : SIMD3<Float>(1, 1, 1)
+        
+        let ledData = finalizeFrame(accumulators: accumulators, totalZones: totalZones, brightness: brightness, dt: dt, config: config, orientation: orientation, ledCount: ledCount)
+        return (ledData, frameWhite, avgLuma)
     }
     
     // Shared Post-Processing Logic

@@ -1,6 +1,12 @@
 import Foundation
 import Metal
 import CoreVideo
+import simd
+
+struct PerceptualUniforms {
+    var whitePoint: simd_float3
+    var adaptedLuma: Float
+}
 
 class MetalProcessor {
     static var isSupported: Bool {
@@ -64,13 +70,15 @@ class MetalProcessor {
         }
     }
     
-    func process(pixelBuffer: CVPixelBuffer) -> (avg: [Float], peak: [Float])? {
+    func process(pixelBuffer: CVPixelBuffer, whitePoint: SIMD3<Float>, adaptedLuma: Float) -> (avg: [Float], peak: [Float])? {
         guard isAvailable,
               let textureCache = textureCache,
               let outAvg = outAvgTexture,
               let outPeak = outPeakTexture,
               let pipelineState = pipelineState
         else { return nil }
+        
+        var uniforms = PerceptualUniforms(whitePoint: whitePoint, adaptedLuma: adaptedLuma)
         
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
@@ -101,6 +109,7 @@ class MetalProcessor {
         encoder.setTexture(inputTexture, index: 0)
         encoder.setTexture(outAvg, index: 1)
         encoder.setTexture(outPeak, index: 2)
+        encoder.setBytes(&uniforms, length: MemoryLayout<PerceptualUniforms>.stride, index: 0)
         
         let w = pipelineState.threadExecutionWidth
         let h = pipelineState.maxTotalThreadsPerThreadgroup / w
