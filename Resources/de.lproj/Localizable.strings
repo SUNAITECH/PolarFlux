@@ -205,3 +205,22 @@
 "LICENSE_AGREEMENT" = "Lizenzvereinbarung";
 "COPYRIGHT" = "© 2025 Shanghai Sunai Technology Co., Ltd.";
 "LICENSE_INFO" = "Veröffentlicht unter der MIT-Lizenz";
+
+"SYSTEM_METRICS" = "Systemmetriken";
+"SYSTEM_METRICS_TITLE" = "Leistungsmetriken";
+"SYSTEM_METRICS_DESC" = "Echtzeitanalyse der Farbengine.";
+"PERF_PANEL_TITLE" = "Engine-Leistung";
+"PERF_TOTAL_FRAME" = "Gesamte Framezeit";
+"PERF_WAITING_DATA" = "Sammle Leistungsdaten...";
+"PERF_BREAKDOWN" = "Ausführungsaufschlüsselung";
+"PERF_CPU_PATH" = "CPU-Pfad";
+"PERF_METAL_TOTAL" = "Metal-Pipeline";
+"PERF_METAL_COMPUTE" = "GPU-Berechnung";
+"PERF_METAL_TRANSFER" = "Speicherübertragung";
+"PERF_ZONE_MAPPING" = "Zonenabbildung";
+"PERF_COLOR_ENHANCE" = "Farbverbesserung";
+"PERF_PHYSICS" = "Physikglättung";
+"PERF_COPY_REPORT" = "Bericht kopieren";
+"PERF_COPIED" = "Kopiert!";
+"PERF_ACTUAL_FPS" = "Aktuelle FPS";
+"PERF_CAPACITY" = "Max. Kapazität";

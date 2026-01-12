@@ -115,6 +115,17 @@ build() {
         -O -whole-module-optimization \
         -parse-as-library
 
+    log "Compiling Metal Shaders (default.metallib)..."
+    if xcrun -sdk macosx --find metal >/dev/null 2>&1; then
+        xcrun -sdk macosx metal -c Sources/PolarFlux/Metal/Shaders.metal -o "$BUILD_DIR/Shaders.air"
+        xcrun -sdk macosx metallib "$BUILD_DIR/Shaders.air" -o "$RESOURCES_DIR/default.metallib"
+        success "Metal shaders compiled successfully."
+    else
+        warn "Metal compiler not found! (Detailed: xcrun metal failed)"
+        warn "Please ensure full Xcode is installed and selected: sudo xcode-select -s /Applications/Xcode.app"
+        warn "The app will build but will fallback to CPU processing."
+    fi
+
     log "Stitching Universal Binary (Lipo)..."
     lipo -create "$BUILD_DIR/PolarFlux_arm64" "$BUILD_DIR/PolarFlux_x86_64" -output "$MACOS_DIR/$APP_NAME"
 

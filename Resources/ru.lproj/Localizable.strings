@@ -205,3 +205,22 @@
 "LICENSE_AGREEMENT" = "Лицензионное соглашение";
 "COPYRIGHT" = "© 2025 Shanghai Sunai Technology Co., Ltd.";
 "LICENSE_INFO" = "Выпущено под лицензией MIT";
+
+"SYSTEM_METRICS" = "Системные метрики";
+"SYSTEM_METRICS_TITLE" = "Метрики производительности";
+"SYSTEM_METRICS_DESC" = "Анализ вычислительного цветового движка в реальном времени.";
+"PERF_PANEL_TITLE" = "Производительность движка";
+"PERF_TOTAL_FRAME" = "Общее время кадра";
+"PERF_WAITING_DATA" = "Сбор данных...";
+"PERF_BREAKDOWN" = "Детализация выполнения";
+"PERF_CPU_PATH" = "Путь CPU";
+"PERF_METAL_TOTAL" = "Конвейер Metal";
+"PERF_METAL_COMPUTE" = "Вычисления ГП";
+"PERF_METAL_TRANSFER" = "Передача памяти";
+"PERF_ZONE_MAPPING" = "Зональное отображение";
+"PERF_COLOR_ENHANCE" = "Улучшение цвета";
+"PERF_PHYSICS" = "Физическое сглаживание";
+"PERF_COPY_REPORT" = "Копировать отчет";
+"PERF_COPIED" = "Скопировано!";
+"PERF_ACTUAL_FPS" = "Реальный FPS";
+"PERF_CAPACITY" = "Макс. мощность";

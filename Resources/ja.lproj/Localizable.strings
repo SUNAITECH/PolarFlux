@@ -205,3 +205,22 @@
 "LICENSE_AGREEMENT" = "使用許諾契約";
 "COPYRIGHT" = "© 2025 株式会社スーナイテクノ";
 "LICENSE_INFO" = "MITライセンスの下でリリース";
+
+"SYSTEM_METRICS" = "システムメトリクス";
+"SYSTEM_METRICS_TITLE" = "パフォーマンスメトリクス";
+"SYSTEM_METRICS_DESC" = "計算カラーエンジンのリアルタイム分析。";
+"PERF_PANEL_TITLE" = "エンジンパフォーマンス";
+"PERF_TOTAL_FRAME" = "合計フレーム時間";
+"PERF_WAITING_DATA" = "データを収集中...";
+"PERF_BREAKDOWN" = "実行詳細";
+"PERF_CPU_PATH" = "CPU 処理";
+"PERF_METAL_TOTAL" = "Metal パイプライン";
+"PERF_METAL_COMPUTE" = "GPU 計算";
+"PERF_METAL_TRANSFER" = "メモリ転送";
+"PERF_ZONE_MAPPING" = "ゾーンマッピング";
+"PERF_COLOR_ENHANCE" = "色彩強調";
+"PERF_PHYSICS" = "物理スムージング";
+"PERF_COPY_REPORT" = "レポートをコピー";
+"PERF_COPIED" = "コピーしました！";
+"PERF_ACTUAL_FPS" = "実効 FPS";
+"PERF_CAPACITY" = "処理限界";

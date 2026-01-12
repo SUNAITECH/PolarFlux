@@ -200,6 +200,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     
     // MARK: - SCStreamOutput
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        let startTime = CFAbsoluteTimeGetCurrent()
         guard type == .screen,
               let pixelBuffer = sampleBuffer.imageBuffer else { return }
         
@@ -213,11 +214,16 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         
         // 1. Metal Acceleration
         if self.useMetal && metalProcessor.isAvailable {
-            if let (avg, peak) = metalProcessor.process(
+            let metalStart = CFAbsoluteTimeGetCurrent()
+            let metalResult = metalProcessor.process(
                 pixelBuffer: pixelBuffer,
                 whitePoint: currentInferredWhitePoint,
                 adaptedLuma: currentAdaptedLuma
-            ) {
+            )
+            PerformanceMonitor.shared.record(metric: .metalTotal, time: CFAbsoluteTimeGetCurrent() - metalStart)
+
+            if let (avg, peak) = metalResult {
+                let mapStart = CFAbsoluteTimeGetCurrent()
                 let (ledData, frameInferredWhite, frameLuma) = processFrameMetal(
                     avg: avg,
                     peak: peak,
@@ -227,6 +233,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                     dt: safeDt,
                     brightness: currentBrightness
                 )
+                PerformanceMonitor.shared.record(metric: .zoneMapping, time: CFAbsoluteTimeGetCurrent() - mapStart)
                 
                 // Temporal Smoothing for Global Adaptation (Von Kries & S-Curve)
                 // Slow adaptation (tau ~ 2s) for white point, faster (tau ~ 0.5s) for luma
@@ -237,6 +244,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 currentAdaptedLuma = currentAdaptedLuma * (1.0 - lumaAlpha) + frameLuma * lumaAlpha
                 
                 onFrameProcessed?(ledData)
+                PerformanceMonitor.shared.record(metric: .totalFrame, time: CFAbsoluteTimeGetCurrent() - startTime)
+                PerformanceMonitor.shared.tickFrame()
                 return
             }
         }
@@ -253,6 +262,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let ptr = baseAddress.bindMemory(to: UInt8.self, capacity: bytesPerRow * height)
         
         // Process Frame
+        let cpuStart = CFAbsoluteTimeGetCurrent()
         let result = processFrame(
             ptr: ptr,
             width: width,
@@ -264,6 +274,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             dt: safeDt,
             brightness: currentBrightness
         )
+        PerformanceMonitor.shared.record(metric: .cpuPath, time: CFAbsoluteTimeGetCurrent() - cpuStart)
         
         // Temporal Smoothing for Global Adaptation
         let adaptAlpha = Float(1.0 - exp(-safeDt / 1.5))
@@ -272,6 +283,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         
         // Callback
         onFrameProcessed?(result.0)
+        PerformanceMonitor.shared.record(metric: .totalFrame, time: CFAbsoluteTimeGetCurrent() - startTime)
+        PerformanceMonitor.shared.tickFrame()
     }
     
     private func processFrame(ptr: UnsafePointer<UInt8>, width: Int, height: Int, bytesPerRow: Int, config: ZoneConfig, ledCount: Int, orientation: ScreenOrientation, dt: Double, brightness: Double) -> ([UInt8], SIMD3<Float>, Float) {
@@ -581,7 +594,9 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         var frameWeightAcc: Double = 0
         
         for y in 0..<height {
+            let actualY = (Double(y) / Double(height)) * Double(capHeight)
             for x in 0..<width {
+                let actualX = (Double(x) / Double(width)) * Double(capWidth)
                 let offset = (y * width + x) * 4
                 // Avg: R, G, B, WeightSum
                 // Peak: R, G, B, MaxSaliency
@@ -611,7 +626,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 let peakB = Double(peak[offset + 2])
                 
                 // Find Zone
-                var pixelAngle = atan2(Double(y) - originY, Double(x) - originX)
+                var pixelAngle = atan2(actualY - originY, actualX - originX)
                 while pixelAngle < lowerBound { pixelAngle += 2.0 * .pi }
                 while pixelAngle >= upperBound { pixelAngle -= 2.0 * .pi }
                 
@@ -629,8 +644,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 }
                 
                 // Distance Weight
-                let dx = Double(x) - originX
-                let dy = Double(y) - originY
+                let dx = actualX - originX
+                let dy = actualY - originY
                 let radialDistance = sqrt(dx*dx + dy*dy)
                 let normalizedRadial = min(max(radialDistance / maxRadialDistance, 0.0), 1.0)
                 let distanceWeight = 1.0 + distanceCompensationFactor * normalizedRadial
@@ -939,7 +954,9 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         }
         
         // 9. Physics & Spatial Constraint
+        let physStart = CFAbsoluteTimeGetCurrent()
         var smoothedColors = physicsEngine.process(targetColors: capturedColors, dt: dt, sectorIntensities: sectorIntensities)
+        PerformanceMonitor.shared.record(metric: .physicsSmoothing, time: CFAbsoluteTimeGetCurrent() - physStart)
         
         // 10. Orientation Transformation (Standard is CW, Reverse is CCW)
         if orientation == .reverse {

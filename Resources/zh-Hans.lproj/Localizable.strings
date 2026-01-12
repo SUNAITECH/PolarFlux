@@ -205,3 +205,22 @@
 "LICENSE_AGREEMENT" = "许可协议";
 "COPYRIGHT" = "© 2025 上海苏奈科技有限公司";
 "LICENSE_INFO" = "基于 MIT 许可证发布";
+
+"SYSTEM_METRICS" = "系统指标";
+"SYSTEM_METRICS_TITLE" = "性能指标";
+"SYSTEM_METRICS_DESC" = "计算色彩引擎的实时分析。";
+"PERF_PANEL_TITLE" = "引擎性能";
+"PERF_TOTAL_FRAME" = "总帧时间";
+"PERF_WAITING_DATA" = "正在收集性能数据...";
+"PERF_BREAKDOWN" = "执行明细";
+"PERF_CPU_PATH" = "CPU 路径";
+"PERF_METAL_TOTAL" = "Metal 管线";
+"PERF_METAL_COMPUTE" = "GPU 计算";
+"PERF_METAL_TRANSFER" = "内存传输";
+"PERF_ZONE_MAPPING" = "区域映射";
+"PERF_COLOR_ENHANCE" = "色彩增强";
+"PERF_PHYSICS" = "物理平滑";
+"PERF_COPY_REPORT" = "复制报告";
+"PERF_COPIED" = "已复制!";
+"PERF_ACTUAL_FPS" = "实际 FPS";
+"PERF_CAPACITY" = "处理上限";

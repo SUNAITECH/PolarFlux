@@ -205,3 +205,22 @@
 "LICENSE_AGREEMENT" = "사용권 계약";
 "COPYRIGHT" = "© 2025 Shanghai Sunai Technology Co., Ltd.";
 "LICENSE_INFO" = "MIT 라이선스에 따라 릴리스됨";
+
+"SYSTEM_METRICS" = "시스템 메트릭";
+"SYSTEM_METRICS_TITLE" = "성능 메트릭";
+"SYSTEM_METRICS_DESC" = "계산 색상 엔진의 실시간 분석.";
+"PERF_PANEL_TITLE" = "엔진 성능";
+"PERF_TOTAL_FRAME" = "전체 프레임 시간";
+"PERF_WAITING_DATA" = "데이터 수집 중...";
+"PERF_BREAKDOWN" = "실행 내역";
+"PERF_CPU_PATH" = "CPU 경로";
+"PERF_METAL_TOTAL" = "Metal 파이프라인";
+"PERF_METAL_COMPUTE" = "GPU 연산";
+"PERF_METAL_TRANSFER" = "메모리 전송";
+"PERF_ZONE_MAPPING" = "구역 매핑";
+"PERF_COLOR_ENHANCE" = "색상 향상";
+"PERF_PHYSICS" = "물리 스무딩";
+"PERF_COPY_REPORT" = "보고서 복사";
+"PERF_COPIED" = "복사됨!";
+"PERF_ACTUAL_FPS" = "실제 FPS";
+"PERF_CAPACITY" = "처리 한계";

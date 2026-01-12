@@ -33,7 +33,7 @@ float3 applyPerceptualEnhancement(float3 rgb, PerceptualUniforms u) {
     float saturation = (maxVal > 0.001) ? (maxVal - minVal) / maxVal : 0.0;
     
     // Boost perceived luminance based on saturation
-    enhanced *= (1.0 + 0.45 * pow(saturation, 2.0));
+    enhanced *= (1.0 + 0.45 * saturation * saturation);
     
     // 4. Hunt Effect (Luminance-Induced Saturation)
     // Colors appear more saturated as luminance increases.
@@ -67,7 +67,8 @@ float calculateSaliency(float3 color) {
         sigmoid *= 0.05; 
     }
     
-    float briWeight = smoothstep(0.02, 0.4, y); 
+    float t = clamp((y - 0.02) / 0.38, 0.0, 1.0);
+    float briWeight = t * t * (3.0 - 2.0 * t);
     
     return sigmoid * expBoost * hueWeight * briWeight;
 }
@@ -107,8 +108,8 @@ kernel void process_frame(
     float maxSaliency = -1.0;
     float3 peakColor = float3(0.0);
     
-    for (uint y = startY; y < endY; y += 2) {
-        for (uint x = startX; x < endX; x += 2) {
+    for (uint y = startY; y < endY; y += 4) {
+        for (uint x = startX; x < endX; x += 4) {
             float4 pixel = inTexture.read(uint2(x, y));
             float3 rgb = pixel.rgb;
             

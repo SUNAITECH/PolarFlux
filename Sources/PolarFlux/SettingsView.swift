@@ -28,6 +28,9 @@ struct SettingsView: View {
                     NavigationLink(value: "Calibration") {
                         Label(String(localized: "CALIBRATION"), systemImage: "slider.horizontal.3")
                     }
+                    NavigationLink(value: "SystemMetrics") {
+                        Label(String(localized: "SYSTEM_METRICS"), systemImage: "chart.xyaxis.line")
+                    }
                     NavigationLink(value: "Power") {
                         Label(String(localized: "POWER"), systemImage: "bolt.shield")
                     }
@@ -62,6 +65,7 @@ struct SettingsView: View {
                             case "SyncSettings": syncSettings
                             case "Audio": audioSettings
                             case "Calibration": calibrationSettings
+                            case "SystemMetrics": systemMetricsSettings
                             case "Power": powerSettings
                             case "Performance": performanceSettings
                             case "General": generalSettings
@@ -353,6 +357,14 @@ struct SettingsView: View {
                 }
                 .padding(10)
             }
+        }
+    }
+    
+    var systemMetricsSettings: some View {
+        VStack(alignment: .leading, spacing: 25) {
+            headerView(title: String(localized: "SYSTEM_METRICS_TITLE"), subtitle: String(localized: "SYSTEM_METRICS_DESC"), icon: "chart.xyaxis.line")
+            
+            PerformanceSettingsView()
         }
     }
     

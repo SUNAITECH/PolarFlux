@@ -205,3 +205,22 @@
 "LICENSE_AGREEMENT" = "Accord de licence";
 "COPYRIGHT" = "© 2025 Shanghai Sunai Technology Co., Ltd.";
 "LICENSE_INFO" = "Publié sous licence MIT";
+
+"SYSTEM_METRICS" = "Métriques système";
+"SYSTEM_METRICS_TITLE" = "Métriques de performance";
+"SYSTEM_METRICS_DESC" = "Analyse en temps réel du moteur de couleur.";
+"PERF_PANEL_TITLE" = "Performance du moteur";
+"PERF_TOTAL_FRAME" = "Temps total de trame";
+"PERF_WAITING_DATA" = "Collecte de données...";
+"PERF_BREAKDOWN" = "Détail de l'exécution";
+"PERF_CPU_PATH" = "Chemin CPU";
+"PERF_METAL_TOTAL" = "Pipeline Metal";
+"PERF_METAL_COMPUTE" = "Calcul GPU";
+"PERF_METAL_TRANSFER" = "Transfert mémoire";
+"PERF_ZONE_MAPPING" = "Cartographie de zone";
+"PERF_COLOR_ENHANCE" = "Amélioration des couleurs";
+"PERF_PHYSICS" = "Lissage physique";
+"PERF_COPY_REPORT" = "Copier le rapport";
+"PERF_COPIED" = "Copié !";
+"PERF_ACTUAL_FPS" = "FPS Réels";
+"PERF_CAPACITY" = "Capacité Max";

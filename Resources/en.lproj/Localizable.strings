@@ -205,3 +205,22 @@
 "LICENSE_AGREEMENT" = "License Agreement";
 "COPYRIGHT" = "© 2025 Shanghai Sunai Technology Co., Ltd.";
 "LICENSE_INFO" = "Released under the MIT License";
+
+"SYSTEM_METRICS" = "System Metrics";
+"SYSTEM_METRICS_TITLE" = "Performance Metrics";
+"SYSTEM_METRICS_DESC" = "Real-time analysis of the computational color engine.";
+"PERF_PANEL_TITLE" = "Engine Performance";
+"PERF_TOTAL_FRAME" = "Total Frame Time";
+"PERF_WAITING_DATA" = "Gathering performance data...";
+"PERF_BREAKDOWN" = "Execution Breakdown";
+"PERF_CPU_PATH" = "CPU Fallback";
+"PERF_METAL_TOTAL" = "Metal Pipeline";
+"PERF_METAL_COMPUTE" = "GPU Compute";
+"PERF_METAL_TRANSFER" = "Memory Transfer";
+"PERF_ZONE_MAPPING" = "Zone Mapping";
+"PERF_COLOR_ENHANCE" = "Color Enhancement";
+"PERF_PHYSICS" = "Physics Smoothing";
+"PERF_COPY_REPORT" = "Copy Report";
+"PERF_COPIED" = "Copied!";
+"PERF_ACTUAL_FPS" = "Actual FPS";
+"PERF_CAPACITY" = "Max Compute";

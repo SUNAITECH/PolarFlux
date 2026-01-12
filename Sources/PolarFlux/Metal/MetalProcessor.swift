@@ -120,12 +120,15 @@ class MetalProcessor {
         encoder.endEncoding()
         
         commandBuffer.commit()
+        let execStart = CFAbsoluteTimeGetCurrent()
         commandBuffer.waitUntilCompleted()
+        PerformanceMonitor.shared.record(metric: .metalCompute, time: CFAbsoluteTimeGetCurrent() - execStart)
         
         return readTextures(outAvg: outAvg, outPeak: outPeak)
     }
     
     private func readTextures(outAvg: MTLTexture, outPeak: MTLTexture) -> ([Float], [Float]) {
+        let start = CFAbsoluteTimeGetCurrent()
         let count = outputWidth * outputHeight * 4
         var avgBytes = [Float](repeating: 0, count: count)
         var peakBytes = [Float](repeating: 0, count: count)
@@ -136,6 +139,7 @@ class MetalProcessor {
         outAvg.getBytes(&avgBytes, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
         outPeak.getBytes(&peakBytes, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
         
+        PerformanceMonitor.shared.record(metric: .metalTransfer, time: CFAbsoluteTimeGetCurrent() - start)
         return (avgBytes, peakBytes)
     }
 }
