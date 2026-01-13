@@ -12,7 +12,7 @@ PolarFlux is a macOS-native ambient lighting synchronization system. It leverage
 3. [Vision Pipeline](#vision-pipeline)
     - [Perceptual Color Science](#1-unified-computational-color-science-engine)
     - [Metal GPU Acceleration](#2-metal-gpu-acceleration)
-    - [Performance Telemetry](#3-advanced-performance-telemetry)
+    - [Advanced Performance Telemetry](#3-advanced-performance-telemetry)
 4. [Dynamics & Smoothing](#dynamics--smoothing)
     - [Fluid Physics Engine](#1-fluid-physics-engine)
     - [Adaptive Kalman Filtering](#2-adaptive-kalman-filtering)
@@ -22,14 +22,19 @@ PolarFlux is a macOS-native ambient lighting synchronization system. It leverage
     - [Intensity-Aware Sensitivity](#2-intensity-aware-sensitivity)
 6. [Hardware & Connectivity](#hardware--connectivity)
     - [Transmission Pipeline](#1-robust-transmission-pipeline)
-    - [Power Management (ABL)](#3-power-management-logic)
+    - [Power Management (ABL)](#2-power-management-abl)
+    - [Smart Fallback Logic](#3-smart-fallback-logic)
 7. [Developer Tools](#developer-tools)
-    - [Debug Mode](#2-developer-debug-mode)
-    - [Diagnostic Dashboard](#diagnostic-dashboard)
-8. [Build & Configuration](#build--configuration)
-9. [Detailed Module Breakdown](#detailed-module-breakdown)
-10. [Q&A](#qa-frequently-asked-questions)
-11. [License](#license)
+    - [Debug Mode](#1-debug-mode)
+    - [Diagnostic Dashboard](#2-diagnostic-dashboard)
+    - [Internationalization (i18n)](#3-internationalization-i18n)
+8. [Implementation Details](#implementation-details)
+    - [Zone State Management](#1-zone-state-management-zonestate)
+    - [Serial Communication Protocol](#2-serial-communication-protocol)
+9. [Build & Configuration](#build--configuration)
+10. [Detailed Module Breakdown](#detailed-module-breakdown)
+11. [Q&A](#qa-frequently-asked-questions)
+12. [License](#license)
 
 ---
 
@@ -108,6 +113,12 @@ PolarFlux incorporates a high-performance compute pipeline using Apple's Metal f
 - **Zero-Copy Architecture**: Uses `CoreVideo` texture caches (`CVMetalTextureCache`) to allow the GPU to read `CVPixelBuffer` data directly from `ScreenCaptureKit` without memory copying.
 - **1:1 Logic Parity**: Strictly aligned constants (Sigmoid center $0.45$, slope $15.0$) between GPU and CPU paths.
 
+### 3. Advanced Performance Telemetry
+A dedicated monitoring system tracks the execution of every frame with microsecond precision.
+- **Execution Breakdown**: Metrics include `GPU Compute`, `Memory Transfer (Unified Memory)`, `Zone Mapping`, and `Physics Smoothing`.
+- **Max Compute Capacity**: Estimates the hardware's theoretical limit (e.g., ~300+ fps on M-series chips) vs. the actual locked FPS.
+- **CFAbsoluteTime Profiling**: Uses high-precision timestamps collected with barrier synchronization to ensure telemetry doesn't impact processing performance.
+
 ---
 
 ## Algorithm Specifications
@@ -138,10 +149,25 @@ $$k_{dynamic} = k_{low} + (k_{high} - k_{low}) \times Mix$$
 - **Keep-Alive System**: High-frequency ($4Hz$) heartbeat ensures the hardware remains active even during static content (e.g., pauses or desktop usage).
 - **Busy-Protection**: Prevents command flooding by tracking `isSending` state across all concurrent callback sources.
 
-### 2. Developer Debug Mode
-- **Volatile Configuration**: Debug settings (Force CPU, Manual Overrides) are design-to-be-volatile and reset on every launch to ensure application stability.
+### 2. Power Management (ABL)
+- **Auto Brightness Limiter**: Calculates estimated current draw ($A_{total}$) in real-time based on individual LED channel intensities.
+- **Dynamic Scaling**: Global brightness is automatically scaled down to keep $A_{total}$ within the user-defined power budget, protecting USB ports and power supplies.
+
+### 3. Smart Fallback Logic
+- **Connection Resilience**: If connection stability drops or is interrupted, the system automatically reduces internal processing frequency.
+- **Auto-Recovery**: Attempts seamless reconnection with reduced brightness settings to maintain system uptime.
+
+---
+
+## Developer Tools
+
+### 1. Debug Mode
+- **Volatile Configuration**: Debug settings (Force CPU, Manual Overrides) are designed to be volatile and reset on every launch to ensure application stability.
 - **Parity Analysis**: The "Force CPU Acceleration" toggle allows developers to verify algorithmic consistency between Metal and CPU paths in real-time.
-- **Diagnostic Dashboard**: Real-time view of serial buffer occupancy and Metal support status.
+
+### 2. Diagnostic Dashboard
+- **Telemetry Visuals**: Real-time monitoring of serial buffer occupancy, Metal support status, and frame-by-frame latency metrics.
+- **Diagnostic Reports**: Integrated system for generating and exporting technical logs for troubleshooting.
 
 ### 3. Internationalization (i18n)
 Full UI and telemetry support for 9 languages: English, Simplified Chinese, Traditional Chinese, German, French, Spanish, Russian, Japanese, and Korean.
@@ -161,10 +187,6 @@ PolarFlux utilizes a non-blocking POSIX serial implementation:
 - **Termios Configuration**: Configured for Raw 8N1 communication with no software flow control (`~IXON & ~IXOFF`).
 - **Packet Atomicity**: Frames are written as a single contiguous buffer (Adalight protocol compatible) to minimize jitter.
 - **Auto-Handshake**: Scans `/dev/cu.*` ports and probes for a successful handshake at various baud rates (115200 to 921600).
-
-### 3. Power Management Logic
-- **ABL (Auto Brightness Limiter)**: Calculates estimated current draw ($A_{total}$) and scales global brightness to keep it within the defined power budget.
-- **Smart Fallback**: If connection stability drops, the system reduces internal processing frequency and attempts automatic reconnection with reduced brightness.
 
 ---
 
