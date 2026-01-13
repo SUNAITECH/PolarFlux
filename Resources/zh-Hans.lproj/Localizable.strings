@@ -35,6 +35,21 @@
 "SYNC_SETTINGS_SUBTITLE" = "配置屏幕捕获、方向和透视校正";
 "ABOUT" = "关于";
 
+/* 调试模式 */
+"DEBUG_MODE" = "调试模式";
+"DEBUG_SUBTITLE" = "开发者诊断与手动覆盖工具";
+"ENABLE_DEBUG" = "启用调试选项";
+"ENABLE_DEBUG_DESC" = "解锁内部诊断设置和手动覆盖选项。";
+"FORCE_CPU" = "强制使用 CPU 加速";
+"FORCE_CPU_DESC" = "即使支持 Metal GPU 路径也强制绕过。用于性能对比或诊断 GPU 驱动问题。";
+"RUNNING_CPU_FALLBACK" = "当前运行在高精度 CPU 回退模式";
+"INTERNAL_DIAGNOSTICS" = "内部状态诊断";
+"METAL_SUPPORTED" = "Metal 支持: %@";
+"SERIAL_BUFFER" = "串口缓冲区: %@ 字节";
+"DEBUG_LOCKED" = "调试选项已锁定，以确保稳定性。";
+"YES" = "是";
+"NO" = "否";
+
 /* Processing Settings */
 "SERIAL_TELEMETRY" = "串口遥测";
 "SERIAL_TELEMETRY_DESC" = "灯带硬件链路的实时通信指标。";

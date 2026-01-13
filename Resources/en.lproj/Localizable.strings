@@ -35,6 +35,21 @@
 "SYNC_SETTINGS_SUBTITLE" = "Configure capture, orientation, and perspective";
 "ABOUT" = "About";
 
+/* Debug Mode */
+"DEBUG_MODE" = "Debug Mode";
+"DEBUG_SUBTITLE" = "Developer diagnostic and override tools";
+"ENABLE_DEBUG" = "Enable Debug Options";
+"ENABLE_DEBUG_DESC" = "Unlocks internal diagnostic settings and manual overrides.";
+"FORCE_CPU" = "Force CPU Acceleration";
+"FORCE_CPU_DESC" = "Bypass Metal GPU path even if supported. Useful for comparing performance or diagnosing GPU driver issues.";
+"RUNNING_CPU_FALLBACK" = "Running in High-Precision CPU Fallback Mode";
+"INTERNAL_DIAGNOSTICS" = "Internal State Diagnostics";
+"METAL_SUPPORTED" = "Metal Supported: %@";
+"SERIAL_BUFFER" = "Serial Buffer: %@ bytes";
+"DEBUG_LOCKED" = "Debug options are locked for stability.";
+"YES" = "Yes";
+"NO" = "No";
+
 /* Processing Settings */
 "SERIAL_TELEMETRY" = "Serial Telemetry";
 "SERIAL_TELEMETRY_DESC" = "Real-time communication metrics for the light strip hardware link.";

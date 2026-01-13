@@ -35,6 +35,21 @@
 "SYNC_SETTINGS_SUBTITLE" = "Aufnahme, Ausrichtung und Perspektive konfigurieren";
 "ABOUT" = "Über";
 
+/* Debug-Modus */
+"DEBUG_MODE" = "Debug-Modus";
+"DEBUG_SUBTITLE" = "Entwickler-Diagnose- und Override-Tools";
+"ENABLE_DEBUG" = "Debug-Optionen aktivieren";
+"ENABLE_DEBUG_DESC" = "Schaltet interne Diagnoseeinstellungen und manuelle Overrides frei.";
+"FORCE_CPU" = "CPU-Beschleunigung erzwingen";
+"FORCE_CPU_DESC" = "Umgeht den Metal-GPU-Pfad, auch wenn dieser unterstützt wird. Nützlich für Leistungsvergleiche oder die Diagnose von GPU-Treiberproblemen.";
+"RUNNING_CPU_FALLBACK" = "Läuft im hochpräzisen CPU-Fallback-Modus";
+"INTERNAL_DIAGNOSTICS" = "Interne Zustandsdiagnose";
+"METAL_SUPPORTED" = "Metal unterstützt: %@";
+"SERIAL_BUFFER" = "Serieller Puffer: %@ Bytes";
+"DEBUG_LOCKED" = "Debug-Optionen sind aus Stabilitätsgründen gesperrt.";
+"YES" = "Ja";
+"NO" = "Nein";
+
 /* Processing Settings */
 "SERIAL_TELEMETRY" = "Serielle Telemetrie";
 "SERIAL_TELEMETRY_DESC" = "Echtzeit-Kommunikationsmetriken für die LED-Hardwareverbindung.";

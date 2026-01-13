@@ -98,6 +98,14 @@ class AppState: ObservableObject {
     }
     @Published var currentLocale: Locale = .current
     
+    // Debug & Frontier
+    @Published var isDebugMode: Bool = false
+    @Published var forceCPU: Bool = false {
+        didSet {
+            screenCapture.forceCPU = forceCPU
+        }
+    }
+    
     private var healthTimer: Timer?
     
     // Telemetry Baselines

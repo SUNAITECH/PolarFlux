@@ -43,6 +43,9 @@ struct SettingsView: View {
                     NavigationLink(value: "General") {
                         Label(String(localized: "GENERAL"), systemImage: "gear")
                     }
+                    NavigationLink(value: "Debug") {
+                        Label(String(localized: "DEBUG_MODE"), systemImage: "ladybug")
+                    }
                     NavigationLink(value: "About") {
                         Label(String(localized: "ABOUT"), systemImage: "info.circle")
                     }
@@ -69,6 +72,7 @@ struct SettingsView: View {
                             case "Power": powerSettings
                             case "Performance": performanceSettings
                             case "General": generalSettings
+                            case "Debug": debugSettings
                             case "About": AboutView()
                             default: Text(String(localized: "SELECT_CATEGORY"))
                             }
@@ -557,6 +561,73 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
+                }
+                .padding(10)
+            }
+        }
+    }
+    
+    var debugSettings: some View {
+        VStack(alignment: .leading, spacing: 25) {
+            headerView(title: String(localized: "DEBUG_MODE"), subtitle: String(localized: "DEBUG_SUBTITLE"), icon: "ladybug")
+            
+            GroupBox {
+                VStack(alignment: .leading, spacing: 20) {
+                    Toggle(String(localized: "ENABLE_DEBUG"), isOn: $appState.isDebugMode)
+                        .toggleStyle(.switch)
+                        .help(String(localized: "ENABLE_DEBUG_DESC"))
+                    
+                    if appState.isDebugMode {
+                        Divider()
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(String(localized: "FORCE_CPU"))
+                                        .font(.headline)
+                                    Text(String(localized: "FORCE_CPU_DESC"))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Toggle("", isOn: $appState.forceCPU)
+                                    .toggleStyle(.switch)
+                            }
+                            
+                            if appState.forceCPU {
+                                Label(String(localized: "RUNNING_CPU_FALLBACK"), systemImage: "cpu")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(String(localized: "INTERNAL_DIAGNOSTICS"))
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            HStack {
+                                Label(String(format: String(localized: "METAL_SUPPORTED"), MetalProcessor.isSupported ? String(localized: "YES") : String(localized: "NO")), systemImage: "chipcard")
+                                Spacer()
+                                Label(String(format: String(localized: "SERIAL_BUFFER"), "\(appState.performanceMetrics.bufferSize)"), systemImage: "tray.full")
+                            }
+                            .font(.caption)
+                            .monospacedDigit()
+                        }
+                    } else {
+                        VStack(alignment: .center, spacing: 10) {
+                            Image(systemName: "lock.shield")
+                                .font(.largeTitle)
+                                .foregroundColor(.secondary)
+                            Text(String(localized: "DEBUG_LOCKED"))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                    }
                 }
                 .padding(10)
             }

@@ -35,6 +35,21 @@
 "SYNC_SETTINGS_SUBTITLE" = "キャプチャ、向き、視点の構成";
 "ABOUT" = "情報";
 
+/* デバッグモード */
+"DEBUG_MODE" = "デバッグモード";
+"DEBUG_SUBTITLE" = "開発者向け診断・上書きツール";
+"ENABLE_DEBUG" = "デバッグオプションを有効にする";
+"ENABLE_DEBUG_DESC" = "内部診断設定と手動上書きを解除します。";
+"FORCE_CPU" = "CPUアクセラレーションを強制";
+"FORCE_CPU_DESC" = "Metal GPUパスがサポートされていても強制的に回避します。パフォーマン比較やGPUドライバの問題診断に有効です。";
+"RUNNING_CPU_FALLBACK" = "高精度CPUフォールバックモードで動作中";
+"INTERNAL_DIAGNOSTICS" = "内部ステータス診断";
+"METAL_SUPPORTED" = "Metalサポート: %@";
+"SERIAL_BUFFER" = "シリアルバッファ: %@ バイト";
+"DEBUG_LOCKED" = "デバッグオプションは安定性のためにロックされています。";
+"YES" = "はい";
+"NO" = "いいえ";
+
 /* Processing Settings */
 "SERIAL_TELEMETRY" = "シリアルテレメトリ";
 "SERIAL_TELEMETRY_DESC" = "LEDハードウェアリンクのリアルタイム通信メトリクス。";

@@ -35,6 +35,21 @@
 "SYNC_SETTINGS_SUBTITLE" = "Configurer la capture, l'orientation et la perspective";
 "ABOUT" = "À propos";
 
+/* Mode Debug */
+"DEBUG_MODE" = "Mode Debug";
+"DEBUG_SUBTITLE" = "Outils de diagnostic et d'écrasement pour développeurs";
+"ENABLE_DEBUG" = "Activer les options de débogage";
+"ENABLE_DEBUG_DESC" = "Déverrouille les paramètres de diagnostic interne et les écrasements manuels.";
+"FORCE_CPU" = "Forcer l'accélération CPU";
+"FORCE_CPU_DESC" = "Contourne le chemin GPU Metal même s'il est pris en charge. Utile pour comparer les performances ou diagnostiquer des problèmes de pilote GPU.";
+"RUNNING_CPU_FALLBACK" = "Exécution en mode de secours CPU haute précision";
+"INTERNAL_DIAGNOSTICS" = "Diagnostics de l'état interne";
+"METAL_SUPPORTED" = "Metal pris en charge : %@";
+"SERIAL_BUFFER" = "Tampon série : %@ octets";
+"DEBUG_LOCKED" = "Les options de débogage sont verrouillées pour la stabilité.";
+"YES" = "Oui";
+"NO" = "Non";
+
 /* Processing Settings */
 "SERIAL_TELEMETRY" = "Télémétrie Série";
 "SERIAL_TELEMETRY_DESC" = "Mesures de communication en temps réel pour la liaison matérielle LED.";

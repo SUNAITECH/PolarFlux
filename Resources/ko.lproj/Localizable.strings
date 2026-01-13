@@ -35,6 +35,21 @@
 "SYNC_SETTINGS_SUBTITLE" = "캡처, 방향 및 원근 설정";
 "ABOUT" = "정보";
 
+/* 디버그 모드 */
+"DEBUG_MODE" = "디버그 모드";
+"DEBUG_SUBTITLE" = "개발자 진단 및 오버라이드 도구";
+"ENABLE_DEBUG" = "디버그 옵션 활성화";
+"ENABLE_DEBUG_DESC" = "내부 진단 설정 및 수동 오버라이드를 해제합니다.";
+"FORCE_CPU" = "CPU 가속 강제";
+"FORCE_CPU_DESC" = "Metal GPU 경로가 지원되더라도 강제로 우회합니다. 성능 비교 또는 GPU 드라이버 문제 진단에 유용합니다.";
+"RUNNING_CPU_FALLBACK" = "고정밀 CPU 폴백 모드에서 실행 중";
+"INTERNAL_DIAGNOSTICS" = "내부 상태 진단";
+"METAL_SUPPORTED" = "Metal 지원: %@";
+"SERIAL_BUFFER" = "시리얼 버퍼: %@ 바이트";
+"DEBUG_LOCKED" = "디버그 옵션은 안정성을 위해 잠겨 있습니다.";
+"YES" = "예";
+"NO" = "아니오";
+
 /* Processing Settings */
 "SERIAL_TELEMETRY" = "시리얼 원격 측정";
 "SERIAL_TELEMETRY_DESC" = "LED 하드웨어 링크의 실시간 통신 지표입니다.";

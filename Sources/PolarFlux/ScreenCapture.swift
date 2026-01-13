@@ -35,6 +35,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     // Metal Integration
     private let metalProcessor = MetalProcessor()
     var useMetal: Bool = true
+    var forceCPU: Bool = false
     
     // Computational Color Science: Adaptation State
     private var currentInferredWhitePoint = SIMD3<Float>(1.0, 1.0, 1.0)
@@ -213,7 +214,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let safeDt = min(max(dt, 0.001), 0.1)
         
         // 1. Metal Acceleration
-        if self.useMetal && metalProcessor.isAvailable {
+        if !self.forceCPU && self.useMetal && metalProcessor.isAvailable {
             let metalStart = CFAbsoluteTimeGetCurrent()
             let metalResult = metalProcessor.process(
                 pixelBuffer: pixelBuffer,
