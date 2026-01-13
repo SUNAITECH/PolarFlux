@@ -240,8 +240,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 let wpAlpha = Float(min(safeDt * 0.5, 1.0))
                 let lumaAlpha = Float(min(safeDt * 2.0, 1.0))
                 
-                currentInferredWhitePoint = mix(currentInferredWhitePoint, frameInferredWhite, t: wpAlpha)
-                currentAdaptedLuma = currentAdaptedLuma * (1.0 - lumaAlpha) + frameLuma * lumaAlpha
+                self.currentInferredWhitePoint = mix(self.currentInferredWhitePoint, frameInferredWhite, t: wpAlpha)
+                self.currentAdaptedLuma = self.currentAdaptedLuma * (1.0 - lumaAlpha) + frameLuma * lumaAlpha
                 
                 onFrameProcessed?(ledData)
                 PerformanceMonitor.shared.record(metric: .totalFrame, time: CFAbsoluteTimeGetCurrent() - startTime)
@@ -675,8 +675,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             }
         }
         
-        let avgLuma = Float(frameWeightAcc > 0 ? frameLumaAcc / frameWeightAcc : 0.5)
-        let frameWhite = frameWeightAcc > 0 ? SIMD3<Float>(Float(frameRSum/frameWeightAcc), Float(frameGSum/frameWeightAcc), Float(frameBSum/frameWeightAcc)) : SIMD3<Float>(1, 1, 1)
+        let avgLuma = Float(frameWeightAcc > 1e-5 ? (frameLumaAcc / frameWeightAcc) / 255.0 : 0.5)
+        let frameWhite = frameWeightAcc > 1e-5 ? SIMD3<Float>(
+            Float(frameRSum / frameWeightAcc / 255.0),
+            Float(frameGSum / frameWeightAcc / 255.0),
+            Float(frameBSum / frameWeightAcc / 255.0)
+        ) : SIMD3<Float>(1, 1, 1)
         
         let ledData = finalizeFrame(accumulators: accumulators, totalZones: totalZones, brightness: brightness, dt: dt, config: config, orientation: orientation, ledCount: ledCount)
         return (ledData, frameWhite, avgLuma)

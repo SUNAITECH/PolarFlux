@@ -249,6 +249,7 @@ class AppState: ObservableObject {
     }
     
     private var isSending = false
+    private let sendLock = NSLock()
     private var isCapturing = false // DEPRECATED
     private var cachedDisplay: SCDisplay?
     private var serialPort = SerialPort()
@@ -517,7 +518,10 @@ class AppState: ObservableObject {
         // 1. Stop all current mode-specific engines and clear callbacks
         loopTimer?.cancel()
         loopTimer = nil
+        
+        sendLock.lock()
         lastSentData = nil // Clear last sent data to prevent keep-alive from sending old mode data
+        sendLock.unlock()
         
         // Clear screen capture callback immediately to prevent old frames from being sent
         screenCapture.onFrameProcessed = nil
@@ -836,12 +840,18 @@ class AppState: ObservableObject {
     // MARK: - Helper
     private func sendData(_ data: [UInt8]) {
         guard isRunning else { return }
+        
+        sendLock.lock()
         // Double check busy state to prevent flooding
-        if isSending { return }
+        if isSending {
+            sendLock.unlock()
+            return
+        }
         isSending = true
         
         // Store original data for keep-alive to prevent recursive dimming
         self.lastSentData = data
+        sendLock.unlock()
         
         var finalData = data
         
@@ -1009,10 +1019,10 @@ class AppState: ObservableObject {
         serialPort.sendSkydimo(rgbData: finalData) { [weak self] in
             // Ensure we are back on main to update UI/State flags
             // Robustness: check if self still exists prevents crash in dealloc
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                self.isSending = false
-            }
+            guard let self = self else { return }
+            self.sendLock.lock()
+            self.isSending = false
+            self.sendLock.unlock()
         }
     }
     
@@ -1503,20 +1513,15 @@ class AppState: ObservableObject {
             }
 
             // Sync: Access shared state carefully
-            // We copy locally to avoid race conditions with background threads updating `lastSentData`
-            var dataToSend: [UInt8]?
-            // Use a simple lock or just main thread access (since this is main thread timer and lastSentData is updated on main/sync context?) 
-            // `sendData` is called from `ScreenCapture.onFrameProcessed` which is on main thread? No, it's on processing queue.
-            // Wait, sendData is called from callbacks.
-            // We need to synchronize access to `lastSentData` or use a property wrapper.
-            // For now, let's assume `lastSentData` atomic write is "safe enough" for [UInt8] (copy on write), 
-            // but the crash is likely `sendData` closure not capturing self correctly or a race on `isSending`.
-            
-            dataToSend = self.lastSentData
+            // We use sendLock to safely access lastSentData and isSending from the main thread timer
+            self.sendLock.lock()
+            let dataToSend = self.lastSentData
+            let currentlySending = self.isSending
+            self.sendLock.unlock()
             
             if let data = dataToSend {
                 // Prevent re-entry if the port is busy
-                if !self.isSending {
+                if !currentlySending {
                     self.sendData(data)
                 }
             }

@@ -61,7 +61,7 @@ float calculateSaliency(float3 color) {
     float expBoost = exp(vividness * 2.8); 
     
     float purity = saturation * maxVal; 
-    float sigmoid = 1.0 / (1.0 + exp(-15.0 * (purity - 0.45))); 
+    float sigmoid = 1.0 / (1.0 + exp(-12.0 * (purity - 0.4))); 
     
     if (saturation < 0.2 && maxVal > 0.7) {
         sigmoid *= 0.05; 
@@ -108,8 +108,8 @@ kernel void process_frame(
     float maxSaliency = -1.0;
     float3 peakColor = float3(0.0);
     
-    for (uint y = startY; y < endY; y += 4) {
-        for (uint x = startX; x < endX; x += 4) {
+    for (uint y = startY; y < endY; y++) {
+        for (uint x = startX; x < endX; x++) {
             float4 pixel = inTexture.read(uint2(x, y));
             float3 rgb = pixel.rgb;
             
@@ -123,11 +123,12 @@ kernel void process_frame(
                 peakColor = enhanced;
             }
             
-            sumColor += enhanced * saliency;
+            // Critical Scale Fix: CPU path expects 0-255 values in accumulators
+            sumColor += (enhanced * 255.0) * saliency;
             totalWeight += saliency;
         }
     }
     
     outAvg.write(float4(sumColor, totalWeight), gid);
-    outPeak.write(float4(peakColor, maxSaliency), gid);
+    outPeak.write(float4(peakColor * 255.0, maxSaliency), gid);
 }
