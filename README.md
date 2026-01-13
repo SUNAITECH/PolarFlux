@@ -3,17 +3,38 @@
 PolarFlux is a macOS-native ambient lighting synchronization system. It leverages `ScreenCaptureKit` for low-latency frame acquisition, `AVFoundation` for real-time audio analysis, and the `Accelerate` framework for hardware-accelerated digital signal processing. The system integrates a second-order fluid physics engine for temporal smoothing and a saliency-based sampling algorithm for color extraction.
 
 ## Table of Contents
-1. [System Architecture](#system-architecture)
-2. [Vision Pipeline](#vision-pipeline)
-3. [Fluid Physics Engine](#fluid-physics-engine)
-4. [Audio Processing (DSP)](#audio-processing-dsp)
-5. [Hardware Communication](#hardware-communication)
-6. [Algorithm Specifications](#algorithm-specifications)
-7. [Implementation Details](#implementation-details)
+1. [Introduction](#introduction)
+2. [System Architecture](#system-architecture)
+    - [State Orchestration (`AppState`)](#1-central-state-management-appstateswift)
+    - [Vision Engine (`ScreenCapture`)](#2-vision-engine-screencaptureswift)
+    - [Audio Processing (`AudioProcessor`)](#3-audio-processing-audioprocessorswift)
+    - [Effect Generation (`EffectEngine`)](#4-effect-engine-effectengineswift)
+3. [Vision Pipeline](#vision-pipeline)
+    - [Perceptual Color Science](#1-unified-computational-color-science-engine)
+    - [Metal GPU Acceleration](#2-metal-gpu-acceleration)
+    - [Performance Telemetry](#3-advanced-performance-telemetry)
+4. [Dynamics & Smoothing](#dynamics--smoothing)
+    - [Fluid Physics Engine](#1-fluid-physics-engine)
+    - [Adaptive Kalman Filtering](#2-adaptive-kalman-filtering)
+    - [Temporal Adaptation](#3-temporal-adaptation-exponential-smoothing)
+5. [Algorithm Specifications](#algorithm-specifications)
+    - [Perceptual Saliency Engine](#1-perceptual-saliency-engine)
+    - [Intensity-Aware Sensitivity](#2-intensity-aware-sensitivity)
+6. [Hardware & Connectivity](#hardware--connectivity)
+    - [Transmission Pipeline](#1-robust-transmission-pipeline)
+    - [Power Management (ABL)](#3-power-management-logic)
+7. [Developer Tools](#developer-tools)
+    - [Debug Mode](#2-developer-debug-mode)
+    - [Diagnostic Dashboard](#diagnostic-dashboard)
 8. [Build & Configuration](#build--configuration)
-9. [Q&A (Frequently Asked Questions)](#qa-frequently-asked-questions)
-10. [Detailed Module Breakdown](#detailed-module-breakdown)
+9. [Detailed Module Breakdown](#detailed-module-breakdown)
+10. [Q&A](#qa-frequently-asked-questions)
 11. [License](#license)
+
+---
+
+## Introduction
+PolarFlux is a high-performance, macOS-native ambient lighting system designed for professional-grade display synchronization. Unlike traditional software that relies on simple pixel averages, PolarFlux implements a sophisticated computational color science pipeline that accounts for human visual perception, spatial importance, and fluid temporal dynamics.
 
 ---
 
@@ -31,134 +52,99 @@ The `AppState` class serves as the primary coordinator for all subsystems.
 
 ### 2. Vision Engine (`ScreenCapture.swift`)
 The vision engine transforms raw display buffers into LED-mapped color data.
-- **SCStream Integration**: Implements `SCStreamOutput` to receive display frames directly from the window server.
+- **SCStream Integration**: Implements `SCStreamOutput` to receive display frames directly from the window server with near-zero latency.
 - **Concurrency**: Frame processing is offloaded to a dedicated `DispatchQueue` with `.userInteractive` Quality of Service (QoS) to minimize input lag.
+- **Coordinate Transformation**: Automatically handles screen orientation changes (0°, 90°, 180°, 270°) and aspect ratio scaling.
 
-### 3. Physics Engine (`FluidPhysicsEngine.swift`)
+### 3. Audio Processing (`AudioProcessor.swift`)
+Real-time frequency analysis for music-reactive lighting.
+- **Low-Latency Capture**: Uses `AVAudioEngine` for high-performance audio routing.
+- **Spectral Decomposition**: Leverages Apple's `Accelerate` framework to perform Radix-2 FFTs on system output.
+- **Energy Mapping**: Maps frequency energy (Bass, Mid, Treble) to lighting intensity and color shifts.
+
+### 4. Effect Engine (`EffectEngine.swift`)
+A procedural animation system for ambient lighting effects.
+- **Dynamic Generation**: Includes 20+ built-in effects (Rainbow, Plasma, Waves, etc.) calculated in real-time.
+- **Physics Integration**: Effects can be piped through the physics engine for organic motion.
+
+---
+
+## Dynamics & Smoothing
+
+### 1. Fluid Physics Engine
 Applies temporal smoothing to raw color data to eliminate flicker and provide organic transitions.
 - **Stateful Simulation**: Maintains independent `SpringState` (position, velocity) for each LED channel.
-- **Fluid Coupling**: Implements spatial advection and drag forces between neighboring LEDs to simulate fluid-like color flow.
+- **Fluid Neighbors (Circular Coupling)**: Implements spatial advection and drag forces between neighboring LEDs to simulate fluid-like color flow.
+- **Edge-Aware Flow Field**: Coupling force is reduced when high color gradients are detected between zones, preserving sharp visual boundaries while smoothing gradients.
+
+### 2. Adaptive Kalman Filtering
+To stabilize colors in static scenes while maintaining responsiveness during motion, a 1D Kalman filter is applied per zone:
+
+- **State Vector**: $\hat{x}_k = [R, G, B]^T$
+- **Process Noise ($Q$):** Dynamically adjusted between $0.1$ and $0.4$ based on frame-to-frame color residuals.
+- **Measurement Noise ($R$):** Inversely proportional to scene transition magnitude to prioritize new information during rapid changes.
+- **Temporal Hysteresis**: Prevents micro-flicker in dark zones without introducing perceptible lag.
+
+### 3. Temporal Adaptation (Exponential Smoothing)
+PolarFlux uses unified exponential decay for consistent perceptual adaptation:
+- **White Point Adaptation**: $\tau \approx 1.5s$ for smooth, natural color temperature shifts.
+- **Luminance Adaptation**: $\tau \approx 0.5s$ for responsive brightness tracking.
 
 ---
 
 ## Vision Pipeline
 
-### 1. Metal GPU Acceleration
+### 1. Unified Computational Color Science Engine
+PolarFlux features a state-of-the-art vision pipeline inspired by the **CIECAM02** color appearance model. This ensures that the light colors match human visual perception rather than just raw sensor data.
+
+- **Von Kries Chromatic Adaptation**: Dynamically adjusts the scene's white point to maintain color constancy as the screen content changes.
+- **Hunt Effect**: Sophisticated luminance-induced saturation modelling—ensuring colors remain vibrant even as brightness fluctuates.
+- **Helmholtz-Kohlrausch (H-K) Effect**: Compensates for the perceived brightness of highly saturated colors.
+- **Sigmoid S-Curve Adaptation**: A multi-stage non-linear response curve that simulates human contrast sensitivity, expanding dynamic range without clipping.
+
+### 2. Metal GPU Acceleration
 PolarFlux incorporates a high-performance compute pipeline using Apple's Metal framework.
-- **Compute Shaders**: Custom `.metal` shaders analyze display buffers on the GPU, calculating perceptual saliency and dominant colors in parallel.
-- **Low CPU Overhead**: By offloading pixel analysis to the GPU, CPU usage for screen synchronization is reduced by up to 70-80%.
+- **Compute Shaders**: Custom `.metal` shaders analyze display buffers on the GPU, executing the entire perceptual pipeline in parallel.
 - **Zero-Copy Architecture**: Uses `CoreVideo` texture caches (`CVMetalTextureCache`) to allow the GPU to read `CVPixelBuffer` data directly from `ScreenCaptureKit` without memory copying.
-
-### 2. Polar Binning Algorithm
-Pixel-to-LED mapping is performed in polar coordinates relative to a configurable perspective origin.
-- **Coordinate Mapping**: Pixels are mapped to LED indices based on their angular position relative to the origin.
-- **Search Efficiency**: Uses binary search for $O(\log N)$ LED index resolution during the mapping phase.
-- **Perspective Origin**: Supports automatic calculation based on the "Golden Ratio" or manual override for ultra-wide or multi-monitor setups.
-
-### 3. Perceptual Saliency Sampling
-A weighted sampling method that prioritizes high-chroma and high-luminance pixels.
-- **Saliency Weighting**: Uses a sigmoid-mapped saturation weight to favor vibrant colors over neutral tones.
-- **Hybrid Mixing**: Employs the Coefficient of Variation (CV) of saliency within a zone to dynamically switch between mean color and peak saliency color.
-- **Zone State Management**: Each LED zone maintains a `ZoneState` that accumulates statistical moments (accR, accG, accB, accWeight) for $O(1)$ storage complexity.
-
----
-
-## Fluid Physics Engine
-
-The physics engine implements a second-order spring-damping system to govern color transitions.
-
-### 1. Integration Logic
-The engine uses Euler integration for state updates:
-
-```math
-v_{t+1} = v_t + (F_{attraction} + F_{advection} + F_{drag}) \times \Delta t
-```
-```math
-x_{t+1} = x_t + v_{t+1} \times \Delta t
-```
-
-### 2. Adaptive Dynamics
-- **Stiffness ($k$)**: Dynamically adjusted between $0.02$ and $0.2$ based on scene intensity.
-- **Damping ($\zeta$)**: Calculated to maintain a near-critical damping state, preventing excessive oscillation.
-- **Snapping Logic**: For color distances $> 120$ (8-bit RGB), the engine bypasses smoothing to prevent ghosting during scene cuts.
-- **Flow Field**: A dynamic flow phase ($\phi$) generates a time-varying advection vector, creating organic movement even in static scenes.
-
----
-
-## Audio Processing (DSP)
-
-### 1. Signal Acquisition
-- **CoreAudio Integration**: Scans for available input devices using `AudioHardwarePropertyDevices`.
-- **AVAudioEngine**: Uses bus taps on the `AVAudioInputNode` for non-blocking PCM buffer acquisition.
-- **Buffer Window**: Processing is performed in 1024-sample windows.
-
-### 2. Frequency Analysis
-- **vDSP FFT**: Utilizes the `Accelerate` framework for 1024-point Fast Fourier Transforms (`vDSP_DFT_Execute`).
-- **Energy Tracking**: Implements RMS (Root Mean Square) calculation for temporal energy estimation and dynamic intensity scaling.
-- **Logarithmic Binning**: Maps linear frequency bins to a logarithmic scale for more musical visualization.
-
----
-
-## Hardware Communication
-
-### 1. Serial Implementation (`SerialPort.swift`)
-- **Telemetry System**: Provides industry-leading real-time diagnostics:
-    - **Data Rate (KB/s)**: Real-time throughput calculation for USB/Serial bandwidth.
-    - **PPS (Packets/Sec)**: Command frequency tracking for temporal resolution monitoring.
-    - **Write Latency (ms)**: Microsecond-precision timing of POSIX write operations to detect hardware-level bottlenecks.
-- **POSIX Interface**: Uses low-level `termios` for direct serial communication.
-- **Configuration**: 8N1 (8 data bits, no parity, 1 stop bit) raw mode.
-- **Baud Rates**: Supports standard and non-standard rates up to 3,000,000 bps.
-- **Raw Mode Flags**:
-    - `c_lflag`: `~ICANON & ~ECHO & ~ISIG` (Raw input).
-    - `c_iflag`: `~IXON & ~IXOFF` (No software flow control).
-    - `c_oflag`: `~OPOST` (Raw output).
-
-### 2. Adalight Protocol
-PolarFlux implements the Skydimo-variant of the Adalight protocol:
-`[0x41, 0x64, 0x61, 0x01, CountHi, CountLo, R1, G1, B1, ...]`
-- **Timing**: Uses `tcdrain` to ensure hardware buffer clearance and precise latency measurement using `CACurrentMediaTime`.
-- **Packet Atomicity**: Frames are written as a single contiguous buffer to minimize jitter.
-- **Header Structure**: `[0x41, 0x64, 0x61]` identifies the protocol, followed by a command byte and a 16-bit LED count.
+- **1:1 Logic Parity**: Strictly aligned constants (Sigmoid center $0.45$, slope $15.0$) between GPU and CPU paths.
 
 ---
 
 ## Algorithm Specifications
 
-### 1. Perceptual Saliency Formula
-The system avoids simple averaging to prevent color "muddiness." Instead, it calculates a saliency score for each pixel:
+### 1. Perceptual Saliency Engine
+The system utilizes a multi-factor weighting algorithm to extract the most "meaningful" colors from a scene:
 
-```math
-Saliency = \frac{1}{1 + e^{-15(S - 0.4)}} \times \text{LuminanceWeight}
-```
+$$Saliency = Sigmoid(Purity) \times e^{(Vividness \times 2.8)} \times HueWeight \times BrightnessWeight$$
 
-Where:
-- **$S$ (Saturation)**: Calculated as the variance between RGB channels relative to the mean.
-- **Sigmoid Mapping**: The saturation is passed through a sigmoid function centered at 0.4 with a steepness of 15 to aggressively prioritize vibrant colors.
-- **Luminance Weight**: $Y = 0.299R^2 + 0.587G^2 + 0.114B^2$.
+- **Hue Weighting**: Dynamically prioritizes certain wavelengths (e.g., Red/Blue) that are more impactful in ambient lighting environments.
+- **Purity Sigmoid**: Centered at $0.45$ with a slope of $15.0$ to aggressively filter out neutral/gray pixels.
+- **Expansion/Compression**: Uses an exponential vividness boost to make primary colors "punchier" against desaturated backgrounds.
 
-### 2. Adaptive Kalman Filter
-To stabilize colors in static scenes while maintaining responsiveness during motion, a 1D Kalman filter is applied per channel:
+### 2. Intensity-Aware Sensitivity
+PolarFlux calculates **Local Intensity** ($I_{local}$) for each zone to modulate responsiveness:
+- **Responsive Tracking**: In high-intensity zones, the physics engine stiffness $k$ increases ($k_{high}$) to prioritize speed.
+- **Stable Filtering**: In low-intensity scenes, damping increases and stiffness decreases ($k_{low}$) to prevent "dancing" or jitter in dark content.
 
-- **State Vector**:
-```math
-\hat{x}_k = [R, G, B]^T
-```
-- **Process Noise ($Q$):** Dynamically adjusted based on the frame-to-frame color residual.
-- **Measurement Noise ($R$):** Inversely proportional to the scene intensity $I_t$.
-- **Update Equation**:
-```math
-\hat{x}_{k|k} = \hat{x}_{k|k-1} + K_k(z_k - \hat{x}_{k|k-1})
-```
+$$Mix = \text{smoothstep}(0.1, 0.7, I_{local})$$
+$$k_{dynamic} = k_{low} + (k_{high} - k_{low}) \times Mix$$
 
-### 3. Scene Intensity Detection
-Median Euclidean distance between frames is smoothed using a first-order IIR filter:
+---
 
-```math
-I_{t} = 0.85 I_{t-1} + 0.15 D_{median}
-```
+## Hardware & Connectivity
 
-This intensity value $I_t$ modulates the stiffness $k$ of the physics engine via a `smoothstep` interpolation.
+### 1. Robust Transmission Pipeline
+- **Thread-Safe Serial Interface**: Employs mandatory `NSLock` synchronization to prevent race conditions between frame processing and keep-alive timers.
+- **Keep-Alive System**: High-frequency ($4Hz$) heartbeat ensures the hardware remains active even during static content (e.g., pauses or desktop usage).
+- **Busy-Protection**: Prevents command flooding by tracking `isSending` state across all concurrent callback sources.
+
+### 2. Developer Debug Mode
+- **Volatile Configuration**: Debug settings (Force CPU, Manual Overrides) are design-to-be-volatile and reset on every launch to ensure application stability.
+- **Parity Analysis**: The "Force CPU Acceleration" toggle allows developers to verify algorithmic consistency between Metal and CPU paths in real-time.
+- **Diagnostic Dashboard**: Real-time view of serial buffer occupancy and Metal support status.
+
+### 3. Internationalization (i18n)
+Full UI and telemetry support for 9 languages: English, Simplified Chinese, Traditional Chinese, German, French, Spanish, Russian, Japanese, and Korean.
 
 ---
 
@@ -167,23 +153,18 @@ This intensity value $I_t$ modulates the stiffness $k$ of the physics engine via
 ### 1. Zone State Management (`ZoneState`)
 Each LED zone maintains a persistent state to handle temporal accumulation and peak detection:
 - **Temporal Accumulation**: Stores weighted statistical moments of pixels within the zone, allowing for $O(1)$ storage regardless of zone size.
-- **Peak Memory**: Tracks the highest saliency pixel encountered in the current frame for hybrid mixing.
-- **Error Covariance**: Maintains the $P$ matrix for the Kalman filter to estimate measurement certainty.
+- **Hybrid Mixing**: Blends average zone color with the "Peak Saliency" color (boosted by 25% saturation) based on a dynamic coefficient derived from the color coefficient of variation (CV).
+- **Kalman State Persistence**: Maintains the error covariance matrix $P$ across frames to estimate measurement certainty.
 
 ### 2. Serial Communication Protocol
 PolarFlux utilizes a non-blocking POSIX serial implementation:
-- **File Descriptor**: Opened with `O_RDWR | O_NOCTTY`.
-- **Termios Configuration**:
-    - `c_cflag`: `CS8 | CLOCAL | CREAD` (8-bit, local, enable receiver).
-    - `c_lflag`: `~ICANON & ~ECHO & ~ISIG` (Raw mode).
-    - `c_iflag`: `~IXON & ~IXOFF` (No software flow control).
-- **Packet Atomicity**: Frames are written as a single contiguous buffer to minimize jitter.
+- **Termios Configuration**: Configured for Raw 8N1 communication with no software flow control (`~IXON & ~IXOFF`).
+- **Packet Atomicity**: Frames are written as a single contiguous buffer (Adalight protocol compatible) to minimize jitter.
+- **Auto-Handshake**: Scans `/dev/cu.*` ports and probes for a successful handshake at various baud rates (115200 to 921600).
 
 ### 3. Power Management Logic
-- **ABL (Auto Brightness Limiter)**:
-    - Calculates estimated current: $A_{total} = \sum (R_i + G_i + B_i) \times \text{Constant}$.
-    - If $A_{total} > \text{Limit}$, scales all channels by $Scale = \frac{\text{Limit}}{A_{total}}$.
-- **Smart Fallback**: If the serial connection is interrupted, the system gracefully reduces internal processing frequency to conserve CPU resources and attempts automatic reconnection.
+- **ABL (Auto Brightness Limiter)**: Calculates estimated current draw ($A_{total}$) and scales global brightness to keep it within the defined power budget.
+- **Smart Fallback**: If connection stability drops, the system reduces internal processing frequency and attempts automatic reconnection with reduced brightness.
 
 ---
 
@@ -213,7 +194,35 @@ To trigger an automated release to GitHub (CI/CD):
 ```bash
 ./Scripts/release.sh
 ```
-This script will guide you through versioning, tag creation, and push. GitHub Actions will then automatically build and publish the DMG.
+
+---
+
+## Detailed Module Breakdown
+
+### 1. Core State & Utility
+- **`Sources/PolarFlux/AppState.swift`**: Primary coordinator and state machine.
+- **`Sources/PolarFlux/Logger.swift`**: Thread-safe persistent logging.
+- **`Sources/PolarFlux/LaunchAtLogin.swift`**: Helper for login item management.
+
+### 2. Visual Engines
+- **`Sources/PolarFlux/Metal/Shaders.metal`**: GPU-side perceptual compute kernel.
+- **`Sources/PolarFlux/Metal/MetalProcessor.swift`**: Swift wrapper for Metal resource management.
+- **`Sources/PolarFlux/ScreenCapture.swift`**: Vision orchestration, zone mapping, and Kalman stabilization.
+
+### 3. Dynamic Subsystems
+- **`Sources/PolarFlux/FluidPhysicsEngine.swift`**: Multi-order spring-damping system with neighbor coupling.
+- **`Sources/PolarFlux/AudioProcessor.swift`**: FFT-based spectral analysis and audio capture.
+- **`Sources/PolarFlux/EffectEngine.swift`**: Procedural pattern generation.
+
+### 4. Telemetry & Hardware
+- **`Sources/PolarFlux/PerformanceMonitor.swift`**: High-precision execution tracking.
+- **`Sources/PolarFlux/SerialPort.swift`**: POSIX serial implementation for device communication.
+
+### 5. Specialized Settings & Views
+- **`Sources/PolarFlux/PerspectiveOriginSettings.swift`**: Logic for "Perspective Origin" calculations (Golden Ratio vs Manual).
+- **`Sources/PolarFlux/PerformanceSettingsView.swift`**: Dedicated UI for tuning compute-intensive parameters.
+- **`Sources/PolarFlux/SettingsView.swift`**: Main configuration interface.
+- **`Sources/PolarFlux/AboutView.swift`**: Application version and license information.
 
 ---
 
@@ -221,83 +230,26 @@ This script will guide you through versioning, tag creation, and push. GitHub Ac
 
 ### 1. Permissions & Security
 **Q: Why does PolarFlux need Screen Recording permission?**  
-**A:** PolarFlux uses `ScreenCaptureKit` to capture display frames for real-time color analysis. Without this permission, the app cannot access the display buffer, resulting in a black screen in Sync mode. You can enable this in `System Settings > Privacy & Security > Screen Recording`.
+**A:** It uses `ScreenCaptureKit` to capture display frames. Without this, the app cannot access the display buffer. Enable in `System Settings > Privacy & Security > Screen Recording`.
 
 **Q: Why is Microphone access required?**  
-**A:** Microphone access is necessary for Music mode. PolarFlux captures system audio (or your selected input device) to perform FFT analysis and synchronize lighting with sound. Enable this in `System Settings > Privacy & Security > Microphone`.
+**A:** Necessary for Music mode to perform FFT analysis on system audio output. Enable in `System Settings > Privacy & Security > Microphone`.
 
 ### 2. Hardware & Connectivity
-**Q: My device is not appearing in the port list. What should I do?**  
-**A:** Ensure your USB cable is data-capable and securely connected. If you are using a device with a CH340 or CP210x serial chip, you may need to install the appropriate macOS drivers. PolarFlux scans for `/dev/cu.usbserial*`, `/dev/cu.usbmodem*`, and `/dev/cu.wch*` devices.
+**Q: My device is not appearing in the port list.**  
+**A:** Ensure your USB cable is data-capable. For CH340 or CP210x chips, ensure appropriate drivers are installed. PolarFlux scans for `/dev/cu.usbserial*`, `/dev/cu.usbmodem*`, and `/dev/cu.wch*`.
 
 **Q: What baud rate should I use?**  
-**A:** Most Adalight-compatible devices (like Skydimo) use `115200` or `921600`. Check your hardware documentation. If the baud rate is incorrect, the LEDs may flicker or show random colors.
+**A:** Most Adalight devices use `115200` or `921600`. Use the "Auto-Detect" feature for best results.
 
-**Q: How do I configure the LED count?**  
-**A:** In the Settings panel, enter the total number of LEDs on your strip. You must also specify the distribution (Left, Top, Right, Bottom) to ensure the spatial mapping algorithm correctly aligns with your monitor's edges.
-
-### 3. Performance & Optimization
+### 3. Performance
 **Q: Will PolarFlux slow down my Mac?**  
-**A:** PolarFlux is highly optimized. It uses `ScreenCaptureKit` for zero-copy frame acquisition and the `Accelerate` framework for hardware-accelerated DSP. On Apple Silicon, CPU usage is typically negligible (<2%).
-
-**Q: How can I reduce latency?**  
-**A:** Ensure your "Target Frame Rate" is set to match your monitor's refresh rate (e.g., 60Hz or 120Hz). Additionally, using a higher baud rate (e.g., 921600) reduces the time required to transmit data to the hardware.
-
-### 4. Features & Algorithms
-**Q: What is the "Fluid Physics Engine"?**  
-**A:** It is a second-order spring-damping system that smooths color transitions. Unlike simple linear fading, it simulates physical momentum and advection, making the lighting feel more organic and "liquid."
-
-**Q: What does the "Auto Brightness Limiter (ABL)" do?**  
-**A:** ABL estimates the total current draw of your LED strip based on the color data. If the estimated power exceeds your defined limit, PolarFlux automatically scales down the brightness to prevent overloading your USB port or power supply.
-
-**Q: How does "Auto-Detection" work?**  
-**A:** On the first run, PolarFlux attempts to identify Skydimo-compatible hardware by scanning available serial ports and checking for a successful handshake. Once found, it saves the configuration for future use.
-
----
-
-## Detailed Module Breakdown
-
-### 1. `Sources/PolarFlux/ScreenCapture.swift`
-The core vision processing unit.
-- **`SCStreamOutput` Implementation**: Handles the asynchronous delivery of `CMSampleBuffer` objects.
-- **`processFrame(_:)`**: 
-    - Extracts the `CVPixelBuffer`.
-    - Performs linear-to-SRGB conversion (approximation).
-    - Executes the polar binning and saliency sampling loop.
-- **`calculatePerceptualSaliency`**: A private helper that implements the sigmoid-weighted chroma extraction.
-
-### 2. `Sources/PolarFlux/FluidPhysicsEngine.swift`
-The temporal smoothing engine.
-- **`SpringState`**: A struct encapsulating the physical properties of a single color channel.
-- **`update(target:dt:)`**: 
-    - Calculates the attraction force: $F_{att} = k \times (target - current)$.
-    - Calculates the damping force: $F_{damp} = velocity \times 2\zeta\sqrt{k}$.
-    - Updates velocity and position using Euler integration.
-
-### 3. `Sources/PolarFlux/AudioProcessor.swift`
-The frequency-domain analysis unit.
-- **`AVAudioEngine` Setup**: Configures the audio graph for real-time capture.
-- **`vDSP_fft_zrip`**: Performs the in-place real-to-complex FFT.
-- **`vDSP_zvmags`**: Calculates the squared magnitudes of the frequency bins.
-
-### 4. `Sources/PolarFlux/SerialPort.swift`
-The hardware abstraction layer.
-- **`listPorts()`**: Scans `/dev/cu.*` using `FileManager`.
-- **`connect(path:baudRate:)`**: Configures the `termios` structure for raw 8N1 communication.
-- **`write(_:)`**: A thread-safe method that pushes data to the serial buffer.
-
-### 5. `Sources/PolarFlux/AppState.swift`
-The central state machine.
-- **`@Published` Properties**: Drives the SwiftUI views via the `ObservableObject` protocol.
-- **`LightingMode`**: An enum defining the operational states (`sync`, `music`, `effect`, `manual`).
-- **`PowerMode`**: Manages the ABL and global brightness capping logic.
+**A:** On Apple Silicon, CPU usage is typically <2% due to `ScreenCaptureKit` zero-copy and `Accelerate` hardware acceleration.
 
 ---
 
 ## License
 PolarFlux is released under the **MIT License**.
-
 Copyright © 2025 Shanghai Sunai Technology Co., Ltd.
-
-The full license text is available in the [LICENSE](LICENSE) file and within the application's **About** page.
+Full license text in the [LICENSE](LICENSE) file.
 
