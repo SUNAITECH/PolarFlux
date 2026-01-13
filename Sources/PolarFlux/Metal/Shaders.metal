@@ -61,7 +61,7 @@ float calculateSaliency(float3 color) {
     float expBoost = exp(vividness * 2.8); 
     
     float purity = saturation * maxVal; 
-    float sigmoid = 1.0 / (1.0 + exp(-12.0 * (purity - 0.4))); 
+    float sigmoid = 1.0 / (1.0 + exp(-15.0 * (purity - 0.45))); 
     
     if (saturation < 0.2 && maxVal > 0.7) {
         sigmoid *= 0.05; 

@@ -236,9 +236,10 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 PerformanceMonitor.shared.record(metric: .zoneMapping, time: CFAbsoluteTimeGetCurrent() - mapStart)
                 
                 // Temporal Smoothing for Global Adaptation (Von Kries & S-Curve)
-                // Slow adaptation (tau ~ 2s) for white point, faster (tau ~ 0.5s) for luma
-                let wpAlpha = Float(min(safeDt * 0.5, 1.0))
-                let lumaAlpha = Float(min(safeDt * 2.0, 1.0))
+                // Unified exponential decay for both paths: 
+                // Color adaptation (tau ~ 1.5s), Brightness adaptation (tau ~ 0.5s)
+                let wpAlpha = Float(1.0 - exp(-safeDt / 1.5))
+                let lumaAlpha = Float(1.0 - exp(-safeDt / 0.5))
                 
                 self.currentInferredWhitePoint = mix(self.currentInferredWhitePoint, frameInferredWhite, t: wpAlpha)
                 self.currentAdaptedLuma = self.currentAdaptedLuma * (1.0 - lumaAlpha) + frameLuma * lumaAlpha
@@ -277,9 +278,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         PerformanceMonitor.shared.record(metric: .cpuPath, time: CFAbsoluteTimeGetCurrent() - cpuStart)
         
         // Temporal Smoothing for Global Adaptation
-        let adaptAlpha = Float(1.0 - exp(-safeDt / 1.5))
-        self.currentInferredWhitePoint = mix(self.currentInferredWhitePoint, result.1, t: adaptAlpha)
-        self.currentAdaptedLuma = self.currentAdaptedLuma * (1.0 - adaptAlpha) + result.2 * adaptAlpha
+        // Temporal Smoothing (Unified with Metal Path)
+        let wpAlpha = Float(1.0 - exp(-safeDt / 1.5))
+        let lumaAlpha = Float(1.0 - exp(-safeDt / 0.5))
+        
+        self.currentInferredWhitePoint = mix(self.currentInferredWhitePoint, result.1, t: wpAlpha)
+        self.currentAdaptedLuma = self.currentAdaptedLuma * (1.0 - lumaAlpha) + result.2 * lumaAlpha
         
         // Callback
         onFrameProcessed?(result.0)
