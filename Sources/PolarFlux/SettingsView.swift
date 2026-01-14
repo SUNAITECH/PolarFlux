@@ -212,6 +212,20 @@ struct SettingsView: View {
                 }
                 .padding(10)
             }
+            
+            GroupBox(String(localized: "SIMULATION_PREVIEW")) {
+                SimulationView(
+                    leftZone: Int(appState.leftZone) ?? 0,
+                    topZone: Int(appState.topZone) ?? 0,
+                    rightZone: Int(appState.rightZone) ?? 0,
+                    bottomZone: Int(appState.bottomZone) ?? 0,
+                    originY: appState.currentOriginY,
+                    colors: appState.lastFrameColors,
+                    orientation: appState.screenOrientation
+                )
+                .frame(height: 200)
+                .padding(10)
+            }
         }
     }
 

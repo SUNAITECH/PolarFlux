@@ -105,6 +105,8 @@ class AppState: ObservableObject {
             screenCapture.forceCPU = forceCPU
         }
     }
+    // Simulation / VIS
+    @Published var lastFrameColors: [UInt8] = []
     
     private var healthTimer: Timer?
     
@@ -269,6 +271,7 @@ class AppState: ObservableObject {
     private var currentColor: (r: UInt8, g: UInt8, b: UInt8)?
     
     private var lastSentData: [UInt8]?
+    private var lastUIUpdateTime: TimeInterval = 0
     private var keepAliveTimer: Timer?
     private var lastConnectionAttempt: Date = .distantPast
     
@@ -859,6 +862,22 @@ class AppState: ObservableObject {
         
         // Store original data for keep-alive to prevent recursive dimming
         self.lastSentData = data
+        
+        // Throttled UI Update (approx 30fps)
+        let now = CFAbsoluteTimeGetCurrent()
+        if now - lastUIUpdateTime > 0.033 {
+             lastUIUpdateTime = now
+             DispatchQueue.main.async { [data] in 
+                 self.lastFrameColors = data 
+             }
+        } else {
+             // Fallback for low framerates or initial state
+             if self.lastFrameColors.isEmpty {
+                 lastUIUpdateTime = now
+                 DispatchQueue.main.async { [data] in self.lastFrameColors = data }
+             }
+        }
+        
         sendLock.unlock()
         
         var finalData = data
