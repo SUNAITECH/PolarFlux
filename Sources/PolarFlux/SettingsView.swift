@@ -212,20 +212,6 @@ struct SettingsView: View {
                 }
                 .padding(10)
             }
-            
-            GroupBox(String(localized: "SIMULATION_PREVIEW")) {
-                SimulationView(
-                    leftZone: Int(appState.leftZone) ?? 0,
-                    topZone: Int(appState.topZone) ?? 0,
-                    rightZone: Int(appState.rightZone) ?? 0,
-                    bottomZone: Int(appState.bottomZone) ?? 0,
-                    originY: appState.currentOriginY,
-                    colors: appState.lastFrameColors,
-                    orientation: appState.screenOrientation
-                )
-                .frame(height: 200)
-                .padding(10)
-            }
         }
     }
 
@@ -613,6 +599,24 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundColor(.orange)
                             }
+                        }
+                        
+                        Divider()
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(String(localized: "SIMULATION_PREVIEW"))
+                                .font(.headline)
+                                
+                            SimulationView(
+                                leftZone: Int(appState.leftZone) ?? 0,
+                                topZone: Int(appState.topZone) ?? 0,
+                                rightZone: Int(appState.rightZone) ?? 0,
+                                bottomZone: Int(appState.bottomZone) ?? 0,
+                                originY: appState.currentOriginY,
+                                colors: appState.lastFrameColors,
+                                orientation: appState.screenOrientation
+                            )
+                            .frame(height: 200)
                         }
                         
                         Divider()

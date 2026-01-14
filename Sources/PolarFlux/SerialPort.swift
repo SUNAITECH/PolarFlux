@@ -8,6 +8,7 @@ class SerialPort {
     
     // Ring Buffer Strategy
     private var pendingData: [UInt8]?
+    private var pendingCompletion: (() -> Void)?
     private var isSending: Bool = false
     private let lock = NSLock()
     
@@ -158,12 +159,16 @@ class SerialPort {
             fileDescriptor = -1
             isConnectedInternal = false
             pendingData = nil
+            pendingCompletion?()
+            pendingCompletion = nil
         }
         lock.unlock()
     }
     
     func send(data: [UInt8], completion: (() -> Void)? = nil) {
-        // Non-blocking Send Queue with "Overwrite Oldest" strategy
+        // Non-blocking Send Queue with "Swap" strategy
+        // This ensures the serial loop never blocks the main thread or capture/processing loop.
+        
         lock.lock()
         if !isConnectedInternal {
             lock.unlock()
@@ -171,10 +176,18 @@ class SerialPort {
             return
         }
         
-        // Overwrite the pending frame with the newest one (Depth 2: Current + Pending)
-        pendingData = data
+        // 1. Overwrite the pending frame.
+        // If there was ALREADY a pending frame that hasn't started transmitting yet, we drop it.
+        // This effectively implements "Latest Data Wins" (Head Dropping) behavior.
+        if pendingData != nil {
+            // Drop previous pending completion
+            pendingCompletion?() 
+        }
         
-        // If we are not currently sending, start the transmission loop
+        pendingData = data
+        pendingCompletion = completion
+        
+        // 2. Drive the loop
         if !isSending {
             isSending = true
             lock.unlock()
@@ -183,11 +196,9 @@ class SerialPort {
                 self?.transmitLoop()
             }
         } else {
+            // Already sending, the loop will pick up 'pendingData' when it finishes current write
             lock.unlock()
         }
-        
-        // Immediate completion because we've queued it (non-blocking)
-        completion?()
     }
     
     private func transmitLoop() {
@@ -200,9 +211,12 @@ class SerialPort {
         }
         // Consume the data
         pendingData = nil
+        let cb = pendingCompletion
+        pendingCompletion = nil
         lock.unlock()
         
         performWrite(data: data)
+        cb?()
         
         // Yield and re-queue
         queue.async { [weak self] in

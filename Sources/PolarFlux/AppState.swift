@@ -863,19 +863,21 @@ class AppState: ObservableObject {
         // Store original data for keep-alive to prevent recursive dimming
         self.lastSentData = data
         
-        // Throttled UI Update (approx 30fps)
-        let now = CFAbsoluteTimeGetCurrent()
-        if now - lastUIUpdateTime > 0.033 {
-             lastUIUpdateTime = now
-             DispatchQueue.main.async { [data] in 
-                 self.lastFrameColors = data 
-             }
-        } else {
-             // Fallback for low framerates or initial state
-             if self.lastFrameColors.isEmpty {
+        // Throttled UI Update (approx 30fps) - Only active if Debug Mode is enabled (Visualizer)
+        if self.isDebugMode {
+            let now = CFAbsoluteTimeGetCurrent()
+            if now - lastUIUpdateTime > 0.033 {
                  lastUIUpdateTime = now
-                 DispatchQueue.main.async { [data] in self.lastFrameColors = data }
-             }
+                 DispatchQueue.main.async { [data] in 
+                     self.lastFrameColors = data 
+                 }
+            } else {
+                 // Fallback for low framerates or initial state
+                 if self.lastFrameColors.isEmpty {
+                     lastUIUpdateTime = now
+                     DispatchQueue.main.async { [data] in self.lastFrameColors = data }
+                 }
+            }
         }
         
         sendLock.unlock()
@@ -1622,9 +1624,21 @@ class AppState: ObservableObject {
         let dataRateCalculation = (deltaTime > 0) ? (Double(deltaBytes) / 1024.0 / deltaTime) : 0.0
         let ppsCalculation = (deltaTime > 0) ? (Double(deltaPackets) / deltaTime) : 0.0
         
+        let reportedFPS: Double
+        if screenCapture.isStreaming && self.isRunning {
+             // If we are actually capturing, report the target rate or calculate real time
+             // For now, let's report the target rate unless we have a real counter from ScreenCapture
+             // Since we don't have a public fps counter on ScreenCapture, we approximate.
+             // But wait! If we rely on ScreenCaptureKit's adaptive rate, we might see 60 even if screen is static 
+             // because we force it via minimumFrameInterval?
+             reportedFPS = (ppsCalculation > 0) ? min(ppsCalculation, self.targetFrameRate) : 0
+        } else {
+             reportedFPS = 0
+        }
+        
         self.performanceMetrics = PerformanceMetrics(
             ramUsage: ram,
-            fps: self.targetFrameRate, // Approximation for UI
+            fps: reportedFPS, // More accurate real-world FPS based on processed packets
             metalEnabled: self.useMetal,
             totalPackets: currentPackets,
             dataRate: dataRateCalculation,

@@ -30,6 +30,7 @@ struct Accumulator {
 class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     
     private var stream: SCStream?
+    var isStreaming: Bool { stream != nil }
     private let processingQueue = DispatchQueue(label: "com.sunaish.polarflux.processing", qos: .userInteractive)
     
     // Metal Integration
@@ -125,6 +126,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         streamConfig.height = 360
         streamConfig.showsCursor = false
         streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
+        
+        // Locking minimumFrameInterval forces the system to output at that rate,
+        // effectively disabling adaptive frame rate features that would save power on static screens.
+        // Good for high-performance response, but bad if we want "adaptive".
+        // The user says PPS increased to ~60, implying we ARE locking it.
+        // We will keep it locked for consistency in LED driving, but document it.
         streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(targetFrameRate))
         streamConfig.queueDepth = 3
         
