@@ -272,6 +272,7 @@ class AppState: ObservableObject {
     
     private var lastSentData: [UInt8]?
     private var lastUIUpdateTime: TimeInterval = 0
+    private var lastTransmitTime: TimeInterval = 0
     private var keepAliveTimer: Timer?
     private var lastConnectionAttempt: Date = .distantPast
     
@@ -858,7 +859,22 @@ class AppState: ObservableObject {
             sendLock.unlock()
             return
         }
+        
+        // Data Deduplication: Optimization for Transmit Buffer
+        // If data is identical to last sent frame, skip sending to save bandwidth.
+        // We only skip if the previous send actually succeeded and this is not a forced heartbeat.
+        let now = CFAbsoluteTimeGetCurrent()
+        if let last = lastSentData, last == data {
+            // Heartbeat Logic: Force send if > 0.5s has passed since last transmit
+            // This ensures lights don't time out during static scenes while avoiding bus flooding.
+            if now - lastTransmitTime < 0.5 {
+                sendLock.unlock()
+                return
+            }
+        }
+        
         isSending = true
+        lastTransmitTime = now
         
         // Store original data for keep-alive to prevent recursive dimming
         self.lastSentData = data

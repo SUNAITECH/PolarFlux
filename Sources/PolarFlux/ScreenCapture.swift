@@ -30,7 +30,24 @@ struct Accumulator {
 class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     
     private var stream: SCStream?
-    var isStreaming: Bool { stream != nil }
+    private let streamLock = NSLock() // Thread-safety for stream reference
+    
+    private func safeSetStream(_ newStream: SCStream?) {
+        streamLock.lock()
+        self.stream = newStream
+        streamLock.unlock()
+    }
+    
+    private func safeGetStream() -> SCStream? {
+        streamLock.lock()
+        defer { streamLock.unlock() }
+        return stream
+    }
+    
+    var isStreaming: Bool { 
+        return safeGetStream() != nil 
+    }
+    
     private let processingQueue = DispatchQueue(label: "com.sunaish.polarflux.processing", qos: .userInteractive)
     
     // Metal Integration
@@ -113,7 +130,7 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     
     func startStream(display: SCDisplay, config: ZoneConfig, ledCount: Int, orientation: ScreenOrientation, brightness: Double, targetFrameRate: Double, calibration: (r: Double, g: Double, b: Double), gamma: Double, saturation: Double, originPreference: OriginPreference) async {
         // Stop existing stream if any
-        if let stream = stream {
+        if let stream = safeGetStream() {
             try? await stream.stopCapture()
         }
         
@@ -161,7 +178,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             
             try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: processingQueue)
             try await stream.startCapture()
-            self.stream = stream
+            
+            safeSetStream(stream)
             
         } catch {
             // Stream start failed
@@ -169,9 +187,15 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     }
     
     func stopStream() async {
-        if let stream = stream {
+        let currentStream = safeGetStream()
+        // We generally shouldn't set stream = nil immediately if we want to await stopCapture,
+        // but to prevent race conditions where logic thinks we are still streaming,
+        // we might want to flag it?
+        // However, we need 'stream' to call stopCapture.
+        
+        if let stream = currentStream {
             try? await stream.stopCapture()
-            self.stream = nil
+            safeSetStream(nil)
         }
     }
     
@@ -202,7 +226,8 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         // Since AppState listens to ScreensDidWake/SystemWake, it will call stop() then start()
         // effectively resetting this.
         // We ensure we don't crash by cleaning up here.
-        self.stream = nil
+        safeSetStream(nil)
+        
         self.lastFrameTime = 0
     }
     

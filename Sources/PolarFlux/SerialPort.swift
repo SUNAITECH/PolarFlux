@@ -209,6 +209,43 @@ class SerialPort {
             lock.unlock()
             return // Stop loop
         }
+        
+        // Backpressure Check: Check OS buffer size before commiting to write
+        // If buffer is too full, dropping this frame is better than adding to latency.
+        var outBytes: Int32 = 0
+        if ioctl(fileDescriptor, TIOCOUTQ, &outBytes) != -1 {
+            // Threshold: 2048 bytes (approx 0.17s latency at 115200 baud). 
+            // Ideally we want < 30ms latency. At 115200, 30ms is ~345 bytes.
+            // But we must allow at least one full packet (e.g. 500 bytes for 150 LEDs).
+            // Let's set a conservative "Emergency Brake" at 1024 bytes to prevent massive lag.
+            if outBytes > 1024 {
+                // Buffer Bloat Detected. Drop this frame to allow buffer to drain.
+                // We leave isSending = true and re-queue to retry/check later or pick up next frame.
+                // Actually, if we drop this one, we should check if there is a NEWER one logic?
+                // But pendingData is the newest.
+                // If we don't write it, we should maybe sleep a tiny bit?
+                // Better strategy: Drop it, but keep loop alive to check next time.
+                // Or better: Process the drop, wait 10ms, then loop.
+                
+                // For now, simple drop behavior:
+                // Treat as "Sent" (consumed) but didn't write.
+                pendingData = nil
+                let cb = pendingCompletion
+                pendingCompletion = nil
+                lock.unlock()
+                
+                // Log warning occasionally?
+                // Just fire callback as if sent (to unlock Pipeline)
+                cb?()
+                
+                // Pace the retry slightly to let buffer drain
+                queue.asyncAfter(deadline: .now() + 0.01) { [weak self] in
+                    self?.transmitLoop()
+                }
+                return
+            }
+        }
+
         // Consume the data
         pendingData = nil
         let cb = pendingCompletion
@@ -292,14 +329,18 @@ class SerialPort {
     // This is useful for periodic health checks or post-wake validation
     func checkConnection() -> Bool {
         return queue.sync {
-            guard fileDescriptor >= 0 else { return false }
+            lock.lock()
+            let fd = fileDescriptor
+            lock.unlock()
+            
+            guard fd >= 0 else { return false }
             
             // Try to get terminal attributes - this is a lightweight check if the FD is still valid
             var options = termios()
-            if tcgetattr(fileDescriptor, &options) == -1 {
+            if tcgetattr(fd, &options) == -1 {
                 let err = errno
                 Logger.shared.log("Connection check failed (errno: \(err)). Assuming disconnected.")
-                closeInternal()
+                closeInternal() // closeInternal takes the lock itself, so we must be unlocked here
                 DispatchQueue.main.async {
                     self.onDisconnect?()
                 }
@@ -310,15 +351,19 @@ class SerialPort {
     }
     
     func getDeviceInfo() -> String? {
-        guard fileDescriptor >= 0 else { return nil }
+        lock.lock()
+        let fd = fileDescriptor
+        lock.unlock()
+        
+        guard fd >= 0 else { return nil }
         
         // Flush input buffer
-        tcflush(fileDescriptor, TCIFLUSH)
+        tcflush(fd, TCIFLUSH)
         
         // Send "Moni-A"
         let cmd = "Moni-A"
         var data = [UInt8](cmd.utf8)
-        let written = write(fileDescriptor, &data, data.count)
+        let written = write(fd, &data, data.count)
         if written < 0 {
             Logger.shared.log("Error writing command: \(errno)")
             return nil
@@ -329,7 +374,7 @@ class SerialPort {
         
         // Read response
         var buffer = [UInt8](repeating: 0, count: 64)
-        let n = read(fileDescriptor, &buffer, buffer.count)
+        let n = read(fd, &buffer, buffer.count)
         
         if n > 0 {
             let response = String(bytes: buffer.prefix(n), encoding: .utf8)

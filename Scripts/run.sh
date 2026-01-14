@@ -5,6 +5,7 @@
 # Bundle ID: com.sunaish.polarflux
 
 set -e
+set -u
 set -o pipefail
 # Reset locale for predictable behavior
 export LANG=en_US.UTF-8
@@ -86,8 +87,9 @@ generate_icon() {
 
 build() {
     check_deps
-    log "Starting Universal Build (arm64 + x86_64)..."
-
+    
+    # 1. Start with a fresh container
+    log "Preparing build environment..."
     rm -rf "$APP_BUNDLE"
     mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$BUILD_DIR"
 
@@ -99,21 +101,28 @@ build() {
     SDK_PATH=$(xcrun --show-sdk-path)
     if [[ -z "$SDK_PATH" ]]; then error "Could not find macOS SDK path."; fi
     
+    # 2. Optimized Compilation
+    log "Starting Universal Build (arm64 + x86_64)..."
+    
+    local COMMON_FLAGS=(
+        -sdk "$SDK_PATH"
+        -O
+        -whole-module-optimization
+        -parse-as-library
+        -enforce-exclusivity=checked
+    )
+
     log "Compiling for Apple Silicon..."
     xcrun -sdk macosx swiftc "${SOURCES[@]}" \
         -target arm64-apple-macos14.0 \
-        -sdk "$SDK_PATH" \
-        -o "$BUILD_DIR/PolarFlux_arm64" \
-        -O -whole-module-optimization \
-        -parse-as-library
+        "${COMMON_FLAGS[@]}" \
+        -o "$BUILD_DIR/PolarFlux_arm64"
 
     log "Compiling for Intel..."
     xcrun -sdk macosx swiftc "${SOURCES[@]}" \
         -target x86_64-apple-macos14.0 \
-        -sdk "$SDK_PATH" \
-        -o "$BUILD_DIR/PolarFlux_x86_64" \
-        -O -whole-module-optimization \
-        -parse-as-library
+        "${COMMON_FLAGS[@]}" \
+        -o "$BUILD_DIR/PolarFlux_x86_64"
 
     log "Compiling Metal Shaders (default.metallib)..."
     if xcrun -sdk macosx --find metal >/dev/null 2>&1; then
@@ -122,18 +131,20 @@ build() {
         success "Metal shaders compiled successfully."
     else
         warn "Metal compiler not found! (Detailed: xcrun metal failed)"
-        warn "Please ensure full Xcode is installed and selected: sudo xcode-select -s /Applications/Xcode.app"
         warn "The app will build but will fallback to CPU processing."
     fi
 
     log "Stitching Universal Binary (Lipo)..."
     lipo -create "$BUILD_DIR/PolarFlux_arm64" "$BUILD_DIR/PolarFlux_x86_64" -output "$MACOS_DIR/$APP_NAME"
 
+    # 3. Packaging and Resource Hygiene
     log "Packaging resources..."
     if [ -f "Resources/Info.plist" ]; then
         cp Resources/Info.plist "$CONTENTS_DIR/"
         plutil -replace CFBundleShortVersionString -string "$VERSION_STR" "$CONTENTS_DIR/Info.plist"
         plutil -replace CFBundleVersion -string "$(date +%Y%m%d.%H%M)" "$CONTENTS_DIR/Info.plist"
+        plutil -replace CFBundleName -string "$APP_NAME" "$CONTENTS_DIR/Info.plist"
+        plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$CONTENTS_DIR/Info.plist"
     else
         error "Info.plist missing from Resources/"
     fi
@@ -144,18 +155,39 @@ build() {
         warn "Icon missing, app will have default icon."
     fi
 
-    find Resources -name "*.lproj" -type d -exec cp -R {} "$RESOURCES_DIR/" \;
+    # Copy localizations while stripping .DS_Store
+    for lproj in Resources/*.lproj; do
+        if [ -d "$lproj" ]; then
+            dest="$RESOURCES_DIR/$(basename "$lproj")"
+            mkdir -p "$dest"
+            # Using rsync to copy only content, avoiding hidden files and metadata
+            rsync -a --exclude=".*" "$lproj/" "$dest/"
+        fi
+    done
 
-    log "Cleaning resource forks and Finder info..."
-    xattr -cr "$APP_BUNDLE" || true
+    # 4. Critical Robustness: Cleaning and Signing
+    log "Applying enterprise-grade resource hygiene..."
+    
+    # Remove all extended attributes recursively from the bundle
+    # This is critical for codesigning to succeed
+    /usr/bin/find "$APP_BUNDLE" -print0 | xargs -0 xattr -c 2>/dev/null || true
+    /usr/bin/find "$APP_BUNDLE" -name ".DS_Store" -delete || true
+    
     if command -v dot_clean >/dev/null; then
         dot_clean -m "$APP_BUNDLE" || true
     fi
     
     log "Applying Ad-hoc signature..."
-    codesign --force --deep --sign - "$APP_BUNDLE"
+    # Always sign with --force and --deep to ensure entire bundle is covered
+    # --options=runtime is best practice for modern macOS security
+    codesign --verbose --force --deep --sign - --options=runtime "$APP_BUNDLE"
 
-    success "PolarFlux.app is ready (Universal Binary)."
+    # Verification
+    if codesign --verify --verbose --deep "$APP_BUNDLE"; then
+        success "PolarFlux.app is ready and verified (Universal Binary)."
+    else
+        error "Codesign verification failed."
+    fi
 }
 
 dmg() {
