@@ -200,23 +200,23 @@ dmg() {
     # Allow system to handle mount point to ensure Finder works correctly
     VOL_NAME="${APP_NAME}"
     
-    # Global variables to be set during execution
-    local DEV_NODE=""
-    local MOUNT_POINT=""
+    # Use global variables so the EXIT trap can access them after dmg() returns
+    DEV_NODE=""
+    MOUNT_POINT=""
     
     cleanup_dmg() {
-        if [[ -n "$DEV_NODE" ]]; then
+        if [[ -n "${DEV_NODE:-}" ]]; then
             if hdiutil info | grep -q "$DEV_NODE"; then
                 log "Cleaning up device..."
                 hdiutil detach "$DEV_NODE" -force >/dev/null 2>&1 || true
             fi
-        elif [[ -n "$MOUNT_POINT" ]]; then
+        elif [[ -n "${MOUNT_POINT:-}" ]]; then
             if mount | grep -q "$MOUNT_POINT"; then
                  log "Cleaning up mount point..."
                  hdiutil detach "$MOUNT_POINT" -force >/dev/null 2>&1 || true
             fi
         fi
-        rm -f "$TEMP_DMG"
+        rm -f "${TEMP_DMG:-}"
     }
     trap cleanup_dmg EXIT
     
