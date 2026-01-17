@@ -2,13 +2,17 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var appState: AppState
-    @State private var selection: String? = "Connection"
+    // SceneStorage does not support Optionals. We use a sentinel string for "no selection", though rarely needed in Settings.
+    @SceneStorage("settingsSelection") private var selection: String = "Connection"
     @State private var isCalibrationLocked: Bool = true
     @State private var initialLanguage: String?
     
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
+            List(selection: Binding<String?>(
+                get: { self.selection },
+                set: { if let val = $0 { self.selection = val } }
+            )) {
                 Section(String(localized: "HARDWARE")) {
                     NavigationLink(value: "Connection") {
                         Label(String(localized: "CONNECTION"), systemImage: "cable.connector")
@@ -61,22 +65,20 @@ struct SettingsView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 25) {
-                        if let selection = selection {
-                            switch selection {
-                            case "Connection": connectionSettings
-                            case "LED Layout": ledSettings
-                            case "SyncSettings": syncSettings
-                            case "Audio": audioSettings
-                            case "Calibration": calibrationSettings
-                            case "SystemMetrics": systemMetricsSettings
-                            case "Power": powerSettings
-                            case "Performance": performanceSettings
-                            case "General": generalSettings
-                            case "Debug": debugSettings
-                            case "About": AboutView()
-                            default: Text(String(localized: "SELECT_CATEGORY"))
-                            }
-                        } else {
+                        // With SceneStorage<String>, selection is never nil, but we check for valid keys
+                        switch selection {
+                        case "Connection": connectionSettings
+                        case "LED Layout": ledSettings
+                        case "SyncSettings": syncSettings
+                        case "Audio": audioSettings
+                        case "Calibration": calibrationSettings
+                        case "SystemMetrics": systemMetricsSettings
+                        case "Power": powerSettings
+                        case "Performance": performanceSettings
+                        case "General": generalSettings
+                        case "Debug": debugSettings
+                        case "About": AboutView()
+                        default: 
                             Text(String(localized: "SELECT_CATEGORY"))
                                 .font(.title)
                                 .foregroundColor(.secondary)
@@ -89,7 +91,7 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 900, minHeight: 650)
+        .frame(minWidth: 600, minHeight: 500)
         .onAppear {
             if initialLanguage == nil {
                 initialLanguage = appState.appLanguage

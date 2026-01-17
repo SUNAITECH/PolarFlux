@@ -125,10 +125,15 @@ build() {
         -o "$BUILD_DIR/PolarFlux_x86_64"
 
     log "Compiling Metal Shaders (default.metallib)..."
-    if xcrun -sdk macosx --find metal >/dev/null 2>&1; then
-        xcrun -sdk macosx metal -c Sources/PolarFlux/Metal/Shaders.metal -o "$BUILD_DIR/Shaders.air"
-        xcrun -sdk macosx metallib "$BUILD_DIR/Shaders.air" -o "$RESOURCES_DIR/default.metallib"
-        success "Metal shaders compiled successfully."
+    # Explicitly verify metal toolchain presence
+    if command -v metal >/dev/null 2>&1 || xcrun -sdk macosx --find metal >/dev/null 2>&1; then
+        # Try compiling with xcrun -sdk macosx. If that fails, warn but continue.
+        if xcrun -sdk macosx metal -c Sources/PolarFlux/Metal/Shaders.metal -o "$BUILD_DIR/Shaders.air"; then
+            xcrun -sdk macosx metallib "$BUILD_DIR/Shaders.air" -o "$RESOURCES_DIR/default.metallib"
+            success "Metal shaders compiled successfully."
+        else
+            warn "Metal compilation failed. Continuing with CPU backend..."
+        fi
     else
         warn "Metal compiler not found! (Detailed: xcrun metal failed)"
         warn "The app will build but will fallback to CPU processing."

@@ -28,7 +28,7 @@ struct PolarFluxApp: App {
         
         Window(String(localized: "SETTINGS"), id: "settings") {
             SettingsView(appState: appState)
-                .frame(minWidth: 560, minHeight: 660)
+                .frame(minWidth: 720, minHeight: 600)
                 .environment(\.locale, appState.currentLocale)
         }
         
