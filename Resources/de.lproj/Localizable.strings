@@ -239,3 +239,15 @@
 "PERF_ACTUAL_FPS" = "Aktuelle FPS";
 "PERF_CAPACITY" = "Max. Kapazität";
 "SIMULATION_PREVIEW" = "Visuelle Vorschau";
+
+/* Update Checker */
+"CHECK_FOR_UPDATES" = "Nach Updates suchen";
+"CHECKING_UPDATES" = "Nach Updates suchen...";
+"UPDATE_AVAILABLE" = "Update verfügbar";
+"UPDATE_AVAILABLE_MSG" = "Eine neue Version %@ ist verfügbar.";
+"UP_TO_DATE" = "Du bist auf dem neuesten Stand!";
+"UP_TO_DATE_MSG" = "PolarFlux %@ ist die neueste Version.";
+"UPDATE_ERROR" = "Update-Prüfung fehlgeschlagen";
+"VIEW_RELEASE_NOTES" = "Versionshinweise";
+"DOWNLOAD" = "Herunterladen";
+"LATER" = "Später";

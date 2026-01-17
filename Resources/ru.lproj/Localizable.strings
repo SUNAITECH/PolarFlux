@@ -239,3 +239,15 @@
 "PERF_ACTUAL_FPS" = "Реальный FPS";
 "PERF_CAPACITY" = "Макс. мощность";
 "SIMULATION_PREVIEW" = "Визуальный Просмотр";
+
+/* Update Checker */
+"CHECK_FOR_UPDATES" = "Проверить обновления";
+"CHECKING_UPDATES" = "Проверка обновлений...";
+"UPDATE_AVAILABLE" = "Доступно обновление";
+"UPDATE_AVAILABLE_MSG" = "Доступна новая версия %@.";
+"UP_TO_DATE" = "У вас последняя версия";
+"UP_TO_DATE_MSG" = "PolarFlux %@ — последняя версия.";
+"UPDATE_ERROR" = "Ошибка проверки обновлений";
+"VIEW_RELEASE_NOTES" = "Примечания к выпуску";
+"DOWNLOAD" = "Скачать";
+"LATER" = "Позже";

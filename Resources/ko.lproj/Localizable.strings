@@ -239,3 +239,15 @@
 "PERF_ACTUAL_FPS" = "실제 FPS";
 "PERF_CAPACITY" = "처리 한계";
 "SIMULATION_PREVIEW" = "시각적 미리보기";
+
+/* Update Checker */
+"CHECK_FOR_UPDATES" = "업데이트 확인";
+"CHECKING_UPDATES" = "업데이트 확인 중...";
+"UPDATE_AVAILABLE" = "업데이트 사용 가능";
+"UPDATE_AVAILABLE_MSG" = "새 버전 %@을(를) 사용할 수 있습니다.";
+"UP_TO_DATE" = "최신 상태입니다";
+"UP_TO_DATE_MSG" = "PolarFlux %@ 버전은 최신 버전입니다.";
+"UPDATE_ERROR" = "업데이트 확인 실패";
+"VIEW_RELEASE_NOTES" = "릴리스 노트";
+"DOWNLOAD" = "다운로드";
+"LATER" = "나중에";

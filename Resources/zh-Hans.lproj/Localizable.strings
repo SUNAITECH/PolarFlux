@@ -239,3 +239,15 @@
 "PERF_ACTUAL_FPS" = "实际 FPS";
 "PERF_CAPACITY" = "处理上限";
 "SIMULATION_PREVIEW" = "视觉预览";
+
+/* Update Checker */
+"CHECK_FOR_UPDATES" = "检查更新";
+"CHECKING_UPDATES" = "正在检查更新...";
+"UPDATE_AVAILABLE" = "有新版本可用";
+"UPDATE_AVAILABLE_MSG" = "新版本 %@ 已发布。";
+"UP_TO_DATE" = "已是最新版本";
+"UP_TO_DATE_MSG" = "PolarFlux %@ 当前已是最新版本。";
+"UPDATE_ERROR" = "检查更新失败";
+"VIEW_RELEASE_NOTES" = "版本说明";
+"DOWNLOAD" = "下载";
+"LATER" = "稍后";

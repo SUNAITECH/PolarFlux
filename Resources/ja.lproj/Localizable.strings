@@ -239,3 +239,15 @@
 "PERF_ACTUAL_FPS" = "実効 FPS";
 "PERF_CAPACITY" = "処理限界";
 "SIMULATION_PREVIEW" = "ビジュアルプレビュー";
+
+/* Update Checker */
+"CHECK_FOR_UPDATES" = "アップデートを確認";
+"CHECKING_UPDATES" = "アップデートを確認中...";
+"UPDATE_AVAILABLE" = "アップデートが利用可能";
+"UPDATE_AVAILABLE_MSG" = "新しいバージョン %@ が利用可能です。";
+"UP_TO_DATE" = "最新バージョンです";
+"UP_TO_DATE_MSG" = "PolarFlux %@ は最新バージョンです。";
+"UPDATE_ERROR" = "アップデート確認エラー";
+"VIEW_RELEASE_NOTES" = "リリースノート";
+"DOWNLOAD" = "ダウンロード";
+"LATER" = "後で";

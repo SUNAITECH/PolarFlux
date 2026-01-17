@@ -5,6 +5,8 @@ struct AboutView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2025.12.28"
     }()
     
+    @StateObject private var updateChecker = UpdateChecker()
+
     var body: some View {
         VStack(spacing: 20) {
             Image(nsImage: NSApplication.shared.applicationIconImage)
@@ -23,6 +25,21 @@ struct AboutView: View {
                 Link("GitHub: SUNAITECH/PolarFlux", destination: URL(string: "https://github.com/SUNAITECH/PolarFlux")!)
                     .font(.caption)
                     .foregroundColor(.accentColor)
+                
+                Button(action: {
+                    updateChecker.checkForUpdates(userInitiated: true)
+                }) {
+                    HStack(spacing: 4) {
+                        if updateChecker.isChecking {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.6)
+                        }
+                        Text(updateChecker.isChecking ? String(localized: "CHECKING_UPDATES") : String(localized: "CHECK_FOR_UPDATES"))
+                    }
+                }
+                .disabled(updateChecker.isChecking)
+                .padding(.top, 4)
             }
             
             VStack(spacing: 12) {
@@ -73,5 +90,75 @@ struct AboutView: View {
         }
         .padding(.top, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .alert(String(localized: "UP_TO_DATE"), isPresented: $updateChecker.showUpToDateAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(String(format: String(localized: "UP_TO_DATE_MSG"), version))
+        }
+        .alert(String(localized: "UPDATE_ERROR"), isPresented: Binding<Bool>(
+            get: { updateChecker.error != nil },
+            set: { if !$0 { updateChecker.error = nil } }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            if let error = updateChecker.error {
+                Text(error)
+            }
+        }
+        .sheet(item: $updateChecker.updateAvailable) { release in
+            UpdateAvailableView(release: release)
+        }
+    }
+}
+
+struct UpdateAvailableView: View {
+    let release: GitHubRelease
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "arrow.down.circle.fill")
+                .resizable()
+                .frame(width: 48, height: 48)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundColor(.accentColor)
+            
+            VStack(spacing: 8) {
+                Text(String(localized: "UPDATE_AVAILABLE"))
+                    .font(.title2)
+                    .bold()
+                
+                Text(String(format: String(localized: "UPDATE_AVAILABLE_MSG"), release.tagName))
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
+            GroupBox(label: Text(String(localized: "VIEW_RELEASE_NOTES"))) {
+                ScrollView {
+                    Text(release.body)
+                        .font(.callout)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .frame(height: 200)
+            
+            HStack(spacing: 20) {
+                Button(String(localized: "LATER")) {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+                
+                Link(destination: URL(string: release.htmlUrl)!) {
+                    Text(String(localized: "DOWNLOAD"))
+                        .frame(minWidth: 100)
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(30)
+        .frame(width: 450)
     }
 }
