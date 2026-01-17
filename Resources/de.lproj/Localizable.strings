@@ -156,7 +156,6 @@
 "CONNECTION_FAILED" = "Verbindung fehlgeschlagen";
 "CONNECT_FIRST" = "Zuerst verbinden zum Erkennen";
 "DETECTED" = "Erkannt: %@";
-"DETECTION_FAILED" = "Erkennung fehlgeschlagen";
 "TESTING_ORIENTATION" = "Teste Ausrichtung...";
 "TEST_COMPLETE" = "Test abgeschlossen";
 "NO_DISPLAY_FOUND" = "Kein Display gefunden";

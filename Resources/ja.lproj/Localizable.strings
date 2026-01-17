@@ -156,7 +156,6 @@
 "CONNECTION_FAILED" = "接続失敗";
 "CONNECT_FIRST" = "検出するにはまず接続してください";
 "DETECTED" = "検出: %@";
-"DETECTION_FAILED" = "検出失敗";
 "TESTING_ORIENTATION" = "方向をテスト中...";
 "TEST_COMPLETE" = "テスト完了";
 "NO_DISPLAY_FOUND" = "ディスプレイが見つかりません";

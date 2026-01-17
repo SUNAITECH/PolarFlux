@@ -156,7 +156,6 @@
 "CONNECTION_FAILED" = "Error de conexión";
 "CONNECT_FIRST" = "Conecte primero para detectar";
 "DETECTED" = "Detectado: %@";
-"DETECTION_FAILED" = "Error de detección";
 "TESTING_ORIENTATION" = "Probando orientación...";
 "TEST_COMPLETE" = "Prueba completada";
 "NO_DISPLAY_FOUND" = "No se encontró pantalla";

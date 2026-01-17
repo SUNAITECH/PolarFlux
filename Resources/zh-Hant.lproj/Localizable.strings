@@ -87,11 +87,11 @@
 "TESTING" = "正在測試...";
 "REFRESH_PORTS" = "重新整理連接埠";
 "NO_PORTS_FOUND" = "找不到連接埠";
-"AUTO_DETECT_BAUD" = "自動探測鮑率";
-"DETECTING" = "正在探測...";
-"DETECTION_SUCCESS" = "已探測到: %@";
-"DETECTION_FAILED" = "探測失敗";
-"BAUD_RATE_AUTO_ONLY" = "為了安全，鮑率將被自動探測。";
+"AUTO_DETECT_BAUD" = "自動偵測鮑率";
+"DETECTING" = "正在偵測...";
+"DETECTION_SUCCESS" = "已偵測到: %@";
+"DETECTION_FAILED" = "偵測失敗";
+"BAUD_RATE_AUTO_ONLY" = "為了安全，鮑率將被自動偵測。";
 
 /* LED Layout */
 "ZONE_CONFIG" = "區域配置";
@@ -156,7 +156,6 @@
 "CONNECTION_FAILED" = "連線失敗";
 "CONNECT_FIRST" = "請先連線以進行偵測";
 "DETECTED" = "偵測到: %@";
-"DETECTION_FAILED" = "偵測失敗";
 "TESTING_ORIENTATION" = "正在測試方向...";
 "TEST_COMPLETE" = "測試完成";
 "NO_DISPLAY_FOUND" = "找不到顯示器";

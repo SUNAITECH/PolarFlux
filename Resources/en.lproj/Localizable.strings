@@ -156,7 +156,6 @@
 "CONNECTION_FAILED" = "Connection Failed";
 "CONNECT_FIRST" = "Connect first to detect";
 "DETECTED" = "Detected: %@";
-"DETECTION_FAILED" = "Detection failed";
 "TESTING_ORIENTATION" = "Testing Orientation...";
 "TEST_COMPLETE" = "Test Complete";
 "NO_DISPLAY_FOUND" = "No Display Found";

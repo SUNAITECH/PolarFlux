@@ -156,7 +156,6 @@
 "CONNECTION_FAILED" = "Ошибка подключения";
 "CONNECT_FIRST" = "Сначала подключитесь для определения";
 "DETECTED" = "Определено: %@";
-"DETECTION_FAILED" = "Ошибка определения";
 "TESTING_ORIENTATION" = "Тестирование ориентации...";
 "TEST_COMPLETE" = "Тест завершен";
 "NO_DISPLAY_FOUND" = "Дисплей не найден";

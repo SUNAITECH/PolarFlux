@@ -156,7 +156,6 @@
 "CONNECTION_FAILED" = "连接失败";
 "CONNECT_FIRST" = "请先连接以进行检测";
 "DETECTED" = "检测到: %@";
-"DETECTION_FAILED" = "检测失败";
 "TESTING_ORIENTATION" = "正在测试方向...";
 "TEST_COMPLETE" = "测试完成";
 "NO_DISPLAY_FOUND" = "未找到显示器";
