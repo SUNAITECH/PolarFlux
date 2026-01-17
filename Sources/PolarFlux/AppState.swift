@@ -509,6 +509,33 @@ class AppState: ObservableObject {
             return 
         }
         
+        // Critical UX: If starting in Sync mode, check permission BEFORE connecting hardware.
+        // This prevents the "Flash -> Prompt" issue where the serial port opens (flashing LEDs)
+        // while the user is still staring at a permission prompt.
+        if currentMode == .sync {
+            Task {
+                // If we don't have permission and the system might prompt, do not connect yet.
+                // Note: on some macOS versions, checking this might trigger the prompt.
+                // We want the prompt to happen, but we want to wait for the result before flashing the hardware.
+                let granted = await ScreenCapture.checkPermission()
+                
+                await MainActor.run {
+                    if !granted {
+                        self.statusMessage = String(localized: "PERMISSION_DENIED")
+                        // Do not proceed to connectSerial
+                    } else {
+                        // Permission granted, now we can safely connect without UX jank
+                        self.continueStart()
+                    }
+                }
+            }
+            return
+        }
+        
+        continueStart()
+    }
+    
+    private func continueStart() {
         statusMessage = String(localized: "CONNECTING")
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -550,7 +577,7 @@ class AppState: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             guard let self = self, self.isRunning else { return }
             
-            self.startKeepAlive()
+            // startKeepAlive() removed from here to prevent sending data before mode is ready/authorized
             
             switch self.currentMode {
             case .sync:
@@ -624,6 +651,7 @@ class AppState: ObservableObject {
     
     private func startSyncStream() {
         guard isRunning && currentMode == .sync else { return }
+        self.startKeepAlive()
         
         let config = ZoneConfig(
             left: Int(leftZone) ?? 0,
@@ -670,6 +698,7 @@ class AppState: ObservableObject {
     // MARK: - Music Mode
     private func startMusic() {
         guard isRunning && currentMode == .music else { return }
+        self.startKeepAlive()
         audioProcessor.start()
     }
     
@@ -708,6 +737,7 @@ class AppState: ObservableObject {
     // MARK: - Effect Mode
     private func startEffect() {
         guard isRunning && currentMode == .effect else { return }
+        self.startKeepAlive()
         let totalLeds = Int(ledCount) ?? 100
         // Convert Color to RGB
         var r: UInt8 = 255
@@ -804,6 +834,7 @@ class AppState: ObservableObject {
     
     private func startManual() {
         guard isRunning && currentMode == .manual else { return }
+        self.startKeepAlive()
         
         // Ensure currentColor is set from manualColor if nil
         if currentColor == nil {

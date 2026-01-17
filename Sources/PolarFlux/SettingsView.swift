@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var appState: AppState
-    // SceneStorage does not support Optionals. We use a sentinel string for "no selection", though rarely needed in Settings.
+    // SceneStorage implicitly supports String. Defaults to "Connection".
     @SceneStorage("settingsSelection") private var selection: String = "Connection"
     @State private var isCalibrationLocked: Bool = true
     @State private var initialLanguage: String?
@@ -86,7 +86,8 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 40)
                     .padding(.vertical, 30)
-                    .frame(maxWidth: 650, alignment: .leading)
+                    .frame(maxWidth: 800) // Optimal readability width
+                    .frame(maxWidth: .infinity) // Centers the column in parent
                 }
             }
         }
