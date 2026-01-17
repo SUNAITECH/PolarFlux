@@ -13,7 +13,17 @@ export LANG=en_US.UTF-8
 # --- Configuration ---
 APP_NAME="PolarFlux"
 BUNDLE_ID="com.sunaish.polarflux"
-VERSION_STR="${VERSION:-$(date +%Y.%m.%d)}"
+
+# Versioning Logic:
+# 1. Direct argument (e.g., ./run.sh build 2026.01.17)
+# 2. Environment variable (VERSION=1.2.3 ./run.sh)
+# 3. Default (Current Date)
+ARG_VERSION="${2:-}"
+if [[ "$ARG_VERSION" =~ ^[0-9]+\.[0-9]+ ]]; then
+    VERSION_STR="$ARG_VERSION"
+else
+    VERSION_STR="${VERSION:-$(date +%Y.%m.%d)}"
+fi
 
 # Safety: Use script location to determine project root
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -50,16 +60,19 @@ error() { echo "${RED}✘${NC} ${BOLD}$1${NC}"; exit 1; }
 cd "$PROJECT_ROOT" || error "Could not access project root at $PROJECT_ROOT"
 
 show_help() {
-    echo "${BOLD}PolarFlux Build Tool v2.1${NC}"
-    echo "Usage: $0 [command]"
+    echo "${BOLD}PolarFlux Build Tool v2.2${NC}"
+    echo "Usage: $0 [command] [version]"
     echo ""
     echo "Commands:"
-    echo "  build       Create a production-ready Universal App Bundle"
-    echo "  run         Build and launch the application"
-    echo "  dmg         Package the application into DMG"
-    echo "  clean       Deep clean build artifacts and system junk"
-    echo "  icon        Regenerate high-quality icons from source"
-    echo "  help        Show this help menu"
+    echo "  build [version]  Create a production-ready Universal App Bundle"
+    echo "  run   [version]  Build and launch the application"
+    echo "  dmg   [version]  Package the application into DMG"
+    echo "  clean            Deep clean build artifacts and system junk"
+    echo "  icon             Regenerate high-quality icons from source"
+    echo "  help             Show this help menu"
+    echo ""
+    echo "Example:"
+    echo "  $0 build 2026.01.18"
 }
 
 check_deps() {
