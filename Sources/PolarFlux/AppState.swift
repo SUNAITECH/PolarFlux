@@ -1247,6 +1247,7 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(saturation, forKey: "saturation")
         
         UserDefaults.standard.set(selectedMicrophoneUID, forKey: "selectedMicrophoneUID")
+        UserDefaults.standard.set(targetFrameRate, forKey: "targetFrameRate")
     }
     
     func loadSettings() {
@@ -1340,6 +1341,9 @@ class AppState: ObservableObject {
         if let micUID = UserDefaults.standard.string(forKey: "selectedMicrophoneUID") {
             selectedMicrophoneUID = micUID
         }
+        
+        let fps = UserDefaults.standard.double(forKey: "targetFrameRate")
+        if fps >= 15 && fps <= 120 { targetFrameRate = fps }
         
         // Auto-start if was running
         if wasRunning {
