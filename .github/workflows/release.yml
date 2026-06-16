@@ -17,10 +17,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Swift
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: '5.9'
+      - name: Select Xcode (latest)
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)/Contents/Developer"
+
+      - name: Show toolchain versions
+        run: |
+          swift --version
+          xcrun --version
 
       - name: Build and Package DMG
         run: |

@@ -19,18 +19,16 @@ class SerialPort {
         defer { lock.unlock() }
         return isConnectedInternal && fileDescriptor >= 0
     }
-    
-    private let targetDevicePacing: Double = 0.004 // DEPRECATED: 4ms assumed device processing capability
-    
+
     var onDisconnect: (() -> Void)?
-    
+
     // Performance Tracking
     private(set) var totalBytesSent: UInt64 = 0
     private(set) var totalPacketsSent: UInt64 = 0
     private(set) var lastWriteLatency: Double = 0
     private(set) var writeErrorCount: Int = 0
     private(set) var reconnectCount: Int = 0
-    
+
     func resetCounters() {
         totalBytesSent = 0
         totalPacketsSent = 0
@@ -51,9 +49,23 @@ class SerialPort {
     }
     
     func listPorts() -> [String] {
+        // Only `cu.*` (callout) devices are used; `tty.*` is avoided to prevent
+        // conflicts with incoming-call semantics on classic serial lines.
         do {
             let files = try FileManager.default.contentsOfDirectory(atPath: "/dev")
-            return files.filter { $0.hasPrefix("cu.usbserial") || $0.hasPrefix("cu.usbmodem") || $0.hasPrefix("cu.wch") }.map { "/dev/\($0)" }
+            return files
+                .filter { entry in
+                    // Match common USB-serial chip families, but never expose the
+                    // Bluetooth modem or other virtual ports.
+                    guard entry.hasPrefix("cu.") else { return false }
+                    if entry.contains("Bluetooth") { return false }
+                    return entry.hasPrefix("cu.usbserial") ||
+                           entry.hasPrefix("cu.usbmodem") ||
+                           entry.hasPrefix("cu.SLAB_USBtoUART") ||
+                           entry.hasPrefix("cu.wch")
+                }
+                .sorted()
+                .map { "/dev/\($0)" }
         } catch {
             return []
         }
@@ -126,7 +138,9 @@ class SerialPort {
         // Raw output
         options.c_oflag &= ~tcflag_t(OPOST | ONLCR)
         
-        // VMIN=1, VTIME=0: Block until at least 1 byte is received (for reading)
+        // VMIN=1, VTIME=0: Block until at least 1 byte is received (for reading).
+        // On Darwin, VMIN==16 and VTIME==17. Swift tuples only allow literal
+        // positional member access (no dynamic subscript), so we use those directly.
         options.c_cc.16 = 1 // VMIN
         options.c_cc.17 = 0 // VTIME
         
@@ -354,33 +368,38 @@ class SerialPort {
         lock.lock()
         let fd = fileDescriptor
         lock.unlock()
-        
+
         guard fd >= 0 else { return nil }
-        
+
         // Flush input buffer
         tcflush(fd, TCIFLUSH)
-        
-        // Send "Moni-A"
-        let cmd = "Moni-A"
-        var data = [UInt8](cmd.utf8)
-        let written = write(fd, &data, data.count)
+
+        // Send "Moni-A" — use a scoped buffer pointer so the address is valid for the syscall.
+        let cmd = [UInt8]("Moni-A".utf8)
+        let written = cmd.withUnsafeBufferPointer { buf -> Int in
+            guard let base = buf.baseAddress else { return -1 }
+            return write(fd, base, buf.count)
+        }
         if written < 0 {
             Logger.shared.log("Error writing command: \(errno)")
             return nil
         }
-        
+
         // Wait for response (100ms)
         usleep(100000)
-        
+
         // Read response
         var buffer = [UInt8](repeating: 0, count: 64)
-        let n = read(fd, &buffer, buffer.count)
-        
+        let n = buffer.withUnsafeMutableBufferPointer { buf -> Int in
+            guard let base = buf.baseAddress else { return -1 }
+            return read(fd, base, buf.count)
+        }
+
         if n > 0 {
             let response = String(bytes: buffer.prefix(n), encoding: .utf8)
             return response?.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        
+
         return nil
     }
 
@@ -418,21 +437,34 @@ class SerialPort {
         options.c_iflag &= ~tcflag_t(IXON | IXOFF | IXANY | IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL)
         options.c_oflag &= ~tcflag_t(OPOST | ONLCR)
         options.c_cc.16 = 0 // VMIN=0 with O_NONBLOCK for immediate read
-        options.c_cc.17 = 5 // 500ms VTIME
+        options.c_cc.17 = 5 // VTIME (500ms)
 
         if tcsetattr(fd, TCSANOW, &options) == -1 { return false }
 
         // Probe with Handshake
         tcflush(fd, TCIFLUSH)
-        var cmd = [UInt8]("Moni-A".utf8)
-        write(fd, &cmd, cmd.count)
-        
+        let cmd = [UInt8]("Moni-A".utf8)
+        cmd.withUnsafeBufferPointer { buf in
+            guard let base = buf.baseAddress else { return }
+            _ = write(fd, base, buf.count)
+        }
+
         // Wait up to 200ms for response
         usleep(200000)
-        
+
         var buffer = [UInt8](repeating: 0, count: 32)
-        let n = read(fd, &buffer, buffer.count)
-        
-        return n > 0 && String(bytes: buffer.prefix(n), encoding: .utf8)?.contains("PolarFlux") == true || n > 0
+        let n = buffer.withUnsafeMutableBufferPointer { buf -> Int in
+            guard let base = buf.baseAddress else { return -1 }
+            return read(fd, base, buf.count)
+        }
+
+        guard n > 0,
+              let response = String(bytes: buffer.prefix(n), encoding: .utf8)
+        else { return false }
+
+        // Only accept a genuine device handshake. Previously this returned true for *any*
+        // bytes received (due to operator precedence), which produced false positives and
+        // locked onto the wrong baud rate / arbitrary data.
+        return response.contains("PolarFlux") || response.contains("SK0") || response.contains("SKA")
     }
 }

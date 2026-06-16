@@ -170,7 +170,6 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 self.zoneStates.removeAll()
                 self.physicsEngine.reset()
                 self.lastFrameTime = 0
-                self.lastProcessTime = 0
                 self.lastOutputColors.removeAll()
                 self.currentSceneIntensity = 0.0
                 self.smoothedGlobalLuma = 0.5
@@ -208,26 +207,16 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var currentCalibration: (r: Double, g: Double, b: Double) = (1.0, 1.0, 1.0)
     private var currentGamma: Double = 1.0
     private var currentSaturation: Double = 1.0
-    private var lastProcessTime: TimeInterval = 0 // DEPRECATED
     private var lastOutputColors: [(UInt8, UInt8, UInt8)] = []
     private var currentSceneIntensity: Double = 0.0
     private var smoothedGlobalLuma: Double = 0.5
     
     // MARK: - SCStreamDelegate
     func stream(_ stream: SCStream, didStopWithError error: Error) {
-        // Robustness: Capture stream crash handling
-        // Often occurs on Display sleep/wake or resolution change
-        print("SCStream stopped with error: \(error.localizedDescription)")
-        
-        // Notify observer (AppState) if we have a callback mechanism?
-        // Ideally we should try to restart, but SCStream is async and we are in a delegate.
-        // The safest way is to nullify the stream and rely on AppState to restart on 'ScreensDidWake'
-        // or a retry mechanism.
-        // Since AppState listens to ScreensDidWake/SystemWake, it will call stop() then start()
-        // effectively resetting this.
-        // We ensure we don't crash by cleaning up here.
+        // Often occurs on display sleep/wake or resolution change. AppState listens
+        // for wake events and will restart capture, so here we just clean up safely.
+        Logger.shared.log("SCStream stopped with error: \(error.localizedDescription)")
         safeSetStream(nil)
-        
         self.lastFrameTime = 0
     }
     
@@ -830,9 +819,10 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             state.estG = predG + k * resG
             state.estB = predB + k * resB
             state.errorCov = (1.0 - k) * predP
-            
-            zoneStates[i] = state
-            
+
+            // NOTE: state is persisted at the END of the per-zone pass so that the
+            // localIntensity update (per-sector intensity tracking) is not discarded.
+
             let r_out = state.estR
             let g_out = state.estG
             let b_out = state.estB
@@ -950,8 +940,12 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
                 state.localIntensity = (state.localIntensity * 0.92) + (normDistance * 0.08)
             }
             sectorIntensities.append(state.localIntensity)
-            
+
             processedBuffer.append((finalR_out, finalG_out, finalB_out))
+
+            // Persist the full per-zone state: Kalman estimates, adaptive params,
+            // AND the updated localIntensity (previously lost each frame).
+            zoneStates[i] = state
         }
         
         // 7.5 Spatial Hierarchy & Contrast Enhancement

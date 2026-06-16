@@ -87,7 +87,7 @@ class AppState: ObservableObject {
     @Published var performanceMetrics = PerformanceMetrics()
     @Published var healthChecks: [HealthCheckItem] = []
     @Published var lastResetTime: Date?
-    let appStartTime = Date() // DEPRECATED
+    let appStartTime = Date()
     @Published var appLanguage: String = "System" {
         didSet {
             UserDefaults.standard.set(appLanguage, forKey: "appLanguage")
@@ -132,7 +132,6 @@ class AppState: ObservableObject {
     // Sync Settings
     @Published var screenOrientation: ScreenOrientation = .standard
     @Published var targetFrameRate: Double = 60.0
-    @Published var searchDepth: Double = 0.8 // DEPRECATED: 80% inwards search
     @Published var syncBrightness: Double = 1.0 // Separate brightness for Sync
     @Published var perspectiveOriginMode: PerspectiveOriginMode = .auto
     @Published var manualOriginPosition: Double = 0.5
@@ -189,6 +188,18 @@ class AppState: ObservableObject {
     @Published var manualR: Double = 255
     @Published var manualG: Double = 255
     @Published var manualB: Double = 255
+
+    /// Robustly convert a `Color` to 8-bit sRGB components.
+    /// Going through `cgColor.components` is unsafe: the component count, order and
+    /// range depend on the source color space (grayscale, wide-gamut, extended sRGB).
+    static func rgb(from color: Color) -> (r: UInt8, g: UInt8, b: UInt8) {
+        let nsColor = NSColor(color).usingColorSpace(.sRGB) ?? NSColor(color)
+        return (
+            clampU8(nsColor.redComponent * 255),
+            clampU8(nsColor.greenComponent * 255),
+            clampU8(nsColor.blueComponent * 255)
+        )
+    }
     
     // Calibration
     @Published var calibrationR: Double = 1.0
@@ -260,7 +271,6 @@ class AppState: ObservableObject {
     
     private var isSending = false
     private let sendLock = NSLock()
-    private var isCapturing = false // DEPRECATED
     private var cachedDisplay: SCDisplay?
     private var serialPort = SerialPort()
     private var screenCapture = ScreenCapture()
@@ -286,8 +296,8 @@ class AppState: ObservableObject {
         loadSettings()
         
         // Setup Audio Callback
-        audioProcessor.onAudioLevel = { [weak self] level in
-            self?.processAudioFrame(level: level)
+        audioProcessor.onAudioFrame = { [weak self] frame in
+            self?.processAudioFrame(frame: frame)
         }
         
         // Setup Effect Callback
@@ -702,36 +712,50 @@ class AppState: ObservableObject {
         audioProcessor.start()
     }
     
-    private func processAudioFrame(level: Float) {
+    private func processAudioFrame(frame: AudioFrame) {
         guard isRunning, currentMode == .music else { return }
-        
+
         let totalLeds = Int(ledCount) ?? 100
         var data = [UInt8]()
         data.reserveCapacity(totalLeds * 3)
-        
-        // Simple VU Meter effect from center
-        let litCount = Int(Float(totalLeds) * level)
-        let center = totalLeds / 2
-        let halfLit = litCount / 2
-        
+
+        // Spectrum-analyser style mapping: each LED samples a log-spaced band of
+        // the live frequency spectrum and is coloured by frequency (bass→red,
+        // mid→green, treble→blue). The per-bin level is driven by `frame.spectrum`,
+        // which is already normalised to 0...1.
+        let spectrum = frame.spectrum
+        let spectrumCount = max(spectrum.count, 1)
+
         for i in 0..<totalLeds {
-            let dist = abs(i - center)
-            if dist < halfLit {
-                // Color based on intensity (Green -> Red)
-                let intensity = Float(dist) / Float(totalLeds/2)
-                let r = UInt8(min(255, intensity * 510))
-                let g = UInt8(min(255, (1.0 - intensity) * 510))
-                data.append(r)
-                data.append(g)
-                data.append(0)
-            } else {
-                data.append(0)
-                data.append(0)
-                data.append(0)
-            }
+            let p = Double(i) / Double(max(totalLeds - 1, 1))
+            let specIdx = min(Int(p * Double(spectrumCount)), spectrumCount - 1)
+            let intensity = min(max(Double(spectrum[specIdx]), 0.0), 1.0)
+
+            // Hue gradient across the strip: 0.0 (red, low freq) → 0.66 (blue, high freq).
+            let hue = p * 0.66
+            let rgb = hsvToRgb(h: hue, s: 1.0, v: intensity)
+            data.append(rgb.r)
+            data.append(rgb.g)
+            data.append(rgb.b)
         }
-        
+
         sendData(data)
+    }
+
+    private func hsvToRgb(h: Double, s: Double, v: Double) -> (r: UInt8, g: UInt8, b: UInt8) {
+        let c = v * s
+        let x = c * (1 - abs((h * 6).truncatingRemainder(dividingBy: 2) - 1))
+        let m = v - c
+        var (r1, g1, b1) = (0.0, 0.0, 0.0)
+        switch h * 6 {
+        case 0..<1: (r1, g1, b1) = (c, x, 0)
+        case 1..<2: (r1, g1, b1) = (x, c, 0)
+        case 2..<3: (r1, g1, b1) = (0, c, x)
+        case 3..<4: (r1, g1, b1) = (0, x, c)
+        case 4..<5: (r1, g1, b1) = (x, 0, c)
+        default:    (r1, g1, b1) = (c, 0, x)
+        }
+        return (clampU8((r1 + m) * 255), clampU8((g1 + m) * 255), clampU8((b1 + m) * 255))
     }
     
     // MARK: - Effect Mode
@@ -739,23 +763,11 @@ class AppState: ObservableObject {
         guard isRunning && currentMode == .effect else { return }
         self.startKeepAlive()
         let totalLeds = Int(ledCount) ?? 100
-        // Convert Color to RGB
-        var r: UInt8 = 255
-        var g: UInt8 = 0
-        var b: UInt8 = 0
-        
         let color = effectColors[selectedEffect] ?? .red
         let speed = effectSpeeds[selectedEffect] ?? 1.0
-        
-        if let rgb = color.cgColor?.components {
-            if rgb.count >= 3 {
-                r = UInt8(rgb[0] * 255)
-                g = UInt8(rgb[1] * 255)
-                b = UInt8(rgb[2] * 255)
-            }
-        }
-        
-        effectEngine.start(effect: selectedEffect, ledCount: totalLeds, speed: speed, color: (r, g, b), fps: targetFrameRate)
+        let rgb = AppState.rgb(from: color)
+
+        effectEngine.start(effect: selectedEffect, ledCount: totalLeds, speed: speed, color: rgb, fps: targetFrameRate)
     }
     
     func restartEffect() {
@@ -767,30 +779,11 @@ class AppState: ObservableObject {
     // MARK: - Manual Mode
     func setManualColor(color: Color) {
         manualColor = color
-        if let rgb = color.cgColor?.components {
-            // Handle different color spaces
-            var r: UInt8 = 0
-            var g: UInt8 = 0
-            var b: UInt8 = 0
-            
-            if rgb.count >= 3 {
-                r = UInt8(rgb[0] * 255)
-                g = UInt8(rgb[1] * 255)
-                b = UInt8(rgb[2] * 255)
-            } else if rgb.count == 2 {
-                // Grayscale
-                r = UInt8(rgb[0] * 255)
-                g = UInt8(rgb[0] * 255)
-                b = UInt8(rgb[0] * 255)
-            }
-            
-            // Update individual components without triggering loop
-            self.manualR = Double(r)
-            self.manualG = Double(g)
-            self.manualB = Double(b)
-            
-            setManualColor(r: r, g: g, b: b)
-        }
+        let rgb = AppState.rgb(from: color)
+        self.manualR = Double(rgb.r)
+        self.manualG = Double(rgb.g)
+        self.manualB = Double(rgb.b)
+        setManualColor(r: rgb.r, g: rgb.g, b: rgb.b)
     }
     
     func updateManualColorFromRGB(preview: Bool = true) {
@@ -835,28 +828,10 @@ class AppState: ObservableObject {
     private func startManual() {
         guard isRunning && currentMode == .manual else { return }
         self.startKeepAlive()
-        
+
         // Ensure currentColor is set from manualColor if nil
         if currentColor == nil {
-            if let rgb = manualColor.cgColor?.components {
-                var r: UInt8 = 0
-                var g: UInt8 = 0
-                var b: UInt8 = 0
-                
-                if rgb.count >= 3 {
-                    r = UInt8(rgb[0] * 255)
-                    g = UInt8(rgb[1] * 255)
-                    b = UInt8(rgb[2] * 255)
-                } else if rgb.count == 2 {
-                    r = UInt8(rgb[0] * 255)
-                    g = UInt8(rgb[0] * 255)
-                    b = UInt8(rgb[0] * 255)
-                }
-                currentColor = (r, g, b)
-            } else {
-                // Fallback to white
-                currentColor = (255, 255, 255)
-            }
+            currentColor = AppState.rgb(from: manualColor)
         }
 
         // Heartbeat
@@ -1533,14 +1508,14 @@ class AppState: ObservableObject {
                                 let pixelIndex = (position - i + totalLeds) % totalLeds
                                 // Head is white, tail fades to blue
                                 if i == 0 {
-                                    data[pixelIndex * 3] = UInt8(255 * self.calibrationR)
-                                    data[pixelIndex * 3 + 1] = UInt8(255 * self.calibrationG)
-                                    data[pixelIndex * 3 + 2] = UInt8(255 * self.calibrationB)
+                                    data[pixelIndex * 3] = clampU8(255 * self.calibrationR)
+                                    data[pixelIndex * 3 + 1] = clampU8(255 * self.calibrationG)
+                                    data[pixelIndex * 3 + 2] = clampU8(255 * self.calibrationB)
                                 } else {
                                     let brightness = Double(snakeLength - i) / Double(snakeLength)
                                     data[pixelIndex * 3] = 0
                                     data[pixelIndex * 3 + 1] = 0
-                                    data[pixelIndex * 3 + 2] = UInt8(255 * brightness * self.calibrationB)
+                                    data[pixelIndex * 3 + 2] = clampU8(255 * brightness * self.calibrationB)
                                 }
                             }
                             

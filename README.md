@@ -272,6 +272,6 @@ To trigger an automated release to GitHub (CI/CD):
 
 ## License
 PolarFlux is released under the **MIT License**.
-Copyright © 2025 Shanghai Sunai Technology Co., Ltd.
+Copyright © 2026 Shanghai Sunai Technology Co., Ltd.
 Full license text in the [LICENSE](LICENSE) file.
 

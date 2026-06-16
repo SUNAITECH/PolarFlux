@@ -72,7 +72,7 @@ class EffectEngine {
             for i in 0..<ledCount {
                 let hue = Double((i * 5 + step) % 360) / 360.0
                 let c = NSColor(hue: hue, saturation: 1.0, brightness: 1.0, alpha: 1.0)
-                if let rgb = c.usingColorSpace(.deviceRGB) {
+                if let rgb = c.usingColorSpace(.sRGB) {
                     rawColors.append((UInt8(rgb.redComponent * 255), UInt8(rgb.greenComponent * 255), UInt8(rgb.blueComponent * 255)))
                 } else {
                     rawColors.append((0,0,0))
@@ -124,7 +124,7 @@ class EffectEngine {
                 let v2 = sin(Double(i) * 0.1 - Double(step) * 0.05 + 2.0)
                 let v = (v1 + v2 + 2.0) / 4.0
                 let c = NSColor(hue: v, saturation: 1.0, brightness: 1.0, alpha: 1.0)
-                if let rgb = c.usingColorSpace(.deviceRGB) {
+                if let rgb = c.usingColorSpace(.sRGB) {
                     rawColors.append((UInt8(rgb.redComponent * 255), UInt8(rgb.greenComponent * 255), UInt8(rgb.blueComponent * 255)))
                 } else { rawColors.append((0,0,0)) }
             }
@@ -169,7 +169,7 @@ class EffectEngine {
                 let t = Double(step) * 0.01
                 let hue = (sin(Double(i) * 0.05 + t) + 1.0) / 2.0
                 let c = NSColor(hue: hue, saturation: 0.8, brightness: 0.8, alpha: 1.0)
-                if let rgb = c.usingColorSpace(.deviceRGB) {
+                if let rgb = c.usingColorSpace(.sRGB) {
                     rawColors.append((UInt8(rgb.redComponent * 255), UInt8(rgb.greenComponent * 255), UInt8(rgb.blueComponent * 255)))
                 } else { rawColors.append((0,0,0)) }
             }

@@ -9,9 +9,9 @@
     <key>CFBundleName</key>
     <string>PolarFlux</string>
     <key>CFBundleShortVersionString</key>
-    <string>2026.01.07</string>
+    <string>2026.06.16</string>
     <key>CFBundleVersion</key>
-    <string>20260107.1</string>
+    <string>20260616.1</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>

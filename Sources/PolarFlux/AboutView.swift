@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AboutView: View {
     let version: String = {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2025.12.28"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2026.01.07"
     }()
     
     @StateObject private var updateChecker = UpdateChecker()
@@ -57,7 +57,7 @@ struct AboutView: View {
                     Text("""
                     MIT License
 
-                    Copyright (c) 2025 Shanghai Sunai Technology Co., Ltd.
+                    Copyright (c) 2026 Shanghai Sunai Technology Co., Ltd.
 
                     Permission is hereby granted, free of charge, to any person obtaining a copy
                     of this software and associated documentation files (the "Software"), to deal

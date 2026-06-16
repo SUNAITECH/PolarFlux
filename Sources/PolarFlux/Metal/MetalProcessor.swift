@@ -12,9 +12,42 @@ class MetalProcessor {
     static var isSupported: Bool {
         return MTLCreateSystemDefaultDevice() != nil
     }
+
+    /// Loads the Metal shader library.
+    ///
+    /// In a packaged `.app` the script compiles `Shaders.metal` into
+    /// `default.metallib`, so `makeDefaultLibrary()` succeeds. In SPM/dev builds
+    /// (`swift run`) SPM only ships the `.metal` *source* as a resource and does
+    /// not compile it, so `makeDefaultLibrary()` returns nil and the engine would
+    /// silently fall back to the CPU path. To keep Metal active in both contexts,
+    /// we fall back to runtime-compiling the bundled source.
+    static func makeLibrary(device: MTLDevice) -> MTLLibrary? {
+        // 1. Compiled metallib (packaged app).
+        if let lib = try? device.makeDefaultLibrary() { return lib }
+
+        // 2. Runtime-compile the bundled source (SPM/dev builds). Search every
+        //    loaded bundle, the main bundle, and the SPM resource module bundle
+        //    (named "<Product>_<Target>.bundle" beside the executable) so the
+        //    shader is found regardless of how the resource was packaged.
+        var bundles = Bundle.allBundles
+        bundles.append(Bundle.main)
+        let moduleURL = Bundle.main.bundleURL.appendingPathComponent("PolarFlux_PolarFlux.bundle")
+        if let moduleBundle = Bundle(url: moduleURL) {
+            bundles.append(moduleBundle)
+        }
+
+        for bundle in bundles {
+            guard let url = bundle.url(forResource: "Shaders", withExtension: "metal"),
+                  let source = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            if let lib = try? device.makeLibrary(source: source, options: nil) {
+                return lib
+            }
+        }
+        return nil
+    }
     
-    let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
+    private(set) var device: MTLDevice?
+    private var commandQueue: MTLCommandQueue?
     private let pipelineState: MTLComputePipelineState?
     private var textureCache: CVMetalTextureCache?
     
@@ -29,40 +62,47 @@ class MetalProcessor {
     let isAvailable: Bool
     
     init() {
-        // Safe Initialization
-        guard let dev = MTLCreateSystemDefaultDevice(),
-              let queue = dev.makeCommandQueue(),
-              let library = dev.makeDefaultLibrary(),
-              let kernelFunction = library.makeFunction(name: "process_frame")
-        else {
-            print("MetalProcessor: Failed to initialize Metal")
-            // Provide dummy values to satisfy compiler init rules, but flag as unavailable
-            self.device = MTLCreateSystemDefaultDevice() ?? MTLCreateSystemDefaultDevice()! 
-            self.commandQueue = self.device.makeCommandQueue()!
+        // Create the device exactly once. `MTLCreateSystemDefaultDevice()` returns
+        // nil on headless/unsupported systems — treat that as "Metal unavailable"
+        // rather than crashing.
+        guard let dev = MTLCreateSystemDefaultDevice() else {
+            self.device = nil
+            self.commandQueue = nil
             self.pipelineState = nil
             self.isAvailable = false
             return
         }
-        
-        
+
         self.device = dev
+
+        guard let queue = dev.makeCommandQueue(),
+              let library = MetalProcessor.makeLibrary(device: dev),
+              let kernelFunction = library.makeFunction(name: "process_frame")
+        else {
+            Logger.shared.log("MetalProcessor: Failed to initialize Metal pipeline (CPU fallback)")
+            self.commandQueue = dev.makeCommandQueue()
+            self.pipelineState = nil
+            self.isAvailable = false
+            return
+        }
+
         self.commandQueue = queue
-        
+
         do {
             self.pipelineState = try dev.makeComputePipelineState(function: kernelFunction)
-            
+
             var cache: CVMetalTextureCache?
             CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, dev, nil, &cache)
             self.textureCache = cache
-            
+
             // Pre-allocate output textures with Float32 for easier Swift interop
-            let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba32Float, width: 160, height: 90, mipmapped: false)
+            let desc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba32Float, width: outputWidth, height: outputHeight, mipmapped: false)
             desc.usage = [.shaderRead, .shaderWrite]
-            
+
             self.outAvgTexture = dev.makeTexture(descriptor: desc)
             self.outPeakTexture = dev.makeTexture(descriptor: desc)
-            
-            self.isAvailable = true
+
+            self.isAvailable = (outAvgTexture != nil && outPeakTexture != nil)
         } catch {
             print("MetalProcessor: Setup Failed: \(error)")
             self.pipelineState = nil
@@ -72,6 +112,7 @@ class MetalProcessor {
     
     func process(pixelBuffer: CVPixelBuffer, whitePoint: SIMD3<Float>, adaptedLuma: Float) -> (avg: [Float], peak: [Float])? {
         guard isAvailable,
+              let commandQueue = commandQueue,
               let textureCache = textureCache,
               let outAvg = outAvgTexture,
               let outPeak = outPeakTexture,
