@@ -149,13 +149,15 @@ struct UpdateAvailableView: View {
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
-                
-                Link(destination: URL(string: release.htmlUrl)!) {
-                    Text(String(localized: "DOWNLOAD"))
-                        .frame(minWidth: 100)
+
+                if let url = release.safeURL {
+                    Link(destination: url) {
+                        Text(String(localized: "DOWNLOAD"))
+                            .frame(minWidth: 100)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
                 }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
             }
         }
         .padding(30)

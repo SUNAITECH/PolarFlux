@@ -22,7 +22,7 @@
 "LED_LAYOUT" = "LED 레이아웃";
 "LED_LAYOUT_SUBTITLE" = "LED 스트립 구역 설정";
 "AUDIO" = "오디오";
-"AUDIO_SUBTITLE" = "음악 모드용 마이크 설정";
+"AUDIO_SUBTITLE" = "음악 모드의 오디오 소스 선택";
 "MICROPHONE" = "마이크:";
 "CALIBRATION" = "보정";
 "CALIBRATION_SUBTITLE" = "색상 정확도 및 감마 미세 조정";
@@ -251,3 +251,16 @@
 "VIEW_RELEASE_NOTES" = "릴리스 노트";
 "DOWNLOAD" = "다운로드";
 "LATER" = "나중에";
+
+/* Music Mode Audio Sources */
+"AUDIO_SOURCE" = "오디오 소스";
+"AUDIO_SOURCE_SYSTEM" = "시스템 오디오";
+"AUDIO_SOURCE_MICROPHONE" = "마이크";
+"AUDIO_SOURCE_DESC" = "Mac이 재생하는 소리에 반응합니다. 마이크 권한이 필요 없으며, 사용할 수 없으면 마이크로 자동 전환됩니다.";
+"AUDIO_SPECTRUM" = "오디오 스펙트럼";
+"SYSTEM_AUDIO_FALLBACK" = "시스템 오디오를 사용할 수 없습니다 — 마이크를 사용합니다";
+
+/* Multi-Display Capture */
+"CAPTURE_DISPLAY" = "캡처할 디스플레이";
+"DISPLAY_AUTO" = "자동(기본 디스플레이)";
+"CAPTURE_DISPLAY_DESC" = "앰비언트 조명이 따라갈 화면을 선택합니다.";

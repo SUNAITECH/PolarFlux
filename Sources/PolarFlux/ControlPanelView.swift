@@ -77,15 +77,38 @@ struct ControlPanelView: View {
                         }
                         .accentColor(.purple)
                     } else {
-                        Slider(value: $appState.brightness, in: 0.1...1.0, step: 0.05) { _ in
-                            appState.restartSync()
-                        }
+                        // Brightness for Music/Effect/Manual is applied per-frame
+                        // during transmission — no engine restart is needed.
+                        Slider(value: $appState.brightness, in: 0.1...1.0, step: 0.05)
                         .accentColor(appState.isPowerLimited ? .orange : .blue)
                     }
                 }
                 .padding(.horizontal, 16)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appState.currentMode)
-                
+
+                // Live spectrum visualizer (Music mode)
+                if appState.currentMode == .music {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                                .opacity(0.6 + 0.4 * appState.musicBeat)
+                            Text(appState.audioSource == .system
+                                 ? String(localized: "AUDIO_SOURCE_SYSTEM")
+                                 : String(localized: "MICROPHONE"))
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        SpectrumBarsView(spectrum: appState.musicSpectrum)
+                            .frame(height: 34)
+                    }
+                    .padding(.horizontal, 16)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: appState.currentMode)
+                }
+
                 // Mode Specific Quick Controls
                 VStack(spacing: 0) {
                     if appState.currentMode == .effect {
@@ -255,7 +278,8 @@ struct ModeIconButton: View {
     let mode: LightingMode
     @Binding var currentMode: LightingMode
     let icon: String
-    
+    @State private var isHovering = false
+
     var body: some View {
         Button(action: {
             withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.6)) {
@@ -273,19 +297,58 @@ struct ModeIconButton: View {
                 ZStack {
                     if currentMode == mode {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.accentColor.opacity(0.15))
+                            .fill(Color.accentColor.opacity(isHovering ? 0.22 : 0.15))
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(Color.accentColor.opacity(0.5), lineWidth: 1.5)
                     } else {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.primary.opacity(0.03))
+                            .fill(Color.primary.opacity(isHovering ? 0.07 : 0.03))
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+                            .stroke(Color.primary.opacity(isHovering ? 0.10 : 0.05), lineWidth: 1)
                     }
                 }
             )
+            .scaleEffect(isHovering && currentMode != mode ? 1.04 : 1.0)
             .foregroundColor(currentMode == mode ? .accentColor : .secondary)
         }
         .buttonStyle(PlainButtonStyle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
+/// Lightweight spectrum-analyser bars for the control panel (Music mode).
+/// Renders the throttled analysis snapshot published by AppState.
+struct SpectrumBarsView: View {
+    let spectrum: [Float]
+
+    private let barCount = 18
+
+    var body: some View {
+        Canvas { context, size in
+            guard !spectrum.isEmpty else { return }
+            let n = spectrum.count
+            let count = min(n, barCount)
+            let spacing: CGFloat = 2
+            let barWidth = (size.width - spacing * CGFloat(count - 1)) / CGFloat(count)
+
+            for i in 0..<count {
+                let value = CGFloat(max(0, min(1, Double(spectrum[i]))))
+                let barHeight = max(2, value * size.height)
+                let x = CGFloat(i) * (barWidth + spacing)
+                let rect = CGRect(x: x, y: size.height - barHeight,
+                                  width: barWidth, height: barHeight)
+                let path = Path(roundedRect: rect, cornerRadius: min(barWidth / 2, 3))
+
+                // Frequency-mapped hue: bass warm → treble cool.
+                let hue = Double(i) / Double(max(count - 1, 1)) * 0.66
+                let color = Color(hue: hue, saturation: 0.75, brightness: 0.95)
+                context.fill(path, with: .color(color))
+            }
+        }
+        .accessibilityLabel(Text(String(localized: "AUDIO_SPECTRUM")))
     }
 }

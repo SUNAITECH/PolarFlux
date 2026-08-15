@@ -7,12 +7,25 @@ struct GitHubRelease: Decodable, Identifiable {
     let htmlUrl: String
     let body: String
     let publishedAt: String
-    
+
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case htmlUrl = "html_url"
         case body
         case publishedAt = "published_at"
+    }
+
+    /// Release metadata comes from a remote API and must never be trusted
+    /// blindly. Only https links to github.com are surfaced to the user.
+    var safeURL: URL? {
+        guard let url = URL(string: htmlUrl),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.scheme?.lowercased() == "https",
+              let host = components.host?.lowercased(),
+              host == "github.com" || host == "www.github.com" else {
+            return nil
+        }
+        return url
     }
 }
 
@@ -22,9 +35,18 @@ class UpdateChecker: ObservableObject {
     @Published var updateAvailable: GitHubRelease? = nil
     @Published var error: String? = nil
     @Published var showUpToDateAlert = false
-    
+
     private let repoOwner = "SUNAITECH"
     private let repoName = "PolarFlux"
+
+    /// Ephemeral, no-cache session: update checks must always hit the network
+    /// and never persist release metadata to disk.
+    private lazy var session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.timeoutIntervalForRequest = 15
+        return URLSession(configuration: config)
+    }()
     
     // Normalize version string (remove 'v' prefix, handle CalVer)
     private func normalizeVersion(_ version: String) -> String {
@@ -59,7 +81,7 @@ class UpdateChecker: ObservableObject {
         
         Task {
             do {
-                let (data, response) = try await URLSession.shared.data(from: url)
+                let (data, response) = try await session.data(from: url)
                 
                 guard let httpResponse = response as? HTTPURLResponse, 
                       (200...299).contains(httpResponse.statusCode) else {

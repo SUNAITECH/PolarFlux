@@ -22,7 +22,7 @@
 "LED_LAYOUT" = "LED 佈局";
 "LED_LAYOUT_SUBTITLE" = "設定 LED 燈條區域";
 "AUDIO" = "音訊設定";
-"AUDIO_SUBTITLE" = "設定音樂模式專用麥克風";
+"AUDIO_SUBTITLE" = "為音樂模式選擇音訊來源";
 "MICROPHONE" = "麥克風:";
 "CALIBRATION" = "色彩校準";
 "CALIBRATION_SUBTITLE" = "校準色彩準確性與 Gamma";
@@ -251,3 +251,16 @@
 "VIEW_RELEASE_NOTES" = "版本說明";
 "DOWNLOAD" = "下載";
 "LATER" = "稍後";
+
+/* Music Mode Audio Sources */
+"AUDIO_SOURCE" = "音訊來源";
+"AUDIO_SOURCE_SYSTEM" = "系統音訊";
+"AUDIO_SOURCE_MICROPHONE" = "麥克風";
+"AUDIO_SOURCE_DESC" = "跟隨 Mac 正在播放的聲音律動——無需麥克風權限。若無法使用將自動回退到麥克風。";
+"AUDIO_SPECTRUM" = "音訊頻譜";
+"SYSTEM_AUDIO_FALLBACK" = "系統音訊無法使用——已切換為麥克風";
+
+/* Multi-Display Capture */
+"CAPTURE_DISPLAY" = "擷取顯示器";
+"DISPLAY_AUTO" = "自動（主要顯示器）";
+"CAPTURE_DISPLAY_DESC" = "選擇氛圍光跟隨的螢幕。";

@@ -23,26 +23,60 @@ class SerialPort {
     var onDisconnect: (() -> Void)?
 
     // Performance Tracking
-    private(set) var totalBytesSent: UInt64 = 0
-    private(set) var totalPacketsSent: UInt64 = 0
-    private(set) var lastWriteLatency: Double = 0
-    private(set) var writeErrorCount: Int = 0
-    private(set) var reconnectCount: Int = 0
+    // Counters are written on the serial queue and read from the main thread,
+    // so all access is serialised through `statsLock` to avoid data races
+    // (TSan-visible torn reads / lost increments).
+    private let statsLock = NSLock()
+    private var _totalBytesSent: UInt64 = 0
+    private var _totalPacketsSent: UInt64 = 0
+    private var _lastWriteLatency: Double = 0
+    private var _writeErrorCount: Int = 0
+    private var _reconnectCount: Int = 0
+
+    var totalBytesSent: UInt64 {
+        statsLock.lock(); defer { statsLock.unlock() }
+        return _totalBytesSent
+    }
+    var totalPacketsSent: UInt64 {
+        statsLock.lock(); defer { statsLock.unlock() }
+        return _totalPacketsSent
+    }
+    var lastWriteLatency: Double {
+        statsLock.lock(); defer { statsLock.unlock() }
+        return _lastWriteLatency
+    }
+    var writeErrorCount: Int {
+        statsLock.lock(); defer { statsLock.unlock() }
+        return _writeErrorCount
+    }
+    var reconnectCount: Int {
+        statsLock.lock(); defer { statsLock.unlock() }
+        return _reconnectCount
+    }
 
     func resetCounters() {
-        totalBytesSent = 0
-        totalPacketsSent = 0
-        writeErrorCount = 0
-        reconnectCount = 0
-        lastWriteLatency = 0
+        statsLock.lock(); defer { statsLock.unlock() }
+        _totalBytesSent = 0
+        _totalPacketsSent = 0
+        _writeErrorCount = 0
+        _reconnectCount = 0
+        _lastWriteLatency = 0
     }
-    
+
+    /// Safely snapshots the current fd under the connection lock.
+    private func currentFileDescriptor() -> Int32 {
+        lock.lock()
+        defer { lock.unlock() }
+        return fileDescriptor
+    }
+
     // Buffer Telemetry
     var outputQueueSize: Int {
-        guard fileDescriptor >= 0 else { return 0 }
+        let fd = currentFileDescriptor()
+        guard fd >= 0 else { return 0 }
         var bytes: Int32 = 0
         // TIOCOUTQ returns the number of bytes in the output queue
-        if ioctl(fileDescriptor, TIOCOUTQ, &bytes) != -1 {
+        if ioctl(fd, TIOCOUTQ, &bytes) != -1 {
             return Int(bytes)
         }
         return 0
@@ -75,7 +109,9 @@ class SerialPort {
         // Close any existing connection first
         self.closeInternal()
         
-        self.reconnectCount += 1
+        statsLock.lock()
+        self._reconnectCount += 1
+        statsLock.unlock()
         
         // Open the serial port
         // O_RDWR - Read and write
@@ -138,11 +174,13 @@ class SerialPort {
         // Raw output
         options.c_oflag &= ~tcflag_t(OPOST | ONLCR)
         
-        // VMIN=1, VTIME=0: Block until at least 1 byte is received (for reading).
-        // On Darwin, VMIN==16 and VTIME==17. Swift tuples only allow literal
-        // positional member access (no dynamic subscript), so we use those directly.
-        options.c_cc.16 = 1 // VMIN
-        options.c_cc.17 = 0 // VTIME
+        // VMIN=0, VTIME=5: reads return after at most 0.5s even if no data
+        // arrives. This bounds handshake/device-info reads so a silent device
+        // can never block the connection path forever. (On Darwin, VMIN==16
+        // and VTIME==17; Swift tuples only allow literal positional member
+        // access, so we use those directly.)
+        options.c_cc.16 = 0 // VMIN
+        options.c_cc.17 = 5 // VTIME (x0.1s)
         
         if tcsetattr(fd, TCSANOW, &options) == -1 {
             Logger.shared.log("Error setting attributes: \(errno)")
@@ -167,45 +205,58 @@ class SerialPort {
     // Must be called on queue or protected by lock
     private func closeInternal() {
         lock.lock()
-        if fileDescriptor >= 0 {
-            Logger.shared.log("Closing serial port")
-            Darwin.close(fileDescriptor)
+        let fd = fileDescriptor
+        var savedCompletion: (() -> Void)?
+        if fd >= 0 {
+            Darwin.close(fd)
             fileDescriptor = -1
             isConnectedInternal = false
             pendingData = nil
-            pendingCompletion?()
+            savedCompletion = pendingCompletion
             pendingCompletion = nil
         }
         lock.unlock()
+
+        if fd >= 0 {
+            Logger.shared.log("Closing serial port")
+            // Invoke outside the lock: the completion may acquire other locks
+            // (AppState.sendLock) and must never stall the connection lock.
+            savedCompletion?()
+        }
     }
     
     func send(data: [UInt8], completion: (() -> Void)? = nil) {
         // Non-blocking Send Queue with "Swap" strategy
         // This ensures the serial loop never blocks the main thread or capture/processing loop.
-        
+
+        // Completion for the frame being superseded (if any). User callbacks are
+        // NEVER invoked while holding `lock` — they may acquire their own locks
+        // (e.g. AppState.sendLock), and calling them under ours can stall the
+        // serial queue or, worse, create a lock-order inversion.
+        var droppedCompletion: (() -> Void)?
+
         lock.lock()
         if !isConnectedInternal {
             lock.unlock()
             completion?()
             return
         }
-        
+
         // 1. Overwrite the pending frame.
         // If there was ALREADY a pending frame that hasn't started transmitting yet, we drop it.
         // This effectively implements "Latest Data Wins" (Head Dropping) behavior.
         if pendingData != nil {
-            // Drop previous pending completion
-            pendingCompletion?() 
+            droppedCompletion = pendingCompletion
         }
-        
+
         pendingData = data
         pendingCompletion = completion
-        
+
         // 2. Drive the loop
         if !isSending {
             isSending = true
             lock.unlock()
-            
+
             queue.async { [weak self] in
                 self?.transmitLoop()
             }
@@ -213,6 +264,8 @@ class SerialPort {
             // Already sending, the loop will pick up 'pendingData' when it finishes current write
             lock.unlock()
         }
+
+        droppedCompletion?()
     }
     
     private func transmitLoop() {
@@ -223,11 +276,14 @@ class SerialPort {
             lock.unlock()
             return // Stop loop
         }
-        
+
         // Backpressure Check: Check OS buffer size before commiting to write
         // If buffer is too full, dropping this frame is better than adding to latency.
+        // NOTE: we already hold `lock` here, so `fileDescriptor` is read directly —
+        // calling currentFileDescriptor() would re-acquire the non-recursive NSLock
+        // and self-deadlock the serial queue (which then wedges every sender).
         var outBytes: Int32 = 0
-        if ioctl(fileDescriptor, TIOCOUTQ, &outBytes) != -1 {
+        if fileDescriptor >= 0, ioctl(fileDescriptor, TIOCOUTQ, &outBytes) != -1 {
             // Threshold: 2048 bytes (approx 0.17s latency at 115200 baud). 
             // Ideally we want < 30ms latency. At 115200, 30ms is ~345 bytes.
             // But we must allow at least one full packet (e.g. 500 bytes for 150 LEDs).
@@ -294,13 +350,17 @@ class SerialPort {
             if bytesWritten < 0 {
                 let err = errno
                 Logger.shared.log("Write error: \(err)")
-                self.writeErrorCount += 1
+                statsLock.lock()
+                self._writeErrorCount += 1
+                statsLock.unlock()
                 if err == 6 || err == 9 || err == 5 {
                     self.handleError()
                 }
             } else {
-                self.totalBytesSent += UInt64(bytesWritten)
-                self.totalPacketsSent += 1
+                statsLock.lock()
+                self._totalBytesSent += UInt64(bytesWritten)
+                self._totalPacketsSent += 1
+                statsLock.unlock()
             }
             
             // Removed tcdrain and manual pacing to allow true asynchronous hardware transmission.
@@ -308,7 +368,9 @@ class SerialPort {
             // This relies on the kernel buffer to handle backpressure (write will block if buffer full).
         }
         
-        self.lastWriteLatency = CACurrentMediaTime() - startTime
+        statsLock.lock()
+        self._lastWriteLatency = CACurrentMediaTime() - startTime
+        statsLock.unlock()
     }
     
     private func handleError() {
@@ -340,28 +402,33 @@ class SerialPort {
     }
     
     // Robustness: Add an explicit check method to verify connectivity
-    // This is useful for periodic health checks or post-wake validation
+    // This is useful for periodic health checks or post-wake validation.
+    //
+    // The tcgetattr() probe runs while holding `lock`: it is a fast, non-blocking
+    // ioctl, and doing it under the lock makes the whole check atomic against
+    // closeInternal()/connect() (no window where a recycled fd could produce a
+    // false positive). It deliberately does NOT dispatch through the serial
+    // queue: if the queue were ever blocked in a slow write, queue.sync here
+    // would freeze the calling thread (notably main, on the wake path).
     func checkConnection() -> Bool {
-        return queue.sync {
-            lock.lock()
-            let fd = fileDescriptor
-            lock.unlock()
-            
-            guard fd >= 0 else { return false }
-            
-            // Try to get terminal attributes - this is a lightweight check if the FD is still valid
+        lock.lock()
+        let fd = fileDescriptor
+        var healthy = false
+        if fd >= 0 {
             var options = termios()
-            if tcgetattr(fd, &options) == -1 {
-                let err = errno
-                Logger.shared.log("Connection check failed (errno: \(err)). Assuming disconnected.")
-                closeInternal() // closeInternal takes the lock itself, so we must be unlocked here
-                DispatchQueue.main.async {
-                    self.onDisconnect?()
-                }
-                return false
-            }
-            return true
+            healthy = (tcgetattr(fd, &options) == 0)
         }
+        lock.unlock()
+
+        if !healthy && fd >= 0 {
+            let err = errno
+            Logger.shared.log("Connection check failed (errno: \(err)). Assuming disconnected.")
+            closeInternal() // closeInternal takes the lock itself, so we must be unlocked here
+            DispatchQueue.main.async {
+                self.onDisconnect?()
+            }
+        }
+        return healthy
     }
     
     func getDeviceInfo() -> String? {

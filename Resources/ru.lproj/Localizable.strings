@@ -22,7 +22,7 @@
 "LED_LAYOUT" = "Расположение LED";
 "LED_LAYOUT_SUBTITLE" = "Настройка зон светодиодной ленты";
 "AUDIO" = "Аудио";
-"AUDIO_SUBTITLE" = "Настройка микрофона для музыкального режима";
+"AUDIO_SUBTITLE" = "Выбор источника звука для музыкального режима";
 "MICROPHONE" = "Микрофон:";
 "CALIBRATION" = "Калибровка";
 "CALIBRATION_SUBTITLE" = "Точная настройка цвета и гаммы";
@@ -251,3 +251,16 @@
 "VIEW_RELEASE_NOTES" = "Примечания к выпуску";
 "DOWNLOAD" = "Скачать";
 "LATER" = "Позже";
+
+/* Music Mode Audio Sources */
+"AUDIO_SOURCE" = "Источник звука";
+"AUDIO_SOURCE_SYSTEM" = "Системный звук";
+"AUDIO_SOURCE_MICROPHONE" = "Микрофон";
+"AUDIO_SOURCE_DESC" = "Реагирует на звук, воспроизводимый Mac — доступ к микрофону не требуется. При недоступности автоматически используется микрофон.";
+"AUDIO_SPECTRUM" = "Аудиоспектр";
+"SYSTEM_AUDIO_FALLBACK" = "Системный звук недоступен — используется микрофон";
+
+/* Multi-Display Capture */
+"CAPTURE_DISPLAY" = "Экран захвата";
+"DISPLAY_AUTO" = "Автоматически (основной экран)";
+"CAPTURE_DISPLAY_DESC" = "Выберите, за каким экраном следует подсветка.";

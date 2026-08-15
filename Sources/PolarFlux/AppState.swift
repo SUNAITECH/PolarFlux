@@ -215,6 +215,29 @@ class AppState: ObservableObject {
             updateMicrophone()
         }
     }
+    /// Where Music mode listens: system playback loopback or microphone.
+    @Published var audioSource: AudioSource = .system {
+        didSet {
+            if oldValue != audioSource && isRunning && currentMode == .music {
+                audioProcessor.stop()
+                startMusic()
+            }
+        }
+    }
+    /// Published (throttled) music analysis snapshot for UI visualizers.
+    @Published var musicSpectrum: [Float] = []
+    @Published var musicBeat: Double = 0
+
+    // Multi-display support
+    @Published var availableDisplays: [DisplayInfo] = []
+    /// 0 = automatic (primary display). Changing it invalidates the cache.
+    @Published var selectedDisplayID: CGDirectDisplayID = 0 {
+        didSet {
+            if oldValue != selectedDisplayID {
+                cachedDisplay = nil
+            }
+        }
+    }
     
     // Auto Start
     @Published var launchAtLogin: Bool = LaunchAtLogin.isEnabled {
@@ -298,6 +321,16 @@ class AppState: ObservableObject {
         // Setup Audio Callback
         audioProcessor.onAudioFrame = { [weak self] frame in
             self?.processAudioFrame(frame: frame)
+        }
+
+        // If system-audio loopback is unavailable (permission / hardware),
+        // surface it in the UI — the processor already fell back to the mic.
+        audioProcessor.onSystemAudioFallback = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self = self, self.currentMode == .music else { return }
+                self.audioSource = .microphone
+                self.statusMessage = String(localized: "SYSTEM_AUDIO_FALLBACK")
+            }
         }
         
         // Setup Effect Callback
@@ -679,7 +712,9 @@ class AppState: ObservableObject {
         
         Task {
             if self.cachedDisplay == nil {
-                self.cachedDisplay = await self.screenCapture.getDisplay()
+                self.cachedDisplay = await self.screenCapture.getDisplay(
+                    matching: self.selectedDisplayID != 0 ? self.selectedDisplayID : nil
+                )
             }
             
             guard let display = self.cachedDisplay else {
@@ -709,9 +744,23 @@ class AppState: ObservableObject {
     private func startMusic() {
         guard isRunning && currentMode == .music else { return }
         self.startKeepAlive()
-        audioProcessor.start()
+        beatPulse = 0
+        lastAudioFrameTime = 0
+        audioProcessor.start(source: audioSource)
     }
-    
+
+    func restartMusic() {
+        if isRunning && currentMode == .music {
+            audioProcessor.stop()
+            startMusic()
+        }
+    }
+
+    // Music DSP render state (audio analysis queue)
+    private var beatPulse: Double = 0
+    private var lastAudioFrameTime: TimeInterval = 0
+    private var lastSpectrumPublishTime: TimeInterval = 0
+
     private func processAudioFrame(frame: AudioFrame) {
         guard isRunning, currentMode == .music else { return }
 
@@ -719,27 +768,81 @@ class AppState: ObservableObject {
         var data = [UInt8]()
         data.reserveCapacity(totalLeds * 3)
 
-        // Spectrum-analyser style mapping: each LED samples a log-spaced band of
-        // the live frequency spectrum and is coloured by frequency (bass→red,
-        // mid→green, treble→blue). The per-bin level is driven by `frame.spectrum`,
-        // which is already normalised to 0...1.
         let spectrum = frame.spectrum
         let spectrumCount = max(spectrum.count, 1)
 
+        // --- Beat envelope: fast attack on onset, musical exponential decay ---
+        let now = CACurrentMediaTime()
+        let dt = (lastAudioFrameTime > 0) ? min(max(now - lastAudioFrameTime, 0.001), 0.2) : 0.021
+        lastAudioFrameTime = now
+        if frame.isBeat {
+            beatPulse = max(beatPulse, 0.55 + 0.45 * Double(frame.beatIntensity))
+        } else {
+            beatPulse *= exp(-dt / 0.22)
+            if beatPulse < 0.001 { beatPulse = 0 }
+        }
+
+        // --- Layout-aware mirroring ---
+        // On perimeter layouts (top edge present) mirror the spectrum so bass
+        // sits at the top-center of the screen and treble falls toward the
+        // corners — matching how ambient setups are usually wired.
+        let top = Int(topZone) ?? 0
+        let left = Int(leftZone) ?? 0
+        let right = Int(rightZone) ?? 0
+        let mirror = top > 0 && left + right > 0
+
+        // Spectral centroid biases the palette: bass-heavy content runs warm,
+        // bright content runs cool.
+        let hueBias = (Double(frame.centroid) - 0.5) * 0.24
+
+        let beatLift = 0.85 + 0.35 * beatPulse
+        let desat = min(1.0, 0.35 * beatPulse) // beat flash leans toward white core
+
         for i in 0..<totalLeds {
             let p = Double(i) / Double(max(totalLeds - 1, 1))
-            let specIdx = min(Int(p * Double(spectrumCount)), spectrumCount - 1)
-            let intensity = min(max(Double(spectrum[specIdx]), 0.0), 1.0)
+            // 0 = bass ... 1 = treble along the visible strip
+            let t = mirror ? abs(2.0 * p - 1.0) : p
+            // Slight curve gives the bass region more spatial resolution.
+            let curved = pow(t, 0.85)
+            let specIdx = min(Int(curved * Double(spectrumCount)), spectrumCount - 1)
+            var intensity = min(max(Double(spectrum[specIdx]), 0.0), 1.0)
+            intensity = min(1.0, intensity * beatLift)
 
-            // Hue gradient across the strip: 0.0 (red, low freq) → 0.66 (blue, high freq).
-            let hue = p * 0.66
-            let rgb = hsvToRgb(h: hue, s: 1.0, v: intensity)
+            let hue = min(max(hueBias + t * 0.66, 0.0), 1.0)
+            let rgb = hsvToRgb(h: hue, s: 1.0 - desat * 0.5, v: intensity)
             data.append(rgb.r)
             data.append(rgb.g)
             data.append(rgb.b)
         }
 
         sendData(data)
+
+        // Throttled UI publish for the control-panel visualizer (~20 Hz).
+        if now - lastSpectrumPublishTime > 0.05 {
+            lastSpectrumPublishTime = now
+            let bars = downsample(frame.spectrum, to: 18)
+            let beatSnapshot = beatPulse
+            DispatchQueue.main.async { [weak self] in
+                self?.musicSpectrum = bars
+                self?.musicBeat = beatSnapshot
+            }
+        }
+    }
+
+    private func downsample(_ s: [Float], to n: Int) -> [Float] {
+        guard !s.isEmpty, n > 0 else { return [Float](repeating: 0, count: max(n, 1)) }
+        var out = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let lo = i * s.count / n
+            let hi = max((i + 1) * s.count / n, lo + 1)
+            let clampedHi = min(hi, s.count)
+            var sum: Float = 0
+            if clampedHi > lo {
+                for j in lo..<clampedHi { sum += s[j] }
+                out[i] = sum / Float(clampedHi - lo)
+            }
+        }
+        return out
     }
 
     private func hsvToRgb(h: Double, s: Double, v: Double) -> (r: UInt8, g: UInt8, b: UInt8) {
@@ -1222,6 +1325,8 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(saturation, forKey: "saturation")
         
         UserDefaults.standard.set(selectedMicrophoneUID, forKey: "selectedMicrophoneUID")
+        UserDefaults.standard.set(audioSource.rawValue, forKey: "audioSource")
+        UserDefaults.standard.set(UInt(selectedDisplayID), forKey: "selectedDisplayID")
         UserDefaults.standard.set(targetFrameRate, forKey: "targetFrameRate")
     }
     
@@ -1315,6 +1420,16 @@ class AppState: ObservableObject {
         
         if let micUID = UserDefaults.standard.string(forKey: "selectedMicrophoneUID") {
             selectedMicrophoneUID = micUID
+        }
+
+        if let srcRaw = UserDefaults.standard.string(forKey: "audioSource"),
+           let src = AudioSource(rawValue: srcRaw) {
+            audioSource = src
+        }
+
+        let storedDisplay = UserDefaults.standard.double(forKey: "selectedDisplayID")
+        if storedDisplay > 0, storedDisplay <= Double(UInt32.max) {
+            selectedDisplayID = CGDirectDisplayID(storedDisplay)
         }
         
         let fps = UserDefaults.standard.double(forKey: "targetFrameRate")
@@ -1605,6 +1720,21 @@ class AppState: ObservableObject {
         }
     }
 
+    /// Populates the display picker (falls back to Auto if the selection vanished).
+    func refreshDisplays() {
+        Task {
+            let displays = await ScreenCapture.listDisplays()
+            await MainActor.run { [weak self] in
+                guard let self = self else { return }
+                self.availableDisplays = displays
+                if self.selectedDisplayID != 0,
+                   !displays.contains(where: { $0.id == self.selectedDisplayID }) {
+                    self.selectedDisplayID = 0
+                }
+            }
+        }
+    }
+
     // MARK: - Health & Performance
     func resetStatistics() {
         serialPort.resetCounters()
@@ -1652,12 +1782,13 @@ class AppState: ObservableObject {
         
         let reportedFPS: Double
         if screenCapture.isStreaming && self.isRunning {
-             // If we are actually capturing, report the target rate or calculate real time
-             // For now, let's report the target rate unless we have a real counter from ScreenCapture
-             // Since we don't have a public fps counter on ScreenCapture, we approximate.
-             // But wait! If we rely on ScreenCaptureKit's adaptive rate, we might see 60 even if screen is static 
-             // because we force it via minimumFrameInterval?
-             reportedFPS = (ppsCalculation > 0) ? min(ppsCalculation, self.targetFrameRate) : 0
+             if self.currentMode == .sync, PerformanceMonitor.shared.actualFPS > 0 {
+                  // Sync mode: the real measured capture-pipeline frame rate.
+                  reportedFPS = PerformanceMonitor.shared.actualFPS
+             } else {
+                  // Music / Effect / Manual: packets are a faithful rate proxy.
+                  reportedFPS = (ppsCalculation > 0) ? min(ppsCalculation, self.targetFrameRate) : 0
+             }
         } else {
              reportedFPS = 0
         }

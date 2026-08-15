@@ -22,7 +22,7 @@
 "LED_LAYOUT" = "LED レイアウト";
 "LED_LAYOUT_SUBTITLE" = "LEDストリップのゾーン設定";
 "AUDIO" = "オーディオ";
-"AUDIO_SUBTITLE" = "ミュージックモード用マイク設定";
+"AUDIO_SUBTITLE" = "ミュージックモードのオーディオソースを選択";
 "MICROPHONE" = "マイク:";
 "CALIBRATION" = "キャリブレーション";
 "CALIBRATION_SUBTITLE" = "色の正確さとガンマの微調整";
@@ -251,3 +251,16 @@
 "VIEW_RELEASE_NOTES" = "リリースノート";
 "DOWNLOAD" = "ダウンロード";
 "LATER" = "後で";
+
+/* Music Mode Audio Sources */
+"AUDIO_SOURCE" = "オーディオソース";
+"AUDIO_SOURCE_SYSTEM" = "システムオーディオ";
+"AUDIO_SOURCE_MICROPHONE" = "マイク";
+"AUDIO_SOURCE_DESC" = "Macが再生中の音声に反応します。マイク権限は不要です。利用できない場合はマイクに自動で切り替わります。";
+"AUDIO_SPECTRUM" = "オーディオスペクトラム";
+"SYSTEM_AUDIO_FALLBACK" = "システムオーディオを利用できません——マイクを使用しています";
+
+/* Multi-Display Capture */
+"CAPTURE_DISPLAY" = "キャプチャするディスプレイ";
+"DISPLAY_AUTO" = "自動（メインディスプレイ）";
+"CAPTURE_DISPLAY_DESC" = "アンビエントライトが追従する画面を選択します。";

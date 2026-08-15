@@ -67,6 +67,7 @@ show_help() {
     echo "  build [version]  Create a production-ready Universal App Bundle"
     echo "  run   [version]  Build and launch the application"
     echo "  dmg   [version]  Package the application into DMG"
+    echo "  test              Run serial + audio pipeline regression tests"
     echo "  clean            Deep clean build artifacts and system junk"
     echo "  icon             Regenerate high-quality icons from source"
     echo "  help             Show this help menu"
@@ -137,19 +138,33 @@ build() {
         "${COMMON_FLAGS[@]}" \
         -o "$BUILD_DIR/PolarFlux_x86_64"
 
+    local METAL_EMBEDDED=0
     log "Compiling Metal Shaders (default.metallib)..."
     # Explicitly verify metal toolchain presence
     if command -v metal >/dev/null 2>&1 || xcrun -sdk macosx --find metal >/dev/null 2>&1; then
-        # Try compiling with xcrun -sdk macosx. If that fails, warn but continue.
-        if xcrun -sdk macosx metal -c Sources/PolarFlux/Metal/Shaders.metal -o "$BUILD_DIR/Shaders.air"; then
+        # Try compiling with xcrun -sdk macosx. If that fails, embed the shader
+        # source instead so MetalProcessor can runtime-compile it (GPU stays
+        # active either way — a CPU-fallback build must NEVER ship silently).
+        if xcrun -sdk macosx metal -c Sources/PolarFlux/Metal/Shaders.metal -o "$BUILD_DIR/Shaders.air" 2>"$BUILD_DIR/metal_error.log"; then
             xcrun -sdk macosx metallib "$BUILD_DIR/Shaders.air" -o "$RESOURCES_DIR/default.metallib"
+            METAL_EMBEDDED=1
             success "Metal shaders compiled successfully."
         else
-            warn "Metal compilation failed. Continuing with CPU backend..."
+            warn "Metal compilation failed ($(tail -1 "$BUILD_DIR/metal_error.log" 2>/dev/null))."
+            cp Sources/PolarFlux/Metal/Shaders.metal "$RESOURCES_DIR/Shaders.metal"
+            METAL_EMBEDDED=1
+            warn "Embedded Shaders.metal source instead — app will runtime-compile the kernel (GPU active)."
+            warn "Fix locally with: xcodebuild -downloadComponent MetalToolchain"
         fi
     else
         warn "Metal compiler not found! (Detailed: xcrun metal failed)"
-        warn "The app will build but will fallback to CPU processing."
+        cp Sources/PolarFlux/Metal/Shaders.metal "$RESOURCES_DIR/Shaders.metal"
+        METAL_EMBEDDED=1
+        warn "Embedded Shaders.metal source instead — app will runtime-compile the kernel (GPU active)."
+    fi
+
+    if [[ "$METAL_EMBEDDED" -ne 1 ]]; then
+        error "Metal GPU resources missing — refusing to produce a CPU-fallback build."
     fi
 
     log "Stitching Universal Binary (Lipo)..."
@@ -171,6 +186,13 @@ build() {
         cp Resources/PolarFlux.icns "$RESOURCES_DIR/"
     else
         warn "Icon missing, app will have default icon."
+    fi
+
+    # Critical guarantee: the shipped app MUST contain a Metal kernel
+    # (compiled metallib or runtime-compilable source). Without either, the
+    # vision engine silently degrades to the CPU path.
+    if [[ ! -f "$RESOURCES_DIR/default.metallib" && ! -f "$RESOURCES_DIR/Shaders.metal" ]]; then
+        error "GPU kernel missing from bundle — refusing to ship a CPU-fallback build."
     fi
 
     # Copy localizations while stripping .DS_Store
@@ -354,12 +376,48 @@ run() {
     open "$APP_BUNDLE"
 }
 
+test_serial() {
+    log "Running serial concurrency stress test..."
+    local TEST_BIN="$BUILD_DIR/SerialStressTest"
+    # Top-level code must live in a file literally named main.swift.
+    mkdir -p "$BUILD_DIR/stress"
+    cp Scripts/SerialStressTest.swift "$BUILD_DIR/stress/main.swift"
+    xcrun -sdk macosx swiftc -O \
+        Sources/PolarFlux/SerialPort.swift \
+        Sources/PolarFlux/Logger.swift \
+        "$BUILD_DIR/stress/main.swift" \
+        -o "$TEST_BIN" || error "Stress test failed to compile."
+    "$TEST_BIN" || error "Serial stress test FAILED — deadlock or lost completions detected."
+    success "Serial stress test passed."
+}
+
+test_audio() {
+    log "Running audio DSP pipeline test..."
+    local TEST_BIN="$BUILD_DIR/AudioPipelineTest"
+    mkdir -p "$BUILD_DIR/audiotest"
+    cp Scripts/AudioPipelineTest.swift "$BUILD_DIR/audiotest/main.swift"
+    xcrun -sdk macosx swiftc -O \
+        Sources/PolarFlux/AudioProcessor.swift \
+        Sources/PolarFlux/SystemAudioCapture.swift \
+        Sources/PolarFlux/Logger.swift \
+        "$BUILD_DIR/audiotest/main.swift" \
+        -o "$TEST_BIN" || error "Audio pipeline test failed to compile."
+    "$TEST_BIN" || error "Audio pipeline test FAILED — Music-mode DSP chain broken."
+    success "Audio pipeline test passed."
+}
+
+run_tests() {
+    test_serial
+    test_audio
+}
+
 case "${1:-build}" in
     build) build ;;
     run)   run ;;
     dmg)   dmg ;;
     clean) clean ;;
     icon)  generate_icon ;;
+    test)  run_tests ;;
     help)  show_help ;;
     *)     error "Unknown command: $1. Use '$0 help' for usage." ;;
 esac

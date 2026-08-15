@@ -22,7 +22,7 @@
 "LED_LAYOUT" = "LED Layout";
 "LED_LAYOUT_SUBTITLE" = "Configure your LED strip zones";
 "AUDIO" = "Audio";
-"AUDIO_SUBTITLE" = "Configure microphone for Music Mode";
+"AUDIO_SUBTITLE" = "Choose the audio source for Music Mode";
 "MICROPHONE" = "Microphone:";
 "CALIBRATION" = "Calibration";
 "CALIBRATION_SUBTITLE" = "Fine-tune color accuracy and gamma";
@@ -251,3 +251,16 @@
 "VIEW_RELEASE_NOTES" = "Release Notes";
 "DOWNLOAD" = "Download";
 "LATER" = "Later";
+
+/* Music Mode Audio Sources */
+"AUDIO_SOURCE" = "Audio Source";
+"AUDIO_SOURCE_SYSTEM" = "System Audio";
+"AUDIO_SOURCE_MICROPHONE" = "Microphone";
+"AUDIO_SOURCE_DESC" = "Reacts to the sound your Mac is playing — no microphone access needed. Falls back to the microphone if unavailable.";
+"AUDIO_SPECTRUM" = "Audio spectrum";
+"SYSTEM_AUDIO_FALLBACK" = "System audio unavailable — using microphone";
+
+/* Multi-Display Capture */
+"CAPTURE_DISPLAY" = "Capture Display";
+"DISPLAY_AUTO" = "Automatic (Primary)";
+"CAPTURE_DISPLAY_DESC" = "Choose which screen the ambient lighting follows.";

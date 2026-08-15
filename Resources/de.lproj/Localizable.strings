@@ -22,7 +22,7 @@
 "LED_LAYOUT" = "LED-Layout";
 "LED_LAYOUT_SUBTITLE" = "Konfiguration der LED-Zonen";
 "AUDIO" = "Audio";
-"AUDIO_SUBTITLE" = "Mikrofon für Musikmodus konfigurieren";
+"AUDIO_SUBTITLE" = "Audioquelle für den Musikmodus wählen";
 "MICROPHONE" = "Mikrofon:";
 "CALIBRATION" = "Kalibrierung";
 "CALIBRATION_SUBTITLE" = "Farbgenauigkeit und Gamma anpassen";
@@ -251,3 +251,16 @@
 "VIEW_RELEASE_NOTES" = "Versionshinweise";
 "DOWNLOAD" = "Herunterladen";
 "LATER" = "Später";
+
+/* Music Mode Audio Sources */
+"AUDIO_SOURCE" = "Audioquelle";
+"AUDIO_SOURCE_SYSTEM" = "Systemaudio";
+"AUDIO_SOURCE_MICROPHONE" = "Mikrofon";
+"AUDIO_SOURCE_DESC" = "Reagiert auf die wiedergegebenen Sounds deines Macs – ohne Mikrofonzugriff. Fällt bei Bedarf automatisch auf das Mikrofon zurück.";
+"AUDIO_SPECTRUM" = "Audiospektrum";
+"SYSTEM_AUDIO_FALLBACK" = "Systemaudio nicht verfügbar – Mikrofon wird verwendet";
+
+/* Multi-Display Capture */
+"CAPTURE_DISPLAY" = "Bildschirm erfassen";
+"DISPLAY_AUTO" = "Automatisch (Hauptbildschirm)";
+"CAPTURE_DISPLAY_DESC" = "Wähle, welchem Bildschirm die Umgebungsbeleuchtung folgt.";

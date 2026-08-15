@@ -103,20 +103,35 @@ struct SettingsView: View {
     var audioSettings: some View {
         VStack(alignment: .leading, spacing: 25) {
             headerView(title: String(localized: "AUDIO"), subtitle: String(localized: "AUDIO_SUBTITLE"), icon: "waveform")
-            
-            GroupBox {
-                VStack(alignment: .leading, spacing: 15) {
-                    Picker(String(localized: "MICROPHONE"), selection: $appState.selectedMicrophoneUID) {
-                        ForEach(appState.availableMicrophones, id: \.uid) { mic in
-                            Text(mic.name).tag(mic.uid)
+
+            GroupBox(String(localized: "AUDIO_SOURCE")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker(String(localized: "AUDIO_SOURCE"), selection: $appState.audioSource) {
+                        ForEach(AudioSource.allCases) { source in
+                            Text(source.localizedName).tag(source)
                         }
                     }
-                    .pickerStyle(.menu)
-                    
-                    Button(action: { appState.refreshMicrophones() }) {
-                        Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
+                    .pickerStyle(.segmented)
+
+                    if appState.audioSource == .system {
+                        Label(String(localized: "AUDIO_SOURCE_DESC"), systemImage: "speaker.wave.2")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Picker(String(localized: "MICROPHONE"), selection: $appState.selectedMicrophoneUID) {
+                                ForEach(appState.availableMicrophones, id: \.uid) { mic in
+                                    Text(mic.name).tag(mic.uid)
+                                }
+                            }
+                            .pickerStyle(.menu)
+
+                            Button(action: { appState.refreshMicrophones() }) {
+                                Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.bordered)
+                        }
                     }
-                    .buttonStyle(.bordered)
                 }
                 .padding(10)
             }
@@ -275,6 +290,28 @@ struct SettingsView: View {
                     }
                 }
                 .padding(10)
+            }
+
+            GroupBox(String(localized: "CAPTURE_DISPLAY")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker(String(localized: "CAPTURE_DISPLAY"), selection: $appState.selectedDisplayID) {
+                        Text(String(localized: "DISPLAY_AUTO")).tag(CGDirectDisplayID(0))
+                        ForEach(appState.availableDisplays) { display in
+                            Text(display.label).tag(display.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    if appState.availableDisplays.count > 1 {
+                        Text(String(localized: "CAPTURE_DISPLAY_DESC"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(10)
+                .task {
+                    appState.refreshDisplays()
+                }
             }
 
             GroupBox(String(localized: "PERSPECTIVE_ORIGIN")) {

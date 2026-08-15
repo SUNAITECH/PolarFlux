@@ -60,12 +60,15 @@ The vision engine transforms raw display buffers into LED-mapped color data.
 - **SCStream Integration**: Implements `SCStreamOutput` to receive display frames directly from the window server with near-zero latency.
 - **Concurrency**: Frame processing is offloaded to a dedicated `DispatchQueue` with `.userInteractive` Quality of Service (QoS) to minimize input lag.
 - **Coordinate Transformation**: Automatically handles screen orientation changes (0°, 90°, 180°, 270°) and aspect ratio scaling.
+- **Multi-Display Capture**: Users can select which screen drives the ambient lighting (Settings → Sync → Capture Display); the selection persists and gracefully falls back to the primary display when a monitor is disconnected.
 
-### 3. Audio Processing (`AudioProcessor.swift`)
-Real-time frequency analysis for music-reactive lighting.
-- **Low-Latency Capture**: Uses `AVAudioEngine` for high-performance audio routing.
-- **Spectral Decomposition**: Leverages Apple's `Accelerate` framework to perform Radix-2 FFTs on system output.
-- **Energy Mapping**: Maps frequency energy (Bass, Mid, Treble) to lighting intensity and color shifts.
+### 3. Audio Processing (`AudioProcessor.swift`, `SystemAudioCapture.swift`)
+Real-time frequency analysis for music-reactive lighting, from two capture sources:
+- **System Audio Loopback** (default): `SystemAudioCapture` uses ScreenCaptureKit audio capture to react to whatever the Mac is *playing* — no microphone access or virtual audio driver required. If unavailable (e.g. screen-recording permission denied), the engine transparently falls back to the microphone.
+- **Low-Latency Microphone Capture**: Uses `AVAudioEngine`; producers only copy samples into a preallocated lock-protected ring buffer (no heap allocation on the render thread), while all FFT work runs on a dedicated analysis queue.
+- **Spectral Decomposition**: Leverages Apple's `Accelerate` framework to perform Radix-2 FFTs with Hann windowing.
+- **Music Intelligence**: Auto-gain control (quiet tracks still light up), adaptive beat detection on the bass band, log-normalised spectral centroid for palette warmth, and analyser-style falling peak-hold spectrum bars.
+- **Energy Mapping**: Maps frequency energy (Bass, Mid, Treble) to lighting intensity and color shifts; on perimeter layouts the spectrum is mirrored so bass sits at the top-center of the screen.
 
 ### 4. Effect Engine (`EffectEngine.swift`)
 A procedural animation system for ambient lighting effects.
@@ -140,12 +143,21 @@ PolarFlux calculates **Local Intensity** ($I_{local}$) for each zone to modulate
 $$Mix = \text{smoothstep}(0.1, 0.7, I_{local})$$
 $$k_{dynamic} = k_{low} + (k_{high} - k_{low}) \times Mix$$
 
+### 3. Music Intelligence (Music Mode)
+The audio pipeline layers several adaptive algorithms on top of the FFT:
+
+- **Auto-Gain Control (AGC)**: A slow-falling loudness ceiling ($\tau_{decay} \approx$ seconds) normalises both whisper-level and party-level volumes into a consistent LED response.
+- **Adaptive Beat Detection**: The bass band's energy is compared against a running mean + $1.45\sigma$ threshold over a ~1 s history, with a 160 ms refractory period. Detected onsets drive a beat envelope (fast attack, exponential decay $\tau \approx 0.22$ s) that lifts brightness and flashes toward white.
+- **Spectral Centroid Palette**: The log-normalised centroid ($\sim$80 Hz … 12 kHz) biases the hue gradient — bass-heavy content runs warm, bright content runs cool.
+- **Falling Peak-Hold**: Spectrum bars rise instantly and decay at a fixed rate (~1.1/s), producing the polished look of a hardware spectrum analyser.
+- **Layout-Aware Mirroring**: On perimeter layouts the spectrum is mirrored so bass energy concentrates at the top-center of the screen, matching typical ambient TV setups.
+
 ---
 
 ## Hardware & Connectivity
 
-### 1. Robust Transmission Pipeline
-- **Thread-Safe Serial Interface**: Employs mandatory `NSLock` synchronization to prevent race conditions between frame processing and keep-alive timers.
+### 1. Transmission Robustness
+- **Thread-Safe Serial Interface**: All counters and file-descriptor access are serialised through dedicated locks, preventing race conditions between frame processing, keep-alive timers and telemetry reads.
 - **Keep-Alive System**: High-frequency ($4Hz$) heartbeat ensures the hardware remains active even during static content (e.g., pauses or desktop usage).
 - **Busy-Protection**: Prevents command flooding by tracking `isSending` state across all concurrent callback sources.
 
@@ -254,8 +266,8 @@ To trigger an automated release to GitHub (CI/CD):
 **Q: Why does PolarFlux need Screen Recording permission?**  
 **A:** It uses `ScreenCaptureKit` to capture display frames. Without this, the app cannot access the display buffer. Enable in `System Settings > Privacy & Security > Screen Recording`.
 
-**Q: Why is Microphone access required?**  
-**A:** Necessary for Music mode to perform FFT analysis on system audio output. Enable in `System Settings > Privacy & Security > Microphone`.
+**Q: Why does it sometimes ask for Microphone access?**  
+**A:** Music mode defaults to **System Audio** (captured via ScreenCaptureKit, covered by the same Screen Recording permission as Sync mode). If system audio is unavailable, or you explicitly select the Microphone source, PolarFlux requests microphone access to perform FFT analysis on live input. Enable in `System Settings > Privacy & Security > Microphone`.
 
 ### 2. Hardware & Connectivity
 **Q: My device is not appearing in the port list.**  

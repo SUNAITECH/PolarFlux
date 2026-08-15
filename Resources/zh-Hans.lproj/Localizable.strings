@@ -22,7 +22,7 @@
 "LED_LAYOUT" = "灯带布局";
 "LED_LAYOUT_SUBTITLE" = "配置您的 LED 灯带区域";
 "AUDIO" = "音频设置";
-"AUDIO_SUBTITLE" = "为音乐模式配置麦克风";
+"AUDIO_SUBTITLE" = "为音乐模式选择音频源";
 "MICROPHONE" = "麦克风:";
 "CALIBRATION" = "色彩校准";
 "CALIBRATION_SUBTITLE" = "微调色彩准确度和 Gamma 值";
@@ -251,3 +251,16 @@
 "VIEW_RELEASE_NOTES" = "版本说明";
 "DOWNLOAD" = "下载";
 "LATER" = "稍后";
+
+/* Music Mode Audio Sources */
+"AUDIO_SOURCE" = "音频源";
+"AUDIO_SOURCE_SYSTEM" = "系统音频";
+"AUDIO_SOURCE_MICROPHONE" = "麦克风";
+"AUDIO_SOURCE_DESC" = "跟随 Mac 正在播放的声音律动——无需麦克风权限。若不可用将自动回退到麦克风。";
+"AUDIO_SPECTRUM" = "音频频谱";
+"SYSTEM_AUDIO_FALLBACK" = "系统音频不可用——已切换为麦克风";
+
+/* Multi-Display Capture */
+"CAPTURE_DISPLAY" = "采集显示器";
+"DISPLAY_AUTO" = "自动（主显示器）";
+"CAPTURE_DISPLAY_DESC" = "选择氛围光跟随的屏幕。";

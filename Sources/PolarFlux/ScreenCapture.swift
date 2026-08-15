@@ -13,6 +13,16 @@ struct ZoneConfig {
     var bottom: Int
 }
 
+/// User-facing description of a capturable display.
+struct DisplayInfo: Identifiable, Hashable {
+    let id: CGDirectDisplayID
+    let name: String
+    let width: Int
+    let height: Int
+
+    var label: String { "\(name) (\(width)×\(height))" }
+}
+
 struct Accumulator {
     var r: Double = 0
     var g: Double = 0
@@ -120,11 +130,45 @@ class ScreenCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     }
     
     func getDisplay() async -> SCDisplay? {
+        return await getDisplay(matching: nil)
+    }
+
+    /// Resolves the capture display. When `preferredID` is nil (or no longer
+    /// exists, e.g. monitor unplugged) the primary display is used.
+    func getDisplay(matching preferredID: CGDirectDisplayID?) async -> SCDisplay? {
         do {
             let content = try await SCShareableContent.current
+            if let id = preferredID,
+               let match = content.displays.first(where: { $0.displayID == id }) {
+                return match
+            }
             return content.displays.first
         } catch {
             return nil
+        }
+    }
+
+    /// Lists available displays with human-readable names for the UI picker.
+    static func listDisplays() async -> [DisplayInfo] {
+        guard let content = try? await SCShareableContent.current else { return [] }
+        let displays = content.displays
+
+        // NSScreen must be touched on the main actor; SCShareableContent off it.
+        let names: [CGDirectDisplayID: String] = await MainActor.run {
+            var map: [CGDirectDisplayID: String] = [:]
+            for screen in NSScreen.screens {
+                if let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID {
+                    map[id] = screen.localizedName
+                }
+            }
+            return map
+        }
+
+        return displays.map { display in
+            DisplayInfo(id: display.displayID,
+                        name: names[display.displayID] ?? String(format: "Display %u", display.displayID),
+                        width: Int(display.width),
+                        height: Int(display.height))
         }
     }
     
