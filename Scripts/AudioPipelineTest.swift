@@ -18,9 +18,20 @@ import Foundation
 import Accelerate
 
 // Watchdog: any deadlock in the analysis scheduler must fail, not hang CI.
-DispatchQueue.global().asyncAfter(deadline: .now() + 20) {
+// Budget is 60s because the test's own bounded wall-clock sections sum to
+// ~21s+ (pacing sleeps + bounded waits) and CI macOS VMs run 2-3x slower
+// than a dev machine. A real deadlock hangs forever, so a generous watchdog
+// still catches it; a tight one only kills healthy runs on slow runners.
+DispatchQueue.global().asyncAfter(deadline: .now() + 60) {
     FileHandle.standardError.write("FAIL: watchdog fired — audio pipeline deadlock\n".data(using: .utf8)!)
     exit(52)
+}
+
+/// Elapsed-time marker for diagnosing watchdog trips: each section prints its
+// own timestamp so a future failure pinpoints the slow/hung stage.
+let testStart = Date()
+func section(_ name: String) {
+    print("[+\(String(format: "%5.1f", Date().timeIntervalSince(testStart)))s] \(name)")
 }
 
 final class FrameSink {
@@ -104,7 +115,7 @@ guard last.bass > last.treble else {
     print("FAIL: bass \(last.bass) did not dominate treble \(last.treble)")
     exit(57)
 }
-print("T1 PASS: system-path FFT live — frames=\(sink.count), spread=\(String(format: "%.3f", spread)), bass=\(String(format: "%.2f", last.bass))")
+section("T1 pass"); print("T1 PASS: system-path FFT live — frames=\(sink.count), spread=\(String(format: "%.3f", spread)), bass=\(String(format: "%.2f", last.bass))")
 
 // ---------------------------------------------------------------------------
 // Test 2: quiet input after AGC adaptation must still light up.
@@ -130,7 +141,7 @@ guard let quiet = sink2.last, (quiet.spectrum.max() ?? 0) > 0.15 else {
     print("FAIL: AGC did not lift quiet input (max \(sink2.last?.spectrum.max() ?? -1))")
     exit(58)
 }
-print("T2 PASS: AGC lifts quiet input — spectrum max \(String(format: "%.2f", quiet.spectrum.max() ?? 0))")
+section("T2 pass"); print("T2 PASS: AGC lifts quiet input — spectrum max \(String(format: "%.2f", quiet.spectrum.max() ?? 0))")
 
 // ---------------------------------------------------------------------------
 // Test 3: beat detection fires on a percussive onset (silence → bass thump).
@@ -160,7 +171,7 @@ guard sawBeat else {
     print("FAIL: no beat detected across 6 percussive onsets")
     exit(59)
 }
-print("T3 PASS: beat detection fires on percussive onsets")
+section("T3 pass"); print("T3 PASS: beat detection fires on percussive onsets")
 
 // ---------------------------------------------------------------------------
 // Test 4: stop()/start() churn must not wedge the scheduler (mode switching).
@@ -193,7 +204,7 @@ guard sink4.count > 0 else {
     print("FAIL: scheduler wedged after stop/start churn — no frames")
     exit(60)
 }
-print("T4 PASS: scheduler survives stop/start churn (frames=\(sink4.count))")
+section("T4 pass"); print("T4 PASS: scheduler survives stop/start churn (frames=\(sink4.count))")
 
 print("PASS: audio pipeline end-to-end")
 
@@ -321,10 +332,10 @@ guard lift > 20 else {
     exit(66)
 }
 
-print("T5 PASS: fixed-position color travel avg \(String(format: "%.0f", allTravel / 3))")
-print("T6 PASS: spatial diversity \(String(format: "%.1f", meanPair))")
-print("T7 PASS: idle = dim ambient drift (brightness \(String(format: "%.1f", idleBright)), drift \(String(format: "%.1f", idleTravel))")
-print("T8 PASS: beat lift \(String(format: "%.1f", lift))")
+section("T5 pass"); print("T5 PASS: fixed-position color travel avg \(String(format: "%.0f", allTravel / 3))")
+section("T6 pass"); print("T6 PASS: spatial diversity \(String(format: "%.1f", meanPair))")
+section("T7 pass"); print("T7 PASS: idle = dim ambient drift (brightness \(String(format: "%.1f", idleBright)), drift \(String(format: "%.1f", idleTravel))")
+section("T8 pass"); print("T8 PASS: beat lift \(String(format: "%.1f", lift))")
 
 print("PASS: all audio + aurora tests")
 exit(0)
