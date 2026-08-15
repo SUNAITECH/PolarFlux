@@ -14,7 +14,21 @@ import QuartzCore
 final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
 
     /// PCM float samples (mono mixdown), delivered on SCK's queue.
-    var onAudio: ((UnsafePointer<Float>?, Int, Double) -> Void)?
+    /// Lock-guarded: writers run on Task threads, readers on SCK's queues.
+    var onAudio: ((UnsafePointer<Float>?, Int, Double) -> Void)? {
+        get { callbackLock.lock(); defer { callbackLock.unlock() }; return _onAudio }
+        set { callbackLock.lock(); defer { callbackLock.unlock() }; _onAudio = newValue }
+    }
+    /// Fired exactly once when the stream dies unexpectedly (display
+    /// reconfiguration, sleep/wake, internal error). Never fired for an
+    /// explicit stop().
+    var onStopped: (() -> Void)? {
+        get { callbackLock.lock(); defer { callbackLock.unlock() }; return _onStopped }
+        set { callbackLock.lock(); defer { callbackLock.unlock() }; _onStopped = newValue }
+    }
+    private let callbackLock = NSLock()
+    private var _onAudio: ((UnsafePointer<Float>?, Int, Double) -> Void)?
+    private var _onStopped: (() -> Void)?
 
     private var stream: SCStream?
     private let streamLock = NSLock()
@@ -89,6 +103,7 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
 
         if wasActive {
             Logger.shared.log("SystemAudioCapture stopped: \(error.localizedDescription)")
+            onStopped?()
         }
     }
 
@@ -104,6 +119,10 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var cbCount = 0
     private var deliveredFrames = 0
     private var lastDiagTime: Double = 0
+
+    // Reusable extraction storage (SCK queue only): avoids a heap allocation
+    // on every ~23 ms audio callback.
+    private var listStorage = [UInt8]()
 
     private func deliverPCM(from sampleBuffer: CMSampleBuffer) {
         cbCount += 1
@@ -132,7 +151,9 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             .flatMap { CMAudioFormatDescriptionGetStreamBasicDescription($0)?.pointee.mSampleRate }
             ?? 48000
 
-        var listStorage = [UInt8](repeating: 0, count: neededSize)
+        if listStorage.count < neededSize {
+            listStorage = [UInt8](repeating: 0, count: neededSize)
+        }
         var blockBuffer: CMBlockBuffer?
         var deliveredFramesThisCall = 0
 
@@ -142,7 +163,7 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             guard let base = raw.baseAddress else { return }
             let listPtr = base.assumingMemoryBound(to: AudioBufferList.self)
 
-            var extractStatus = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+            let extractStatus = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
                 sampleBuffer,
                 bufferListSizeNeededOut: nil,
                 bufferListOut: listPtr,

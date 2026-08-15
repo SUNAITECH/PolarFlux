@@ -22,9 +22,11 @@ struct AboutView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
-                Link("GitHub: SUNAITECH/PolarFlux", destination: URL(string: "https://github.com/SUNAITECH/PolarFlux")!)
-                    .font(.caption)
-                    .foregroundColor(.accentColor)
+                if let repoURL = URL(string: "https://github.com/SUNAITECH/PolarFlux") {
+                    Link("GitHub: SUNAITECH/PolarFlux", destination: repoURL)
+                        .font(.caption)
+                        .foregroundColor(.accentColor)
+                }
                 
                 Button(action: {
                     updateChecker.checkForUpdates(userInitiated: true)

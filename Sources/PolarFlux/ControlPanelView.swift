@@ -96,7 +96,7 @@ struct ControlPanelView: View {
                                 .opacity(0.6 + 0.4 * appState.musicBeat)
                             Text(appState.audioSource == .system
                                  ? String(localized: "AUDIO_SOURCE_SYSTEM")
-                                 : String(localized: "MICROPHONE"))
+                                 : String(localized: "AUDIO_SOURCE_MICROPHONE"))
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(.secondary)
                             Spacer()

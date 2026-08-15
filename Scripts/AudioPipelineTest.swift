@@ -140,7 +140,7 @@ processor.onAudioFrame = { sink3.append($0) }
 var sawBeat = false
 for cycle in 0..<6 {
     // 300 ms near-silence
-    var silence = [Float](repeating: 0, count: Int(0.3 * sampleRate))
+    let silence = [Float](repeating: 0, count: Int(0.3 * sampleRate))
     silence.withUnsafeBufferPointer { processor.ingest(samples: $0.baseAddress, count: silence.count, sampleRate: sampleRate) }
     usleep(320_000)
     // 300 ms strong low-frequency thump

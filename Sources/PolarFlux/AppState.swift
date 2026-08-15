@@ -395,12 +395,15 @@ class AppState: ObservableObject {
                 self.serialPort.disconnect() 
                 
                 // If we were running, let's try to restore the port connection if name persists
-                if !self.selectedPort.isEmpty {
-                     // small delay for port re-enumeration
-                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                         _ = self.connectSerial()
-                     }
-                }
+                 if !self.selectedPort.isEmpty {
+                      // small delay for port re-enumeration; connect off-main
+                      // (handshake blocks for seconds).
+                      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                          DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                              _ = self?.connectSerial()
+                          }
+                      }
+                 }
             }
             
             // Resume Capture Logic
@@ -743,8 +746,21 @@ class AppState: ObservableObject {
     // MARK: - Music Mode
     private let auroraEngine = AuroraFlowEngine()
 
+    // Layout snapshot captured on the main thread at music start. Audio frames
+    // arrive on the analysis queue, which must not read the user-editable
+    // zone/count strings (COW) while the UI may be writing them — mirroring
+    // how Sync mode passes an immutable ZoneConfig into the capture engine.
+    // Layout edits apply on the next mode restart, same as Sync.
+    private var musicLedCount: Int = 100
+    private var musicMirror: Bool = false
+
     private func startMusic() {
         guard isRunning && currentMode == .music else { return }
+        musicLedCount = max(Int(ledCount) ?? 100, 1)
+        let top = Int(topZone) ?? 0
+        let left = Int(leftZone) ?? 0
+        let right = Int(rightZone) ?? 0
+        musicMirror = top > 0 && left + right > 0
         self.startKeepAlive()
         auroraEngine.reset()
         audioProcessor.start(source: audioSource)
@@ -762,17 +778,11 @@ class AppState: ObservableObject {
     private func processAudioFrame(frame: AudioFrame) {
         guard isRunning, currentMode == .music else { return }
 
-        let totalLeds = Int(ledCount) ?? 100
-
         // Generative flowing-light render (AuroraFlow): hue is a function of
         // position AND time — counter-propagating waves, beat-kicked flow and
         // palette rotation — never a static frequency→position mapping.
-        let top = Int(topZone) ?? 0
-        let left = Int(leftZone) ?? 0
-        let right = Int(rightZone) ?? 0
-        let mirror = top > 0 && left + right > 0
-
-        let colors = auroraEngine.render(frame: frame, ledCount: totalLeds, mirror: mirror)
+        // Uses the main-thread layout snapshot (see startMusic).
+        let colors = auroraEngine.render(frame: frame, ledCount: musicLedCount, mirror: musicMirror)
 
         var data = [UInt8]()
         data.reserveCapacity(colors.count * 3)
@@ -1447,16 +1457,24 @@ class AppState: ObservableObject {
     
     func autoDetectDevice() {
         Logger.shared.log("Starting auto-detection")
-        guard connectSerial() else {
-            statusMessage = String(localized: "CONNECT_FIRST")
-            return
-        }
-        
-        // Pause sending if running
+
+        // Pause any running traffic FIRST (main thread: timers, mode engines)
+        // so handshake reads can't interleave with LED frames.
         let wasRunning = isRunning
         if wasRunning { stop() }
-        
-        DispatchQueue.global(qos: .userInitiated).async {
+
+        // Connection + handshake block for seconds (device settle usleep,
+        // baud probing) — must never run on the main thread.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+
+            guard self.connectSerial() else {
+                DispatchQueue.main.async {
+                    self.statusMessage = String(localized: "CONNECT_FIRST")
+                }
+                return
+            }
+
             if let response = self.serialPort.getDeviceInfo() {
                 Logger.shared.log("Auto-detect response: \(response)")
                 // Response format: "Model,Serial"
@@ -1474,7 +1492,7 @@ class AppState: ObservableObject {
             } else {
                 Logger.shared.log("Auto-detect failed: No response")
             }
-            
+
             DispatchQueue.main.async {
                 self.statusMessage = String(localized: "DETECTION_FAILED")
                 if wasRunning { self.start() }
@@ -1554,6 +1572,14 @@ class AppState: ObservableObject {
                     var position = 0
                     var cycles = 0
                     let totalLeds = Int(self.ledCount) ?? 100
+                    // User-editable count: zero must abort the test, not trap
+                    // on the modulo arithmetic in the draw loop.
+                    guard totalLeds > 0 else {
+                        self.isTestingOrientation = false
+                        self.stop()
+                        self.statusMessage = String(localized: "DETECTION_FAILED")
+                        return
+                    }
                     
                     self.loopTimer = Timer.publish(every: 0.05, on: .main, in: .common)
                         .autoconnect()

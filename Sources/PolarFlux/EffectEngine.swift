@@ -62,6 +62,10 @@ class EffectEngine {
     }
     
     private func generateFrame(ledCount: Int, color: (r: UInt8, g: UInt8, b: UInt8), stepIncrement: Int) {
+        // LED count is user-editable text; a zero/empty value must degrade to
+        // "no lights", never trap on the modulo arithmetic below.
+        guard ledCount > 0 else { return }
+
         var rawColors = [(UInt8, UInt8, UInt8)]()
         rawColors.reserveCapacity(ledCount)
         

@@ -25,6 +25,11 @@ jobs:
           swift --version
           xcrun --version
 
+      - name: Run regression tests
+        run: |
+          chmod +x Scripts/run.sh
+          ./Scripts/run.sh test
+
       - name: Build and Package DMG
         run: |
           chmod +x Scripts/run.sh

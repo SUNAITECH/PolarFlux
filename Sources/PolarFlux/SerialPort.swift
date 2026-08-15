@@ -11,6 +11,14 @@ class SerialPort {
     private var pendingCompletion: (() -> Void)?
     private var isSending: Bool = false
     private let lock = NSLock()
+
+    // fd lifecycle mutex: makes {snapshot fd → syscall(fd)} atomic against
+    // close(). Without it, closeInternal() could Darwin.close(fd) between a
+    // writer's snapshot and its write(), and a concurrent open() could recycle
+    // the descriptor number — misdirecting writes to an unrelated file.
+    // Lock order: ioLock → lock (never the reverse; closeInternal releases
+    // `lock` before acquiring ioLock).
+    private let ioLock = NSLock()
     
     // Connection State
     private var isConnectedInternal: Bool = false
@@ -208,7 +216,6 @@ class SerialPort {
         let fd = fileDescriptor
         var savedCompletion: (() -> Void)?
         if fd >= 0 {
-            Darwin.close(fd)
             fileDescriptor = -1
             isConnectedInternal = false
             pendingData = nil
@@ -218,8 +225,13 @@ class SerialPort {
         lock.unlock()
 
         if fd >= 0 {
+            // Close under ioLock so no in-flight write()/ioctl() can touch a
+            // descriptor that is being (or has just been) closed and recycled.
+            ioLock.lock()
+            Darwin.close(fd)
+            ioLock.unlock()
             Logger.shared.log("Closing serial port")
-            // Invoke outside the lock: the completion may acquire other locks
+            // Invoke outside any lock: the completion may acquire other locks
             // (AppState.sendLock) and must never stall the connection lock.
             savedCompletion?()
         }
@@ -333,20 +345,25 @@ class SerialPort {
     
     private func performWrite(data: [UInt8]) {
         let startTime = CACurrentMediaTime()
-        
+
+        // fd snapshot → write() must be atomic against close()/recycle.
+        ioLock.lock()
         lock.lock()
         let fd = self.fileDescriptor
         let isConnected = self.isConnectedInternal
         lock.unlock()
-        
-        guard isConnected && fd >= 0 else { return }
-        
+
+        guard isConnected && fd >= 0 else {
+            ioLock.unlock()
+            return
+        }
+
         data.withUnsafeBufferPointer { buffer in
             guard let baseAddress = buffer.baseAddress else { return }
-            
+
             // Blocking write
             let bytesWritten = write(fd, baseAddress, buffer.count)
-            
+
             if bytesWritten < 0 {
                 let err = errno
                 Logger.shared.log("Write error: \(err)")
@@ -354,7 +371,12 @@ class SerialPort {
                 self._writeErrorCount += 1
                 statsLock.unlock()
                 if err == 6 || err == 9 || err == 5 {
+                    ioLock.unlock()
                     self.handleError()
+                    statsLock.lock()
+                    self._lastWriteLatency = CACurrentMediaTime() - startTime
+                    statsLock.unlock()
+                    return
                 }
             } else {
                 statsLock.lock()
@@ -362,12 +384,14 @@ class SerialPort {
                 self._totalPacketsSent += 1
                 statsLock.unlock()
             }
-            
+
             // Removed tcdrain and manual pacing to allow true asynchronous hardware transmission.
             // Theoretical transfer happens in background via Kernel/UART driver.
             // This relies on the kernel buffer to handle backpressure (write will block if buffer full).
         }
-        
+
+        ioLock.unlock()
+
         statsLock.lock()
         self._lastWriteLatency = CACurrentMediaTime() - startTime
         statsLock.unlock()
@@ -432,6 +456,10 @@ class SerialPort {
     }
     
     func getDeviceInfo() -> String? {
+        // Snapshot fd → syscalls must be atomic against close()/recycle.
+        ioLock.lock()
+        defer { ioLock.unlock() }
+
         lock.lock()
         let fd = fileDescriptor
         lock.unlock()

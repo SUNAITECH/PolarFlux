@@ -35,6 +35,9 @@ final class AuroraFlowEngine {
 
     // MARK: - State
 
+    // render() runs on the audio analysis queue while reset() is invoked from
+    // the main thread during mode switches; the lock closes that window.
+    private let stateLock = NSLock()
     private var flowPhase: Double = 0        // wave-field phase (spatial motion)
     private var hueDrift: Double = 0.10      // global palette rotation [0..1)
     private var beatEnv: Double = 0          // beat envelope, fast attack / exp decay
@@ -54,6 +57,8 @@ final class AuroraFlowEngine {
     // MARK: - Lifecycle
 
     func reset() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         flowPhase = 0
         hueDrift = 0.10
         beatEnv = 0
@@ -67,6 +72,8 @@ final class AuroraFlowEngine {
     // MARK: - Render
 
     func render(frame: AudioFrame, ledCount: Int, mirror: Bool) -> [(UInt8, UInt8, UInt8)] {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         guard ledCount > 0 else { return [] }
 
         let now = CACurrentMediaTime()

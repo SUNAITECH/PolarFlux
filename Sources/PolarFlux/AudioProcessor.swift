@@ -93,12 +93,27 @@ class AudioProcessor: NSObject {
     private var lastBeatTime: Double = 0
 
     /// Provides full realtime analysis. Called on the internal analysis queue.
-    var onAudioFrame: ((AudioFrame) -> Void)?
+    /// Storage is lock-guarded: consumers may reassign from any thread (the
+    /// regression tests do) while the analysis queue snapshots concurrently.
+    public var onAudioFrame: ((AudioFrame) -> Void)? {
+        get { callbackLock.lock(); defer { callbackLock.unlock() }; return _onAudioFrame }
+        set { callbackLock.lock(); defer { callbackLock.unlock() }; _onAudioFrame = newValue }
+    }
     /// Legacy single-level callback (kept for compatibility; mirrors `level`).
-    var onAudioLevel: ((Float) -> Void)?
+    public var onAudioLevel: ((Float) -> Void)? {
+        get { callbackLock.lock(); defer { callbackLock.unlock() }; return _onAudioLevel }
+        set { callbackLock.lock(); defer { callbackLock.unlock() }; _onAudioLevel = newValue }
+    }
     /// Fired when system-audio capture could not start (permission/availability)
     /// and the processor fell back to the microphone.
-    var onSystemAudioFallback: (() -> Void)?
+    public var onSystemAudioFallback: (() -> Void)? {
+        get { callbackLock.lock(); defer { callbackLock.unlock() }; return _onSystemAudioFallback }
+        set { callbackLock.lock(); defer { callbackLock.unlock() }; _onSystemAudioFallback = newValue }
+    }
+    private let callbackLock = NSLock()
+    private var _onAudioFrame: ((AudioFrame) -> Void)?
+    private var _onAudioLevel: ((Float) -> Void)?
+    private var _onSystemAudioFallback: (() -> Void)?
     var currentDeviceID: AudioDeviceID?
 
     // MARK: - Sample ingestion (producer side)
@@ -171,7 +186,6 @@ class AudioProcessor: NSObject {
 
         guard ringCount >= wanted else { return 0 }
 
-        let skip = ringCount - wanted
         let capacity = ring.count
         let start = ((ringWriteIndex - wanted) % capacity + capacity) % capacity
         if start + wanted <= capacity {
@@ -436,8 +450,24 @@ class AudioProcessor: NSObject {
 
     /// Monotonic token serialising async start sequences. A start that began
     /// earlier must never clobber the state of a newer one (e.g. system-audio
-    /// fallback racing a user source switch mid-startup).
+    /// fallback racing a user source switch mid-startup). All reads/writes go
+    /// through `stateLock` because starters run on main while Task bodies and
+    /// permission callbacks land on background executors.
+    private let stateLock = NSLock()
     private var startGeneration = 0
+
+    /// Synchronous generation accessors (safe to call from async contexts;
+    /// NSLock itself must not be touched lexically inside them).
+    private func bumpGeneration() -> Int {
+        stateLock.lock(); defer { stateLock.unlock() }
+        startGeneration += 1
+        return startGeneration
+    }
+
+    private func generationNow() -> Int {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return startGeneration
+    }
 
     /// Idempotently creates every DSP resource the analysis pass needs.
     ///
@@ -466,40 +496,58 @@ class AudioProcessor: NSObject {
     }
 
     func start(source: AudioSource = .microphone) {
-        startGeneration += 1
-        let generation = startGeneration
+        let generation = bumpGeneration()
 
         switch source {
         case .system:
             Task { [weak self] in
                 guard let self = self else { return }
+                // cleanupCapture() (not stop()) — an internal hand-off must not
+                // invalidate the very generation it is running under, or every
+                // post-await guard below would fail and the microphone
+                // fallback would become unreachable.
                 let ok = await self.startSystemAudio()
-                guard generation == self.startGeneration else { return }
+                guard generation == self.generationNow() else { return }
                 if !ok {
-                    Logger.shared.log("System audio unavailable — falling back to microphone.")
+                    // AppState is the single owner of source switching: its
+                    // fallback handler flips audioSource, whose didSet runs
+                    // the microphone start path. Starting the mic here as well
+                    // would race that path with two concurrent engines.
+                    Logger.shared.log("System audio unavailable — requesting microphone fallback.")
                     self.onSystemAudioFallback?()
-                    guard generation == self.startGeneration else { return }
-                    self.requestPermission { [weak self] granted in
-                        guard let self = self, granted else { return }
-                        guard generation == self.startGeneration else { return }
-                        self.setupAudio()
-                    }
                 }
             }
         case .microphone:
             requestPermission { [weak self] granted in
                 guard let self = self, granted else { return }
-                guard generation == self.startGeneration else { return }
+                guard generation == self.generationNow() else { return }
                 self.setupAudio()
             }
         }
     }
 
     private func startSystemAudio() async -> Bool {
-        stop()
+        cleanupCapture()
         ensureDSPResources()
         systemAudio.onAudio = { [weak self] samples, count, rate in
             self?.ingest(samples: samples, count: count, sampleRate: rate)
+        }
+        // If the loopback stream dies mid-session (display reconfig, sleep),
+        // try one silent restart; if that fails, hand the decision to the
+        // app layer (single owner of source switching) instead of starting
+        // the microphone ourselves — a parallel internal start would race
+        // AppState's audioSource didSet restart path.
+        systemAudio.onStopped = { [weak self] in
+            guard let self = self else { return }
+            let generation = self.generationNow()
+            Task { [weak self] in
+                guard let self = self else { return }
+                let ok = await self.startSystemAudio()
+                guard !ok else { return }
+                guard generation == self.generationNow() else { return }
+                Logger.shared.log("System audio died and restart failed — requesting microphone fallback.")
+                self.onSystemAudioFallback?()
+            }
         }
         do {
             try await systemAudio.start()
@@ -508,6 +556,7 @@ class AudioProcessor: NSObject {
         } catch {
             Logger.shared.log("SystemAudioCapture failed to start: \(error.localizedDescription)")
             systemAudio.onAudio = nil
+            systemAudio.onStopped = nil
             return false
         }
     }
@@ -516,7 +565,14 @@ class AudioProcessor: NSObject {
         // Invalidate any in-flight async start: if startSystemAudio() is
         // suspended at an await when stop() runs, its post-resume guards
         // must fail instead of re-activating engines the user just stopped.
-        startGeneration += 1
+        _ = bumpGeneration()
+        systemAudio.onStopped = nil
+        cleanupCapture()
+    }
+
+    /// Tears down capture engines and zeroes the sample ring. Never touches
+    /// the start generation — only user-driven start/stop transitions do.
+    private func cleanupCapture() {
         if let input = inputNode {
             input.removeTap(onBus: 0)
         }
@@ -531,10 +587,14 @@ class AudioProcessor: NSObject {
         ringWriteIndex = 0
         ringLock.unlock()
 
-        // Reset adaptive DSP state so a fresh session doesn't inherit old filters.
-        bassHistory.removeAll()
-        for i in 0..<peakHold.count { peakHold[i] = 0 }
-        agcPeak = 0.15
+        // Reset adaptive DSP state on the analysis queue itself: resetting
+        // from the caller's thread would race any in-flight analyze() pass.
+        analysisQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.bassHistory.removeAll()
+            for i in self.peakHold.indices { self.peakHold[i] = 0 }
+            self.agcPeak = 0.15
+        }
     }
 
     private func requestPermission(completion: @escaping (Bool) -> Void) {
@@ -551,8 +611,9 @@ class AudioProcessor: NSObject {
     }
 
     private func setupAudio() {
-        // Ensure previous engine is cleaned up
-        stop()
+        // Ensure previous engine is cleaned up (internal hand-off: must not
+        // bump the start generation — see start(source:)).
+        cleanupCapture()
 
         let engine = AVAudioEngine()
         self.engine = engine
