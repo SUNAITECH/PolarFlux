@@ -196,4 +196,135 @@ guard sink4.count > 0 else {
 print("T4 PASS: scheduler survives stop/start churn (frames=\(sink4.count))")
 
 print("PASS: audio pipeline end-to-end")
+
+// ---------------------------------------------------------------------------
+// AuroraFlow visual-quality regression tests. These encode the product
+// requirements for Music mode's flowing-light render:
+//   T5: color at a FIXED LED position must evolve over time (no static
+//       warm/cool ends pinned to the strip).
+//   T6: colors must differ ACROSS the strip at any instant (rainbow spread,
+//       not a uniform wash).
+//   T7: silence fades to a dim ambient drift — never freezes, never goes dark.
+//   T8: beats must visibly lift brightness (light "pulses" with the music).
+// ---------------------------------------------------------------------------
+import Foundation
+
+func frame(_ level: Float, _ bass: Float, _ mid: Float, _ treble: Float,
+           beat: Bool = false, beatIntensity: Float = 0, centroid: Float = 0.5,
+           spectrum: [Float]? = nil) -> AudioFrame {
+    AudioFrame(level: level, bass: bass, mid: mid, treble: treble,
+               spectrum: spectrum ?? [Float](repeating: level, count: 64),
+               sampleRate: 48000,
+               beatIntensity: beatIntensity, isBeat: beat, centroid: centroid)
+}
+
+func avgBrightness(_ colors: [(UInt8, UInt8, UInt8)]) -> Double {
+    guard !colors.isEmpty else { return 0 }
+    var acc = 0.0
+    for c in colors { acc += Double(max(c.0, max(c.1, c.2))) }
+    return acc / Double(colors.count)
+}
+
+func rgbDist(_ a: (UInt8, UInt8, UInt8), _ b: (UInt8, UInt8, UInt8)) -> Double {
+    let dr = Double(a.0) - Double(b.0), dg = Double(a.1) - Double(b.1), db = Double(a.2) - Double(b.2)
+    return (dr*dr + dg*dg + db*db).squareRoot()
+}
+
+let aurora = AuroraFlowEngine()
+let LEDS = 100
+let frameIntervalUs = useconds_t(21_000)
+
+// --- T5: temporal evolution at fixed positions over 3 s of music ---
+aurora.reset()
+var snapshots: [[(UInt8, UInt8, UInt8)]] = []
+var auroraPhase: Double = 0
+for step in 0..<143 {
+    let t = Double(step) * 0.021
+    auroraPhase += 0.9
+    let wobble = 0.5 + 0.5 * sin(t * 2.1)
+    let f = frame(Float(0.5 + 0.2 * wobble), Float(0.6 + 0.3 * wobble), 0.4,
+                  Float(0.2 + 0.2 * wobble),
+                  beat: step % 24 == 0, beatIntensity: 0.8,
+                  centroid: Float(0.35 + 0.2 * wobble))
+    let colors = aurora.render(frame: f, ledCount: LEDS, mirror: true)
+    if step % 12 == 0 { snapshots.append(colors) }
+    usleep(frameIntervalUs)
+}
+guard snapshots.count >= 10 else { print("FAIL: T5 insufficient snapshots"); exit(61) }
+
+// At each of three fixed positions, total color travel must be substantial.
+let probes = [10, 50, 90]
+var allTravel = 0.0
+for p in probes {
+    var travel = 0.0
+    for s in 1..<snapshots.count {
+        travel += rgbDist(snapshots[s-1][p], snapshots[s][p])
+    }
+    allTravel += travel
+    guard travel > 40 else {
+        print("FAIL: T5 LED[\(p)] color travel \(travel) — static hue pinning regressed")
+        exit(62)
+    }
+}
+
+// --- T6: spatial diversity in a single frame ---
+var pairDist = 0.0
+var pairs = 0
+let spatial = snapshots[snapshots.count / 2]
+for i in stride(from: 0, to: LEDS - 10, by: 10) {
+    pairDist += rgbDist(spatial[i], spatial[i + 10])
+    pairs += 1
+}
+let meanPair = pairDist / Double(max(pairs, 1))
+guard meanPair > 20 else {
+    print("FAIL: T6 spatial diversity \(meanPair) — strip renders as uniform wash")
+    exit(63)
+}
+
+// --- T7: silence → dim ambient drift, still alive ---
+aurora.reset()
+for _ in 0..<80 { _ = aurora.render(frame: frame(0.02, 0.01, 0.01, 0.01), ledCount: LEDS, mirror: true); usleep(frameIntervalUs) }
+let idleColors1 = aurora.render(frame: frame(0.0, 0.0, 0.0, 0.0), ledCount: LEDS, mirror: true)
+let idleBright = avgBrightness(idleColors1)
+guard idleBright < 60, idleBright > 3 else {
+    print("FAIL: T7 idle brightness \(idleBright) — expected dim ambient (3..60)")
+    exit(64)
+}
+for _ in 0..<96 { _ = aurora.render(frame: frame(0.0, 0.0, 0.0, 0.0), ledCount: LEDS, mirror: true); usleep(frameIntervalUs) }
+let idleColors2 = aurora.render(frame: frame(0.0, 0.0, 0.0, 0.0), ledCount: LEDS, mirror: true)
+var idleTravel = 0.0
+for i in 0..<LEDS { idleTravel += rgbDist(idleColors1[i], idleColors2[i]) }
+idleTravel /= Double(LEDS)
+guard idleTravel > 0.5 else {
+    print("FAIL: T7 idle field frozen (travel \(idleTravel)) — ambient drift must persist")
+    exit(65)
+}
+
+// --- T8: beat lift ---
+// The beat flash is designed to swell through the fluid engine over ~100 ms
+// (not a single-frame strobe), so we measure peak brightness across the
+// envelope's decay window — matching what a viewer actually perceives.
+aurora.reset()
+for _ in 0..<60 { _ = aurora.render(frame: frame(0.3, 0.3, 0.2, 0.2), ledCount: LEDS, mirror: true); usleep(frameIntervalUs) }
+let preBeat = aurora.render(frame: frame(0.3, 0.3, 0.2, 0.2), ledCount: LEDS, mirror: true)
+let baseline = avgBrightness(preBeat)
+var peak = baseline
+_ = aurora.render(frame: frame(0.8, 0.9, 0.3, 0.3, beat: true, beatIntensity: 1.0), ledCount: LEDS, mirror: true)
+for _ in 0..<6 {
+    let during = aurora.render(frame: frame(0.35, 0.35, 0.25, 0.25), ledCount: LEDS, mirror: true)
+    peak = max(peak, avgBrightness(during))
+    usleep(frameIntervalUs)
+}
+let lift = peak - baseline
+guard lift > 20 else {
+    print("FAIL: T8 beat lift \(lift) — beats must visibly push the light")
+    exit(66)
+}
+
+print("T5 PASS: fixed-position color travel avg \(String(format: "%.0f", allTravel / 3))")
+print("T6 PASS: spatial diversity \(String(format: "%.1f", meanPair))")
+print("T7 PASS: idle = dim ambient drift (brightness \(String(format: "%.1f", idleBright)), drift \(String(format: "%.1f", idleTravel))")
+print("T8 PASS: beat lift \(String(format: "%.1f", lift))")
+
+print("PASS: all audio + aurora tests")
 exit(0)

@@ -152,6 +152,17 @@ The audio pipeline layers several adaptive algorithms on top of the FFT:
 - **Falling Peak-Hold**: Spectrum bars rise instantly and decay at a fixed rate (~1.1/s), producing the polished look of a hardware spectrum analyser.
 - **Layout-Aware Mirroring**: On perimeter layouts the spectrum is mirrored so bass energy concentrates at the top-center of the screen, matching typical ambient TV setups.
 
+### 4. AuroraFlow — Generative Flowing-Light Renderer (`AuroraFlowEngine.swift`)
+Music mode renders a *generative colour field*, not a frequency meter. Hue is a function of position **and** time:
+
+$$hue(u,t) = \underbrace{drift(t)}_{\text{palette rotation}} + \underbrace{u \cdot span(t)}_{\text{centroid-driven span}} + \sum_{band} \underbrace{A_{band}(t) \sin(k_{band} u \pm \omega_{band} t)}_{\text{counter-propagating waves}}$$
+
+- **Counter-Propagating Phase Waves**: a broad bass swell, a mid-band counter-flow, and a fine treble ripple superpose into an organic, never-repeating field — colors travel along the strip instead of being pinned to it.
+- **Beat-Kicked Flow Kinematics**: $\dot{\varphi} = v_{base} + k_1 \cdot loudness + k_2 \cdot beatEnv + k_3 \cdot centroid$ — drum hits visibly *push* the light; brighter material flows faster.
+- **Layered Luminance**: ambient floor + band glow + wave-aligned bass pulse + treble shimmer + beat white-flash + mirrored spectrum underglow, soft-knee clipped so stacked layers never hard-clip to flat white.
+- **Fluid Output Stage**: the rendered field passes through the neighbour-coupled `FluidPhysicsEngine`, so transitions propagate along the strip like fluid.
+- **Silence Behaviour**: after ~2.5 s of quiet the engine fades to a slow, dim ambient drift — a screensaver, not a blackout.
+
 ---
 
 ## Hardware & Connectivity

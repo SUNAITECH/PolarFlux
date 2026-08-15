@@ -741,11 +741,12 @@ class AppState: ObservableObject {
     }
     
     // MARK: - Music Mode
+    private let auroraEngine = AuroraFlowEngine()
+
     private func startMusic() {
         guard isRunning && currentMode == .music else { return }
         self.startKeepAlive()
-        beatPulse = 0
-        lastAudioFrameTime = 0
+        auroraEngine.reset()
         audioProcessor.start(source: audioSource)
     }
 
@@ -756,75 +757,40 @@ class AppState: ObservableObject {
         }
     }
 
-    // Music DSP render state (audio analysis queue)
-    private var beatPulse: Double = 0
-    private var lastAudioFrameTime: TimeInterval = 0
     private var lastSpectrumPublishTime: TimeInterval = 0
 
     private func processAudioFrame(frame: AudioFrame) {
         guard isRunning, currentMode == .music else { return }
 
         let totalLeds = Int(ledCount) ?? 100
-        var data = [UInt8]()
-        data.reserveCapacity(totalLeds * 3)
 
-        let spectrum = frame.spectrum
-        let spectrumCount = max(spectrum.count, 1)
-
-        // --- Beat envelope: fast attack on onset, musical exponential decay ---
-        let now = CACurrentMediaTime()
-        let dt = (lastAudioFrameTime > 0) ? min(max(now - lastAudioFrameTime, 0.001), 0.2) : 0.021
-        lastAudioFrameTime = now
-        if frame.isBeat {
-            beatPulse = max(beatPulse, 0.55 + 0.45 * Double(frame.beatIntensity))
-        } else {
-            beatPulse *= exp(-dt / 0.22)
-            if beatPulse < 0.001 { beatPulse = 0 }
-        }
-
-        // --- Layout-aware mirroring ---
-        // On perimeter layouts (top edge present) mirror the spectrum so bass
-        // sits at the top-center of the screen and treble falls toward the
-        // corners — matching how ambient setups are usually wired.
+        // Generative flowing-light render (AuroraFlow): hue is a function of
+        // position AND time — counter-propagating waves, beat-kicked flow and
+        // palette rotation — never a static frequency→position mapping.
         let top = Int(topZone) ?? 0
         let left = Int(leftZone) ?? 0
         let right = Int(rightZone) ?? 0
         let mirror = top > 0 && left + right > 0
 
-        // Spectral centroid biases the palette: bass-heavy content runs warm,
-        // bright content runs cool.
-        let hueBias = (Double(frame.centroid) - 0.5) * 0.24
+        let colors = auroraEngine.render(frame: frame, ledCount: totalLeds, mirror: mirror)
 
-        let beatLift = 0.85 + 0.35 * beatPulse
-        let desat = min(1.0, 0.35 * beatPulse) // beat flash leans toward white core
-
-        for i in 0..<totalLeds {
-            let p = Double(i) / Double(max(totalLeds - 1, 1))
-            // 0 = bass ... 1 = treble along the visible strip
-            let t = mirror ? abs(2.0 * p - 1.0) : p
-            // Slight curve gives the bass region more spatial resolution.
-            let curved = pow(t, 0.85)
-            let specIdx = min(Int(curved * Double(spectrumCount)), spectrumCount - 1)
-            var intensity = min(max(Double(spectrum[specIdx]), 0.0), 1.0)
-            intensity = min(1.0, intensity * beatLift)
-
-            let hue = min(max(hueBias + t * 0.66, 0.0), 1.0)
-            let rgb = hsvToRgb(h: hue, s: 1.0 - desat * 0.5, v: intensity)
-            data.append(rgb.r)
-            data.append(rgb.g)
-            data.append(rgb.b)
+        var data = [UInt8]()
+        data.reserveCapacity(colors.count * 3)
+        for c in colors {
+            data.append(c.0)
+            data.append(c.1)
+            data.append(c.2)
         }
-
         sendData(data)
 
         // Throttled UI publish for the control-panel visualizer (~20 Hz).
+        let now = CACurrentMediaTime()
         if now - lastSpectrumPublishTime > 0.05 {
             lastSpectrumPublishTime = now
             let bars = downsample(frame.spectrum, to: 18)
-            let beatSnapshot = beatPulse
             DispatchQueue.main.async { [weak self] in
                 self?.musicSpectrum = bars
-                self?.musicBeat = beatSnapshot
+                self?.musicBeat = Double(frame.isBeat ? frame.beatIntensity : 0)
             }
         }
     }
@@ -845,22 +811,6 @@ class AppState: ObservableObject {
         return out
     }
 
-    private func hsvToRgb(h: Double, s: Double, v: Double) -> (r: UInt8, g: UInt8, b: UInt8) {
-        let c = v * s
-        let x = c * (1 - abs((h * 6).truncatingRemainder(dividingBy: 2) - 1))
-        let m = v - c
-        var (r1, g1, b1) = (0.0, 0.0, 0.0)
-        switch h * 6 {
-        case 0..<1: (r1, g1, b1) = (c, x, 0)
-        case 1..<2: (r1, g1, b1) = (x, c, 0)
-        case 2..<3: (r1, g1, b1) = (0, c, x)
-        case 3..<4: (r1, g1, b1) = (0, x, c)
-        case 4..<5: (r1, g1, b1) = (x, 0, c)
-        default:    (r1, g1, b1) = (c, 0, x)
-        }
-        return (clampU8((r1 + m) * 255), clampU8((g1 + m) * 255), clampU8((b1 + m) * 255))
-    }
-    
     // MARK: - Effect Mode
     private func startEffect() {
         guard isRunning && currentMode == .effect else { return }

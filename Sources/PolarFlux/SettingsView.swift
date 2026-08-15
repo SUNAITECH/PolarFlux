@@ -113,25 +113,33 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    if appState.audioSource == .system {
-                        Label(String(localized: "AUDIO_SOURCE_DESC"), systemImage: "speaker.wave.2")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Picker(String(localized: "MICROPHONE"), selection: $appState.selectedMicrophoneUID) {
-                                ForEach(appState.availableMicrophones, id: \.uid) { mic in
-                                    Text(mic.name).tag(mic.uid)
-                                }
-                            }
-                            .pickerStyle(.menu)
+                    Label(String(localized: "AUDIO_SOURCE_DESC"), systemImage: "speaker.wave.2")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
 
-                            Button(action: { appState.refreshMicrophones() }) {
-                                Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
+                    Divider()
+
+                    // The microphone row is always present (disabled while the
+                    // system-audio source is active). Keeping it mounted keeps
+                    // the GroupBox height constant so switching sources can
+                    // never shift the surrounding layout.
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker(String(localized: "MICROPHONE"), selection: $appState.selectedMicrophoneUID) {
+                            ForEach(appState.availableMicrophones, id: \.uid) { mic in
+                                Text(mic.name).tag(mic.uid)
                             }
-                            .buttonStyle(.bordered)
                         }
+                        .pickerStyle(.menu)
+                        .disabled(appState.audioSource == .system)
+
+                        Button(action: { appState.refreshMicrophones() }) {
+                            Label(String(localized: "REFRESH_PORTS"), systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(appState.audioSource == .system)
                     }
+                    .opacity(appState.audioSource == .system ? 0.45 : 1.0)
+                    .animation(.easeInOut(duration: 0.15), value: appState.audioSource)
                 }
                 .padding(10)
             }

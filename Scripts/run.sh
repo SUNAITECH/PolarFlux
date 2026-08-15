@@ -399,6 +399,8 @@ test_audio() {
     xcrun -sdk macosx swiftc -O \
         Sources/PolarFlux/AudioProcessor.swift \
         Sources/PolarFlux/SystemAudioCapture.swift \
+        Sources/PolarFlux/AuroraFlowEngine.swift \
+        Sources/PolarFlux/FluidPhysicsEngine.swift \
         Sources/PolarFlux/Logger.swift \
         "$BUILD_DIR/audiotest/main.swift" \
         -o "$TEST_BIN" || error "Audio pipeline test failed to compile."
