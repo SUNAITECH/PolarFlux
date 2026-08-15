@@ -74,6 +74,11 @@ let group = DispatchGroup()
 let runDuration: TimeInterval = 3.0
 
 // T1: high-rate frame sender (the ScreenCapture / Effect / Music producers).
+// Paced to ~10k sends/s — far beyond real usage (producers top out at 30–120
+// fps) but WITHOUT the pacing this thread starves the health-check and
+// reconnect workers on small CI VMs (3 cores), failing their progress
+// thresholds spuriously. The deadlock we guard against is caught by the
+// watchdog; lost completions by sent == completed.
 group.enter()
 DispatchQueue.global(qos: .userInitiated).async {
     let payload = [UInt8](repeating: 0xA5, count: 306) // 102 LEDs, Skydimo frame
@@ -85,6 +90,7 @@ DispatchQueue.global(qos: .userInitiated).async {
             appSendLock.unlock()
         }
         sent.add()
+        usleep(100)
     }
     group.leave()
 }
@@ -122,9 +128,25 @@ DispatchQueue.global(qos: .userInitiated).async {
 // never pumps the main queue.)
 group.wait()
 
+// Deterministic drain: the final send may still be in flight on the serial
+// queue when the workers exit. Give completions a bounded window to land
+// before the equality check (a hang here is still caught by the watchdog).
+var drainWaits = 0
+while completed.value < sent.value && drainWaits < 100 {
+    usleep(10_000)
+    drainWaits += 1
+}
+
 print("progress: sent=\(sent.value) completed=\(completed.value) checks=\(checks.value) reconnects=\(reconnects.value)")
-guard sent.value > 500, checks.value > 500, reconnects.value > 100 else {
-    print("FAIL: insufficient progress — pipeline stalled")
+// Thresholds are deliberately conservative: their only job is proving the
+// workers were scheduled at all. Deadlocks trip the watchdog; lost
+// completions break sent == completed; post-churn liveness is verified
+// separately below. Absolute counts vary with machine speed — do NOT
+// tighten these to local-machine numbers (a 10-core dev box gets ~1000
+// checks where a 3-core CI VM may only reach ~200).
+guard sent.value > 1000, completed.value == sent.value,
+      checks.value > 50, reconnects.value > 20 else {
+    print("FAIL: insufficient progress — pipeline stalled or lost completions")
     exit(44)
 }
 
